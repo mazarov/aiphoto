@@ -47,6 +47,23 @@ export function filterPhotoshootListingCardsBySeoTag<
   });
 }
 
+/** Tag lookup reads past the hero tail. Cap keeps one indexed query small. */
+export const PHOTOSHOOT_TAG_QUERY_CAP = 40;
+
+export function photoshootTagOversampleLimit(limit: number): number {
+  if (!Number.isFinite(limit) || limit <= 0) return 0;
+  return Math.min(Math.floor(limit) * 3, PHOTOSHOOT_TAG_QUERY_CAP);
+}
+
+/** Albums from a tag query. Order is the query order. Single frames drop. */
+export function takePublishedPhotoshootAlbums<T extends PhotoshootListingCardInput>(
+  candidates: readonly T[],
+  limit: number
+): T[] {
+  if (!Number.isFinite(limit) || limit <= 0) return [];
+  return filterPhotoshootListingCards(candidates).slice(0, Math.floor(limit));
+}
+
 function toRouteCard(row: {
   id: string;
   slug: string;
@@ -151,24 +168,109 @@ export async function fetchPublishedPhotoshootListingCards(
   if (!candidateCards.length) return [];
 
   const jobIds = new Set(jobCards.map((card) => card.id));
+  const loaded = await loadOrderedPhotoshootCards(candidateCards);
+  return loaded
+    .filter((card) => jobIds.has(card.id) || isPhotoshootListingCard(card))
+    .slice(0, limit);
+}
+
+const PHOTOSHOOT_TAG_CARD_EMBED =
+  "prompt_cards!landing_generations_ugc_card_id_fkey!inner";
+
+/**
+ * Published photoshoot jobs whose card carries the scenario tag — the same
+ * predicate the hub collage uses, so the admin counter never disagrees with
+ * what `/ii-fotosessiya` can render.
+ */
+export async function countPublishedPhotoshootAlbumsBySeoTag(
+  dimension: string,
+  tagValue: string
+): Promise<number> {
+  const trimmedDimension = dimension.trim();
+  const trimmedTag = tagValue.trim();
+  if (!trimmedDimension || !trimmedTag) return 0;
+  const supabase = createSupabaseServer();
+  const { count, error } = await supabase
+    .from("landing_generations")
+    .select(`ugc_card_id,card:${PHOTOSHOOT_TAG_CARD_EMBED}(id)`, {
+      count: "exact",
+      head: true,
+    })
+    .eq("edit_kind", "photoshoot")
+    .eq("status", "completed")
+    .not("ugc_card_id", "is", null)
+    .eq("card.is_published", true)
+    .contains("card.seo_tags", { [trimmedDimension]: [trimmedTag] });
+  if (error) {
+    throw new Error(`photoshoot_listing_tag_count:${error.message}`);
+  }
+  return count ?? 0;
+}
+
+/**
+ * Scenario albums by SEO tag. Source is completed photoshoot jobs joined to
+ * their published UGC card: `prompt_cards` alone has thousands of single-frame
+ * web UGC cards with the same tag, so a tag query there rarely reaches an album.
+ */
+export async function fetchPublishedPhotoshootCardsBySeoTag(
+  dimension: string,
+  tagValue: string,
+  limit: number
+): Promise<PromptCardFull[]> {
+  const trimmedDimension = dimension.trim();
+  const trimmedTag = tagValue.trim();
+  const queryLimit = photoshootTagOversampleLimit(limit);
+  if (!trimmedDimension || !trimmedTag || queryLimit <= 0) return [];
+
+  const supabase = createSupabaseServer();
+  const { data, error } = await supabase
+    .from("landing_generations")
+    .select(
+      `ugc_card_id,card:${PHOTOSHOOT_TAG_CARD_EMBED}(id,slug,title_ru,title_en,seo_tags)`
+    )
+    .eq("edit_kind", "photoshoot")
+    .eq("status", "completed")
+    .not("ugc_card_id", "is", null)
+    .eq("card.is_published", true)
+    .contains("card.seo_tags", { [trimmedDimension]: [trimmedTag] })
+    .order("generation_completed_at", { ascending: false })
+    .limit(queryLimit);
+  if (error) {
+    throw new Error(`photoshoot_listing_tag:${error.message}`);
+  }
+
+  const candidates: RouteCard[] = [];
+  const seen = new Set<string>();
+  for (const row of (data || []) as { card: unknown }[]) {
+    const card = (Array.isArray(row.card) ? row.card[0] : row.card) as
+      | RouteCard
+      | null
+      | undefined;
+    if (!card?.id || seen.has(card.id)) continue;
+    seen.add(card.id);
+    candidates.push(toRouteCard(card));
+  }
+  const loaded = await loadOrderedPhotoshootCards(candidates);
+  return takePublishedPhotoshootAlbums(loaded, limit);
+}
+
+async function loadOrderedPhotoshootCards(
+  candidates: RouteCard[]
+): Promise<PromptCardFull[]> {
+  if (!candidates.length) return [];
   let enriched: PromptCardFull[] = [];
   try {
-    enriched = await enrichCardsWithDetails(candidateCards);
+    enriched = await enrichCardsWithDetails(candidates);
   } catch (error) {
     console.error("[photoshoot-listing] enrich failed", error);
   }
   if (!enriched.some((card) => card.photoUrls.length > 0)) {
-    enriched = await hydratePhotoshootMedia(candidateCards, enriched);
+    enriched = await hydratePhotoshootMedia(candidates, enriched);
   }
-
   const byId = new Map(enriched.map((card) => [card.id, card]));
-  return candidateCards
+  return candidates
     .map((card) => byId.get(card.id))
-    .filter((card): card is PromptCardFull => {
-      if (!card || !card.photoUrls.length) return false;
-      return jobIds.has(card.id) || isPhotoshootListingCard(card);
-    })
-    .slice(0, limit);
+    .filter((card): card is PromptCardFull => Boolean(card && card.photoUrls.length));
 }
 
 async function hydratePhotoshootMedia(

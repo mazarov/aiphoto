@@ -112,7 +112,11 @@ export function PromtyDlyaIiFotosessiiHowTo({
           {howTo.howToTitle}
         </h2>
         <p className={GF_LEAD}>{howTo.howToLead}</p>
-        <ol className={`${GF_STACK} grid gap-5 sm:grid-cols-2`}>
+        <ol
+          className={`${GF_STACK} grid gap-5 ${
+            howTo.howToSteps.length >= 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"
+          }`}
+        >
           {howTo.howToSteps.map((step) => (
             <li key={step.n}>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">

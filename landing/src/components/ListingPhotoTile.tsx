@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { ListingCardVideo } from "@/components/ListingCardVideo";
 import { PhotoshootListingBadge } from "@/components/PhotoshootListingBadge";
 import { PhotoshootListingGrid } from "@/components/PhotoshootListingGrid";
@@ -46,6 +46,7 @@ export function ListingPhotoTile({
   imageAlt: imageAltOverride,
 }: Props) {
   const { open, prefetchCard } = usePromptCardModal();
+  const [photoshootGridFailed, setPhotoshootGridFailed] = useState(false);
   const photoshootUrls =
     card.isPhotoshoot && card.photoUrls.length === 4 ? card.photoUrls : null;
   const frame = decorative ? undefined : card.seoFrame;
@@ -94,13 +95,14 @@ export function ListingPhotoTile({
       style={{ aspectRatio }}
       aria-hidden={decorative || undefined}
     >
-      {photoshootUrls ? (
+      {photoshootUrls && !photoshootGridFailed ? (
         <PhotoshootListingGrid
           urls={photoshootUrls}
           alt={imageAlt}
           alts={frame?.alts}
           frames={photoshootSeoFrames}
           priority={priority}
+          onError={() => setPhotoshootGridFailed(true)}
           onPrefetch={decorative ? undefined : () => prefetchCard(card.slug)}
           onSelect={
             decorative
@@ -115,6 +117,11 @@ export function ListingPhotoTile({
                 }
           }
           sizes={sizes}
+        />
+      ) : photoshootGridFailed ? (
+        <div
+          className="absolute inset-0 bg-gradient-to-br from-indigo-100 to-violet-100"
+          aria-hidden
         />
       ) : showVideo ? (
         <ListingCardVideo src={card.videoUrl!} poster={card.photoUrl} />
@@ -165,7 +172,9 @@ export function ListingPhotoTile({
       ) : (
         <Link
           href={`/p/${card.slug}`}
-          className={`absolute inset-0 z-10${photoshootUrls ? " pointer-events-none" : ""}`}
+          className={`absolute inset-0 z-10${
+            photoshootUrls && !photoshootGridFailed ? " pointer-events-none" : ""
+          }`}
           aria-label={linkLabel}
           prefetch
           onPointerEnter={() => prefetchCard(card.slug)}

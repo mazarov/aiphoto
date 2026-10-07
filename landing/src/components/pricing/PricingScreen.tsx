@@ -15,6 +15,8 @@ type Props = {
   returnPath?: string;
   /** Optional lead under embed H2 «Тарифы». Hub-only; `/generaciya-foto` stays without it. */
   lead?: string;
+  /** Embed H2 text. Default «Тарифы»; `/ii-fotosessiya` owns «Сколько стоит ИИ фотосессия». */
+  title?: string;
 };
 
 function LegalFooter({
@@ -73,12 +75,14 @@ function CompactPricingScreen({
   headingId,
   returnPath,
   lead,
+  title = "Тарифы",
 }: {
   mode: "page" | "modal" | "embed";
   paywallVariant: PricingPaywallVariant;
   headingId: string;
   returnPath?: string;
   lead?: string;
+  title?: string;
 }) {
   const HeadingTag = mode === "embed" ? "h2" : "h1";
   const isEmbed = mode === "embed";
@@ -137,7 +141,7 @@ function CompactPricingScreen({
               id={headingId}
               className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl"
             >
-              Тарифы
+              {title}
             </HeadingTag>
             {lead ? (
               <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600 sm:text-base">
@@ -183,6 +187,7 @@ export function PricingScreen({
   paywallVariant: providedPaywallVariant,
   returnPath,
   lead,
+  title,
 }: Props) {
   const assignedPaywallVariant = usePricingPaywallVariant();
   const paywallVariant =
@@ -209,6 +214,7 @@ export function PricingScreen({
       headingId={variant === "embed" ? "tarify-heading" : "pricing-heading"}
       returnPath={returnPath}
       lead={lead}
+      title={title}
     />
   );
 }

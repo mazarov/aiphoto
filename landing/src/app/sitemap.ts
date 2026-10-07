@@ -26,8 +26,7 @@ import { listingCatalogHubChildRedirectPath } from "@/lib/listing-catalog-hub";
 import { STICKER_PATH } from "@/lib/sticker";
 import { readStickerGenerationEnabled } from "@/lib/sticker-config";
 import { HERO_GAP_HUB_SPECS } from "@/lib/hero-gap-hubs";
-import { getFotosessiiHubCards } from "@/lib/promty-dlya-ii-fotosessii-page-data";
-import { filterPhotoshootListingCardsBySeoTag } from "@/lib/photoshoot-listing";
+import { fetchPublishedPhotoshootCardsBySeoTag } from "@/lib/photoshoot-listing";
 import {
   SOBYTIYA_1_SENTYABRYA_PATH,
   SOBYTIYA_1_SENTYABRYA_SEARCH_QUERY,
@@ -181,22 +180,34 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         changeFrequency: "weekly" as const,
         priority: 0.85,
       }));
-    const photoshootCards = await getFotosessiiHubCards();
-    const fotosessiiChildUrls: MetadataRoute.Sitemap =
-      fotosessiiClusterSitemapPages()
-        .filter(
-          (page) =>
-            filterPhotoshootListingCardsBySeoTag(
-              photoshootCards,
+    const fotosessiiChildUrls: MetadataRoute.Sitemap = (
+      await Promise.all(
+        fotosessiiClusterSitemapPages().map(async (page) => {
+          let cards: Awaited<
+            ReturnType<typeof fetchPublishedPhotoshootCardsBySeoTag>
+          > = [];
+          try {
+            cards = await fetchPublishedPhotoshootCardsBySeoTag(
               page.dimension,
-              page.tagValue
-            ).length >= MIN_PROMTY_DLYA_II_FOTOSESSII_CARDS
-        )
-        .map((page) => ({
-          url: `${BASE_URL}${page.path}`,
-          changeFrequency: "weekly" as const,
-          priority: 0.85,
-        }));
+              page.tagValue,
+              MIN_PROMTY_DLYA_II_FOTOSESSII_CARDS
+            );
+          } catch (error) {
+            console.error(
+              "[sitemap] photoshoot tag fetch failed",
+              page.path,
+              error
+            );
+          }
+          if (cards.length < MIN_PROMTY_DLYA_II_FOTOSESSII_CARDS) return null;
+          return {
+            url: `${BASE_URL}${page.path}`,
+            changeFrequency: "weekly" as const,
+            priority: 0.85,
+          };
+        })
+      )
+    ).filter((page): page is NonNullable<typeof page> => page !== null);
     const minL1 = getMinCardsForLevel(1);
     const indexableL1Tags = TAG_REGISTRY.filter((tag) => {
       if (

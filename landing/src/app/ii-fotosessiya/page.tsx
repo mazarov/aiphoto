@@ -13,7 +13,7 @@ import {
   PromtyDlyaIiFotosessiiFaq,
   PromtyDlyaIiFotosessiiHowTo,
 } from "@/components/fotosessii/PromtyDlyaIiFotosessiiLandingSections";
-import { FotosessiiPromptsSection } from "@/components/fotosessii/FotosessiiPromptsSection";
+import { FotosessiiWhatIsSection } from "@/components/fotosessii/FotosessiiWhatIsSection";
 import type { PromptCardFull } from "@/lib/supabase";
 import {
   PROMTY_DLYA_II_FOTOSESSII_HUB_PATH,
@@ -24,8 +24,11 @@ import {
   PROMTY_DLYA_II_FOTOSESSII_HOW_TO_STEPS,
   PROMTY_DLYA_II_FOTOSESSII_SEO,
   PROMTY_DLYA_II_FOTOSESSII_THEME_ITEMS,
+  PROMTY_DLYA_II_FOTOSESSII_WHAT_IS,
   flattenFotosessiiFaqAnswer,
+  getPromtyDlyaIiFotosessiiPricingCopy,
 } from "@/lib/promty-dlya-ii-fotosessii-seo-copy";
+import { filterFotosessiiCollageItems } from "@/lib/promty-dlya-ii-fotosessii-collage";
 import {
   getFotosessiiHubCards,
   getFotosessiiThemeCollagePhotos,
@@ -171,6 +174,11 @@ export default async function PromtyDlyaIiFotosessiiPage() {
   const galleryCards = photoshootCards
     .map(toGenerationExampleCard)
     .slice(0, 16);
+  const collageItems = filterFotosessiiCollageItems(
+    PROMTY_DLYA_II_FOTOSESSII_THEME_ITEMS,
+    themeCollage.photosByHref
+  );
+  const pricing = getPromtyDlyaIiFotosessiiPricingCopy();
 
   return (
     <PageLayout showFooterWithGenerateDock>
@@ -231,22 +239,18 @@ export default async function PromtyDlyaIiFotosessiiPage() {
         </section>
 
         <div className="mx-auto flex w-full flex-col gap-10 px-2 pt-10 sm:gap-12 sm:px-5 sm:pt-12 lg:gap-16 lg:pt-16 xl:px-6">
-          <GeneraciyaFotoThemes
-            photosByHref={themeCollage.photosByHref}
-            countByHref={themeCollage.countByHref}
-            title={PROMTY_DLYA_II_FOTOSESSII_SEO.themesTitle}
-            lead={PROMTY_DLYA_II_FOTOSESSII_SEO.themesLead}
-            items={PROMTY_DLYA_II_FOTOSESSII_THEME_ITEMS}
-            countKind="prompts"
-          />
-
-          <FotosessiiPromptsSection
-            cards={photoshootCards}
-            title={PROMTY_DLYA_II_FOTOSESSII_SEO.promptsTitle}
-            lead={PROMTY_DLYA_II_FOTOSESSII_SEO.promptsLead}
-          />
-
           <PromtyDlyaIiFotosessiiHowTo />
+
+          {collageItems.length ? (
+            <GeneraciyaFotoThemes
+              photosByHref={themeCollage.photosByHref}
+              countByHref={themeCollage.countByHref}
+              title={PROMTY_DLYA_II_FOTOSESSII_SEO.themesTitle}
+              lead={PROMTY_DLYA_II_FOTOSESSII_SEO.themesLead}
+              items={collageItems}
+              countKind="prompts"
+            />
+          ) : null}
 
           <section
             id="primery"
@@ -271,7 +275,17 @@ export default async function PromtyDlyaIiFotosessiiPage() {
             )}
           </section>
 
-          <GeneraciyaFotoPricing returnPath={PROMTY_DLYA_II_FOTOSESSII_HUB_PATH} />
+          <FotosessiiWhatIsSection
+            title={PROMTY_DLYA_II_FOTOSESSII_SEO.whatIsTitle}
+            paragraphs={PROMTY_DLYA_II_FOTOSESSII_WHAT_IS}
+          />
+
+          <GeneraciyaFotoPricing
+            returnPath={PROMTY_DLYA_II_FOTOSESSII_HUB_PATH}
+            title={pricing.title}
+            lead={pricing.lead}
+          />
+
           <PromtyDlyaIiFotosessiiFaq />
         </div>
       </main>

@@ -8,6 +8,7 @@ const ITEMS = [
   { href: "/admin/search", label: "Поиск" },
   { href: "/admin/nps", label: "Оценки" },
   { href: "/admin/analyze-history", label: "История" },
+  { href: "/admin/fotosessii", label: "Фотосессии" },
   { href: "/admin/payments", label: "Оплаты" },
   { href: "/admin/finance", label: "Финансы" },
   { href: "/admin/seo", label: "SEO" },

@@ -30,6 +30,7 @@ import {
   findPromtyDlyaIiFotosessiiChildCopy,
   type FotosessiiChildCopy,
 } from "@/lib/promty-dlya-ii-fotosessii-seo-copy";
+import { filterFotosessiiCollageItems } from "@/lib/promty-dlya-ii-fotosessii-collage";
 import {
   getFotosessiiChildCards,
   getFotosessiiThemeCollagePhotos,
@@ -217,6 +218,10 @@ export default async function PromtyDlyaIiFotosessiiChildPage({
     cards.map(toGenerationExampleCard).filter((card) => card.photoUrl)
   );
   const schemas = buildJsonLd(copy, ogImage, cards.slice(0, 16));
+  const collageItems = filterFotosessiiCollageItems(
+    PROMTY_DLYA_II_FOTOSESSII_THEME_ITEMS,
+    themeCollage.photosByHref
+  ).filter((item) => item.href !== getPromtyDlyaIiFotosessiiChildPath(copy.slug));
 
   return (
     <PageLayout showFooterWithGenerateDock>
@@ -273,14 +278,16 @@ export default async function PromtyDlyaIiFotosessiiChildPage({
         </section>
 
         <div className="mx-auto flex w-full flex-col gap-10 px-2 pt-10 sm:gap-12 sm:px-5 sm:pt-12 lg:gap-16 lg:pt-16 xl:px-6">
-          <GeneraciyaFotoThemes
-            photosByHref={themeCollage.photosByHref}
-            countByHref={themeCollage.countByHref}
-            title={copy.themesTitle}
-            lead={copy.themesLead}
-            items={PROMTY_DLYA_II_FOTOSESSII_THEME_ITEMS}
-            countKind="prompts"
-          />
+          {collageItems.length ? (
+            <GeneraciyaFotoThemes
+              photosByHref={themeCollage.photosByHref}
+              countByHref={themeCollage.countByHref}
+              title={copy.themesTitle}
+              lead={copy.themesLead}
+              items={collageItems}
+              countKind="prompts"
+            />
+          ) : null}
 
           <FotosessiiPromptsSection
             cards={cards}

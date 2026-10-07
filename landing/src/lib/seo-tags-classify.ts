@@ -165,6 +165,36 @@ export function unionKnownRegistryTags(
   };
 }
 
+export type PinnedSeoTag = { dimension: Dimension; slug: string };
+
+/**
+ * Admin-chosen tags that must survive every classifier pass (publish, repeat
+ * publish, photoshoot hydration). Pins win over the exclusive-audience collapse:
+ * a pinned `devushka` on a card the model tagged `para` keeps both. Only
+ * registry slugs are accepted so a typo cannot create a phantom hub.
+ */
+export function pinSeoTags(
+  seoTags: unknown,
+  pins: readonly PinnedSeoTag[],
+): { seo_tags: SeoTags; seo_readiness_score: number; changed: boolean } {
+  const base = asSeoTags(seoTags);
+  let changed = false;
+  for (const pin of pins) {
+    if (!DIMENSIONS.includes(pin.dimension)) continue;
+    const slug = normalizeTagSlug(String(pin.slug || "").trim());
+    if (!slug || !VALID_SLUGS_BY_DIM.get(pin.dimension)?.has(slug)) continue;
+    if (base[pin.dimension].includes(slug)) continue;
+    base[pin.dimension].push(slug);
+    changed = true;
+  }
+  if (changed) fillLabels(base);
+  return {
+    seo_tags: base,
+    seo_readiness_score: computeSeoReadinessScore(base),
+    changed,
+  };
+}
+
 /** Listing paths whose ISR cache should drop when this card is published. */
 export function catalogPathsForSeoTags(seoTags: unknown): string[] {
   const tags = asSeoTags(seoTags);

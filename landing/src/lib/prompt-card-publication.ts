@@ -8,11 +8,17 @@ import {
   hydratePhotoshootCardPrompts,
   photoshootCardNeedsPromptHydration,
 } from "@/lib/photoshoot-publish";
+import {
+  EXCLUSIVE_AUDIENCE_SLUGS,
+  type ExclusiveAudienceSlug,
+} from "@/lib/audience-exclusive";
 import { scheduleCardSubjectAudience } from "@/lib/card-subject-audience";
 import {
   catalogPathsForSeoTags,
   classifySeoTagsForPublish,
+  pinSeoTags,
   unionKnownRegistryTags,
+  type PinnedSeoTag,
 } from "@/lib/seo-tags-classify";
 import { processPublishedCardEmbedding } from "@/lib/visual-embedding-publish";
 
@@ -26,10 +32,75 @@ export type PromptCardPublicationResult = {
   firstPublishedAt: string | null;
 };
 
+export type PublishPromptCardOptions = {
+  /**
+   * Tags the admin chose for this card (e.g. the `/ii-fotosessiya` scenario).
+   * Re-applied after every classifier pass so background hydration cannot drop them.
+   */
+  pinnedTags?: readonly PinnedSeoTag[];
+  /** Listing paths beyond the tag-registry hubs to revalidate (e.g. `/ii-fotosessiya`). */
+  extraRevalidatePaths?: readonly string[];
+};
+
+const NO_OPTIONS: PublishPromptCardOptions = {};
+
+/**
+ * Exclusive audience slugs are owned by `subject_audience` (vision), and the
+ * `prompt_cards_apply_subject_audience` trigger rewrites `seo_tags.audience_tag`
+ * from it on every update. An admin pin for such a slug therefore has to become
+ * the manual subject — otherwise the next vision pass or any seo_tags write drops it.
+ */
+export function manualSubjectFromPins(
+  pins: readonly PinnedSeoTag[] | undefined,
+): ExclusiveAudienceSlug | null {
+  for (const pin of pins ?? []) {
+    if (pin.dimension !== "audience_tag") continue;
+    if ((EXCLUSIVE_AUDIENCE_SLUGS as readonly string[]).includes(pin.slug)) {
+      return pin.slug as ExclusiveAudienceSlug;
+    }
+  }
+  return null;
+}
+
+async function applyManualSubjectAudience(
+  supabase: SupabaseClient,
+  cardId: string,
+  pins: readonly PinnedSeoTag[] | undefined,
+): Promise<void> {
+  const subject = manualSubjectFromPins(pins);
+  if (!subject) return;
+  const { error } = await supabase
+    .from("prompt_cards")
+    .update({
+      subject_audience: subject,
+      subject_confidence: 1,
+      subject_source: "manual",
+      subject_classified_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", cardId);
+  if (error) {
+    throw new Error(`card_subject_pin_failed:${error.message}`);
+  }
+}
+
+function applyPins(
+  classified: { seo_tags: Record<string, unknown>; seo_readiness_score: number },
+  pins: readonly PinnedSeoTag[] | undefined,
+): { seo_tags: Record<string, unknown>; seo_readiness_score: number } {
+  if (!pins?.length) return classified;
+  const pinned = pinSeoTags(classified.seo_tags, pins);
+  return {
+    seo_tags: pinned.seo_tags as unknown as Record<string, unknown>,
+    seo_readiness_score: pinned.seo_readiness_score,
+  };
+}
+
 function schedulePhotoshootPromptHydration(
   supabase: SupabaseClient,
   cardId: string,
   slug: string,
+  options: PublishPromptCardOptions,
 ): void {
   after(async () => {
     try {
@@ -63,9 +134,12 @@ function schedulePhotoshootPromptHydration(
           );
         })
         .filter((text): text is string => Boolean(text));
-      const classified = await classifySeoTagsForPublish(
-        (card?.title_ru as string | null) ?? null,
-        promptTexts,
+      const classified = applyPins(
+        await classifySeoTagsForPublish(
+          (card?.title_ru as string | null) ?? null,
+          promptTexts,
+        ),
+        options.pinnedTags,
       );
       const { error: seoError } = await supabase
         .from("prompt_cards")
@@ -78,7 +152,7 @@ function schedulePhotoshootPromptHydration(
       if (seoError) {
         throw new Error(`card_seo_refresh_failed:${seoError.message}`);
       }
-      revalidatePublishedSurfaces(slug, classified.seo_tags);
+      revalidatePublishedSurfaces(slug, classified.seo_tags, options);
       console.info("[photoshoot.publish.analyze] after hydrate ok", {
         cardId,
         promptCount: hydration.promptCount,
@@ -92,10 +166,18 @@ function schedulePhotoshootPromptHydration(
   });
 }
 
-function revalidatePublishedSurfaces(slug: string, seoTags: unknown): void {
+function revalidatePublishedSurfaces(
+  slug: string,
+  seoTags: unknown,
+  options: PublishPromptCardOptions = NO_OPTIONS,
+): void {
   revalidatePath(`/p/${slug}`);
   revalidatePath("/sitemap.xml");
-  for (const path of catalogPathsForSeoTags(seoTags)) {
+  const paths = new Set([
+    ...catalogPathsForSeoTags(seoTags),
+    ...(options.extraRevalidatePaths ?? []),
+  ]);
+  for (const path of paths) {
     revalidatePath(path);
   }
 }
@@ -119,6 +201,7 @@ function promptTextsFromVariants(
 async function mergeKnownTagsOnPublishedCard(
   supabase: SupabaseClient,
   card: { id: string; slug: string; title_ru: string | null; seo_tags: unknown },
+  options: PublishPromptCardOptions,
 ): Promise<number | null> {
   const { data: variants, error: variantsError } = await supabase
     .from("prompt_variants")
@@ -129,11 +212,17 @@ async function mergeKnownTagsOnPublishedCard(
     throw new Error(`card_variants_failed:${variantsError.message}`);
   }
 
-  const merged = unionKnownRegistryTags(
+  const known = unionKnownRegistryTags(
     card.seo_tags,
     card.title_ru,
     promptTextsFromVariants(variants),
   );
+  const pinned = pinSeoTags(known.seo_tags, options.pinnedTags ?? []);
+  const merged = {
+    seo_tags: pinned.seo_tags,
+    seo_readiness_score: pinned.seo_readiness_score,
+    changed: known.changed || pinned.changed,
+  };
   if (merged.changed) {
     const { error: seoError } = await supabase
       .from("prompt_cards")
@@ -148,7 +237,7 @@ async function mergeKnownTagsOnPublishedCard(
       throw new Error(`card_seo_refresh_failed:${seoError.message}`);
     }
   }
-  revalidatePublishedSurfaces(card.slug, merged.seo_tags);
+  revalidatePublishedSurfaces(card.slug, merged.seo_tags, options);
   return merged.seo_readiness_score;
 }
 
@@ -187,7 +276,8 @@ function scheduleVisualEmbeddingProcessing(
 
 export async function publishPromptCard(
   supabase: SupabaseClient,
-  cardId: string
+  cardId: string,
+  options: PublishPromptCardOptions = NO_OPTIONS,
 ): Promise<PromptCardPublicationResult> {
   const needsPhotoshootHydration = await photoshootCardNeedsPromptHydration(
     supabase,
@@ -208,12 +298,17 @@ export async function publishPromptCard(
   }
 
   if (card.is_published && !needsPhotoshootHydration) {
-    const seoReadinessScore = await mergeKnownTagsOnPublishedCard(supabase, {
-      id: card.id as string,
-      slug: card.slug as string,
-      title_ru: (card.title_ru as string | null) ?? null,
-      seo_tags: card.seo_tags,
-    });
+    const seoReadinessScore = await mergeKnownTagsOnPublishedCard(
+      supabase,
+      {
+        id: card.id as string,
+        slug: card.slug as string,
+        title_ru: (card.title_ru as string | null) ?? null,
+        seo_tags: card.seo_tags,
+      },
+      options,
+    );
+    await applyManualSubjectAudience(supabase, card.id as string, options.pinnedTags);
     scheduleVisualEmbeddingProcessing(supabase, card.id as string);
     scheduleSubjectAudience(supabase, card.id as string);
     return {
@@ -239,9 +334,12 @@ export async function publishPromptCard(
 
   const promptTexts = promptTextsFromVariants(variants);
 
-  const classified = await classifySeoTagsForPublish(
-    (card.title_ru as string | null) ?? null,
-    promptTexts
+  const classified = applyPins(
+    await classifySeoTagsForPublish(
+      (card.title_ru as string | null) ?? null,
+      promptTexts
+    ),
+    options.pinnedTags,
   );
 
   if (card.is_published) {
@@ -257,11 +355,12 @@ export async function publishPromptCard(
     if (seoError) {
       throw new Error(`card_seo_refresh_failed:${seoError.message}`);
     }
+    await applyManualSubjectAudience(supabase, cardId, options.pinnedTags);
 
     const slug = card.slug as string;
-    revalidatePublishedSurfaces(slug, classified.seo_tags);
+    revalidatePublishedSurfaces(slug, classified.seo_tags, options);
     if (needsPhotoshootHydration) {
-      schedulePhotoshootPromptHydration(supabase, card.id as string, slug);
+      schedulePhotoshootPromptHydration(supabase, card.id as string, slug, options);
     }
     scheduleVisualEmbeddingProcessing(supabase, card.id as string);
     scheduleSubjectAudience(supabase, card.id as string);
@@ -304,11 +403,12 @@ export async function publishPromptCard(
       throw new Error("card_publish_conflict");
     }
   }
+  await applyManualSubjectAudience(supabase, cardId, options.pinnedTags);
 
   const slug = card.slug as string;
-  revalidatePublishedSurfaces(slug, classified.seo_tags);
+  revalidatePublishedSurfaces(slug, classified.seo_tags, options);
   if (needsPhotoshootHydration) {
-    schedulePhotoshootPromptHydration(supabase, card.id as string, slug);
+    schedulePhotoshootPromptHydration(supabase, card.id as string, slug, options);
   }
   scheduleVisualEmbeddingProcessing(supabase, card.id as string);
   scheduleSubjectAudience(supabase, card.id as string);

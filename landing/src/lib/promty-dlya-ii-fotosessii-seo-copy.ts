@@ -1,3 +1,5 @@
+import { PHOTOSHOOT_CREDIT_COST, PHOTOSHOOT_FRAME_COUNT } from "./photoshoot";
+import { getPricingPlans } from "./pricing-plans";
 import {
   PROMTY_DLYA_II_FOTOSESSII_CHILDREN,
   PROMTY_DLYA_II_FOTOSESSII_HUB_PATH,
@@ -5,33 +7,38 @@ import {
   type FotosessiiClusterChildSlug,
 } from "./promty-dlya-ii-fotosessii-cluster";
 
+/**
+ * Hub intent is «сделать», not «почитать промты»: every SERP leader for
+ * «ИИ фотосессия по фото» is a tool page (upload → scenario → series).
+ * Slots: H1 = «ИИ фотосессия по фото»; Title adds «нейрофотосессия» + «онлайн»;
+ * H2 slots carry «как сделать», «сценарии нейрофотосессии», «сколько стоит».
+ */
 export const PROMTY_DLYA_II_FOTOSESSII_SEO = {
   metaTitle:
-    "ИИ фотосессия по фото онлайн — готовые промты | PromptShot",
+    "ИИ фотосессия по фото онлайн — нейрофотосессия за минуту | PromptShot",
   metaDescription:
-    "ИИ фотосессия по своему фото онлайн: выбери готовый промт на русском, загрузи фото и собери серию кадров в одном стиле.",
+    "Нейрофотосессия по одному фото: загрузи снимок, выбери сценарий и получи серию из 4 кадров с твоим лицом. Оплата в рублях, без подписки.",
   h1: "ИИ фотосессия по фото",
   intro:
-    "Выбери готовый промт, загрузи одно фото и собери ИИ фотосессию: несколько кадров в одном стиле, без студии и фотографа.",
+    "Загрузи одно фото и выбери сценарий — нейросеть соберёт серию из 4 кадров с твоим лицом: студия, улица, праздник. Без студии и фотографа.",
   breadcrumb: "ИИ фотосессия",
   heroCta: "Загрузить фото",
   carouselCta: "Смотреть примеры",
   carouselCtaHref: "#primery",
-  promptsTitle: "Промты для ИИ фотосессии на русском",
-  promptsLead:
-    "Готовые промты с примерами результата. Скопируй текст или открой пример и повтори его со своим фото.",
   examplesTitle: "Примеры ИИ фотосессии",
   examplesIntro:
-    "Готовые луки для серии. Открой пример и повтори со своим фото.",
+    "Серии, которые пользователи собрали по одному фото. Открой пример и повтори со своим снимком.",
   examplesCta: "Больше идей для фото",
-  themesTitle: "Сценарии ИИ фотосессии",
+  themesTitle: "Сценарии нейрофотосессии",
   themesLead:
-    "Женская, парная, семейная, зимняя, день рождения — у каждого сценария своя страница.",
+    "Женская, парная, семейная, студийная, на день рождения — у каждого сценария своя страница с примерами.",
   howToTitle: "Как сделать ИИ фотосессию по фото",
-  howToEyebrow: "Два шага",
-  howToLead: "Сначала фото, потом несколько кадров из одного лука.",
+  howToEyebrow: "Три шага",
+  howToLead: "Одно фото на входе — серия кадров в одном стиле на выходе.",
   howToPickExampleLabel: "Загрузить фото",
   howToPickExampleHref: "#primery",
+  whatIsTitle: "Что такое нейрофотосессия",
+  pricingTitle: "Сколько стоит ИИ фотосессия",
   faqTitle: "Частые вопросы",
 } as const;
 
@@ -39,14 +46,59 @@ export const PROMTY_DLYA_II_FOTOSESSII_HOW_TO_STEPS = [
   {
     n: "01",
     title: "Загрузи одно фото",
-    text: "Нужен снимок, где хорошо видно лицо. С него собирается вся серия.",
+    text: "Нужен снимок, где хорошо видно лицо: анфас или вполоборота, при дневном свете. С него собирается вся серия.",
   },
   {
     n: "02",
-    title: "Собери несколько кадров",
-    text: "Выбери лук из примеров и сделай ещё кадры в том же стиле. Так это фотосессия, а не один файл.",
+    title: "Выбери сценарий",
+    text: "Студия, улица, праздник, чёрно-белая серия — или опиши кадр своими словами.",
+  },
+  {
+    n: "03",
+    title: `Получи ${PHOTOSHOOT_FRAME_COUNT} кадра`,
+    text: "Через минуту серия в одном стиле с сохранённым лицом. Понравилось — повтори в другом сценарии.",
   },
 ] as const;
+
+/** «Что такое нейрофотосессия» — definition block, concrete and short. */
+export const PROMTY_DLYA_II_FOTOSESSII_WHAT_IS: readonly string[] = [
+  `Нейрофотосессия — это серия снимков, которую нейросеть собирает по одному твоему фото. Лицо остаётся твоим, меняются свет, одежда и окружение: студийный портрет, улица, праздник, чёрно-белая серия. В PromptShot одна фотосессия — это ${PHOTOSHOOT_FRAME_COUNT} кадра в одном стиле.`,
+  "От обычной съёмки отличается тем, что не нужны фотограф, студия и свободный выходной: загрузил фото — через минуту серия готова. Подходит для аватарки, резюме, соцсетей и подарка.",
+];
+
+export type FotosessiiPricingCopy = {
+  title: string;
+  lead: string;
+  perSeriesCredits: number;
+  trialPriceRub: number;
+  trialCredits: number;
+  trialSeries: number;
+};
+
+/** Price facts derived from constants so copy never drifts from billing. */
+export function getPromtyDlyaIiFotosessiiPricingCopy(): FotosessiiPricingCopy {
+  const plans = getPricingPlans("treatment");
+  const trial = plans.reduce((lead, plan) =>
+    plan.price < lead.price ? plan : lead,
+  );
+  const trialSeries = Math.floor(trial.credits / PHOTOSHOOT_CREDIT_COST);
+  return {
+    title: PROMTY_DLYA_II_FOTOSESSII_SEO.pricingTitle,
+    lead: `Одна серия из ${PHOTOSHOOT_FRAME_COUNT} кадров — ${PHOTOSHOOT_CREDIT_COST} кредитов. Пробный пакет ${trial.price} ₽ на ${trial.credits} кредитов — это ${trialSeries} ${pluralSeries(trialSeries)}. Без подписки, оплата картой российского банка.`,
+    perSeriesCredits: PHOTOSHOOT_CREDIT_COST,
+    trialPriceRub: trial.price,
+    trialCredits: trial.credits,
+    trialSeries,
+  };
+}
+
+function pluralSeries(count: number): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) return "фотосессия";
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "фотосессии";
+  return "фотосессий";
+}
 
 export const PROMTY_DLYA_II_FOTOSESSII_THEME_ITEMS =
   PROMTY_DLYA_II_FOTOSESSII_CHILDREN.map((child) => ({
@@ -84,13 +136,13 @@ export const PROMTY_DLYA_II_FOTOSESSII_FAQ: {
   {
     q: "Как сделать ИИ фотосессию по фото?",
     a: [
-      "Загрузи одно фото, выбери лук и собери несколько кадров. Кнопка «Собрать фотосессию» ведёт к примерам на этой странице.",
+      `Загрузи одно фото, выбери сценарий и нажми «Загрузить фото». Через минуту готова серия из ${PHOTOSHOOT_FRAME_COUNT} кадров в одном стиле с твоим лицом.`,
     ],
   },
   {
-    q: "Чем ИИ фотосессия отличается от одного кадра?",
+    q: "Чем нейрофотосессия отличается от ИИ фото?",
     a: [
-      "Здесь серия в одном стиле. Один кадр — в ",
+      "ИИ фото — один кадр по промту. Нейрофотосессия — серия кадров в одном стиле и свете, как с реальной съёмки. Один кадр — в ",
       { href: "/", label: "каталоге промтов" },
       " и на ",
       { href: "/generaciya/po-foto", label: "странице «Сделать фото ИИ по своему фото»" },
@@ -98,9 +150,9 @@ export const PROMTY_DLYA_II_FOTOSESSII_FAQ: {
     ],
   },
   {
-    q: "Какое фото загрузить?",
+    q: "Сколько фото нужно загрузить?",
     a: [
-      "Одно, где видно лицо. Для ",
+      "Одно, где хорошо видно лицо — анфас или вполоборота, без фильтров. Для ",
       {
         href: getPromtyDlyaIiFotosessiiChildPath("pary"),
         label: "парной",
@@ -110,19 +162,27 @@ export const PROMTY_DLYA_II_FOTOSESSII_FAQ: {
         href: getPromtyDlyaIiFotosessiiChildPath("semeynye"),
         label: "семейной",
       },
-      " серии нужен снимок с этими людьми.",
+      " серии нужен снимок, где видны все участники.",
     ],
   },
   {
-    q: "Можно скопировать промт без генерации?",
+    q: "Сколько стоит ИИ фотосессия?",
     a: [
-      "Да. Текст с карточки копируется бесплатно. Генерация серии из своего фото идёт за кредиты.",
+      `Серия из ${PHOTOSHOOT_FRAME_COUNT} кадров — ${PHOTOSHOOT_CREDIT_COST} кредитов. Пакеты кредитов — в блоке `,
+      { href: "#tarify", label: "«Сколько стоит ИИ фотосессия»" },
+      " на этой странице. Подписки нет, списывается только за запуск.",
+    ],
+  },
+  {
+    q: "Можно ли сделать ИИ фотосессию бесплатно?",
+    a: [
+      `Смотреть примеры и копировать промты — без оплаты и регистрации. Сама генерация серии платная: ${PHOTOSHOOT_CREDIT_COST} кредитов за ${PHOTOSHOOT_FRAME_COUNT} кадра, самый маленький пакет — ${getPromtyDlyaIiFotosessiiPricingCopy().trialPriceRub} ₽.`,
     ],
   },
   {
     q: "Нужна регистрация для ИИ фотосессии онлайн?",
     a: [
-      "Смотреть примеры можно сразу. Чтобы загрузить своё фото и собрать серию, нужен вход — кадры сохраняются в библиотеке.",
+      "Чтобы загрузить своё фото и собрать серию, нужен вход — кадры сохраняются в твоей библиотеке и их можно повторить в другом сценарии.",
     ],
   },
 ];
@@ -193,7 +253,7 @@ function buildFotosessiiChildCopy(
     themesTitle: "Другие сценарии ИИ фотосессии",
     themesLead: forms.themesLead,
     howToTitle: `Как сделать ${forms.howToMake}`,
-    howToEyebrow: PROMTY_DLYA_II_FOTOSESSII_SEO.howToEyebrow,
+    howToEyebrow: "Два шага",
     howToLead: forms.howToLead,
     howToPickExampleLabel: PROMTY_DLYA_II_FOTOSESSII_SEO.howToPickExampleLabel,
     howToPickExampleHref: PROMTY_DLYA_II_FOTOSESSII_SEO.howToPickExampleHref,

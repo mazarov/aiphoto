@@ -202,9 +202,11 @@ export function GeneraciyaFotoMore({
 export function GeneraciyaFotoPricing({
   returnPath = GENERACIYA_FOTO_PRICING.returnPath,
   lead,
+  title,
 }: {
   returnPath?: string;
   lead?: string;
+  title?: string;
 }) {
   return (
     <section id="tarify" className={sectionClass} aria-labelledby="tarify-heading">
@@ -213,6 +215,7 @@ export function GeneraciyaFotoPricing({
         paywallVariant={GENERACIYA_FOTO_PRICING.variant}
         returnPath={returnPath}
         lead={lead}
+        title={title}
       />
     </section>
   );

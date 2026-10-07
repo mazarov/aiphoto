@@ -80,6 +80,7 @@ export function PhotoshootListingGrid({
             fetchPriority={priority && index === 0 ? "high" : undefined}
             className="photoshoot-history-tile__img absolute inset-0 h-full w-full object-cover"
             draggable={false}
+            onError={onError}
           />
         ) : (
           <Image
@@ -93,7 +94,7 @@ export function PhotoshootListingGrid({
             className="photoshoot-history-tile__img object-cover"
             draggable={false}
             onLoad={index === 0 ? onLoad : undefined}
-            onError={index === 0 ? onError : undefined}
+            onError={onError}
           />
         );
         const tileClass =
