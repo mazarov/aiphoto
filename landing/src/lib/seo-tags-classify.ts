@@ -3,6 +3,7 @@
  * Uses OpenAI when OPENAI_API_KEY is set; otherwise regex over TAG_REGISTRY.
  */
 import { EXCLUSIVE_AUDIENCE_PROMPT_RULES, normalizeExclusiveAudience } from "@/lib/audience-exclusive";
+import { patternsForTag } from "@/lib/tag-patterns";
 import { TAG_REGISTRY, type Dimension } from "@/lib/tag-registry";
 
 const DIMENSIONS: Dimension[] = [
@@ -72,7 +73,7 @@ function extractSeoTagsRegex(promptTexts: string[], title: string | null): SeoTa
 
   const seen = new Set<string>();
   for (const tag of TAG_REGISTRY) {
-    if (tag.patterns.some((p) => p.test(haystack)) && !seen.has(tag.slug)) {
+    if (patternsForTag(tag.dimension, tag.slug).some((p) => p.test(haystack)) && !seen.has(tag.slug)) {
       seen.add(tag.slug);
       result[tag.dimension].push(tag.slug);
     }

@@ -38,6 +38,14 @@ const RULES = [
     pattern: /\bstatic\s*\{/g,
     hint: "lower via browserslist/esbuild target or initialize in module scope",
   },
+  {
+    id: "tag-patterns-in-client",
+    minSafari: "n/a",
+    // Distinctive source from tag-patterns.ts. If it is in a client chunk, the
+    // server-only boundary was bypassed and every regex ships to Safari again.
+    pattern: /модель\\s\+в\\s\+платье/g,
+    hint: "import @/lib/tag-patterns only from server modules (it imports server-only)",
+  },
 ];
 
 function listJsFiles(dir) {
@@ -89,4 +97,4 @@ if (violations.length > 0) {
   process.exit(1);
 }
 
-console.log(`[browser-compat] OK — ${files.length} client bundle(s) scanned, no Safari < 16.4 parse breakers`);
+console.log(`[browser-compat] OK — ${files.length} client bundle(s) scanned, no Safari < 16.4 parse breakers, tag patterns stay server-side`);

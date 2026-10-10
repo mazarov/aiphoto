@@ -1,3 +1,4 @@
+/** `npx tsx --conditions react-server --test src/lib/seo-tags-classify.test.ts` — pulls server-only tag-patterns. */
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {

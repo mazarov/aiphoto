@@ -13,6 +13,34 @@
     {
       "files": ["**/*.test.ts", "**/*.test.tsx", "scripts/**"],
       "rules": { "no-restricted-syntax": "off" }
+    },
+    {
+      "files": [
+        "src/components/**/*.{ts,tsx}",
+        "src/hooks/**/*.{ts,tsx}",
+        "src/context/**/*.{ts,tsx}",
+        "src/app/**/*.{ts,tsx}"
+      ],
+      "excludedFiles": ["src/app/api/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@/lib/tag-patterns",
+                "message": "tag-patterns is server-only. Regex literals there must not enter a client chunk. Use TAG_REGISTRY for labels and paths."
+              }
+            ],
+            "patterns": [
+              {
+                "group": ["**/tag-patterns", "**/tag-patterns.ts"],
+                "message": "tag-patterns is server-only. Regex literals there must not enter a client chunk. Use TAG_REGISTRY for labels and paths."
+              }
+            ]
+          }
+        ]
+      }
     }
   ]
 }

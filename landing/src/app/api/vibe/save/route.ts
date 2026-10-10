@@ -3,6 +3,7 @@ import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import { resolveSharedDbUserId } from "@/lib/resolve-db-user-id";
 import { landingGenerationsOwnerOrFilter } from "@/lib/landing-generations-access";
+import { patternsForTag } from "@/lib/tag-patterns";
 import { TAG_REGISTRY, type Dimension } from "@/lib/tag-registry";
 
 const ALLOWED_ACCENTS = ["scene", "lighting", "mood", "composition"] as const;
@@ -58,7 +59,7 @@ function inferSeoTagsFromStyle(style: StyleJson | null): Record<Dimension, strin
   };
 
   for (const entry of TAG_REGISTRY) {
-    if (entry.patterns.some((pattern) => pattern.test(styleText))) {
+    if (patternsForTag(entry.dimension, entry.slug).some((pattern) => pattern.test(styleText))) {
       matchedByDim[entry.dimension].add(entry.slug);
     }
   }

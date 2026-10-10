@@ -129,7 +129,7 @@ npx tsx src/fill-seo-tags.ts --dataset LEXYGPT_ChatExport_2026-03-13 --regex-onl
 
 > "LLM обнаружил N новых тегов. Теги с >= 3 вхождениями: [список]. Добавить в tag-registry.ts?"
 
-Если пользователь подтверждает — добавить теги в `landing/src/lib/tag-registry.ts` с `urlPath` и `patterns`, затем в каталоге `landing` выполнить `npm run seo:sync` (дописывает шаблонные блоки в `seo-content.ts` для новых slug). Проверка покрытия: `npm run seo:check`.
+Если пользователь подтверждает — добавить теги в `landing/src/lib/tag-registry.ts` с `urlPath` и регулярку в `landing/src/lib/tag-patterns.ts` (server-only, не в реестр), затем в каталоге `landing` выполнить `npm run seo:sync` (дописывает шаблонные блоки в `seo-content.ts` для новых slug). Проверка покрытия: `npm run seo:check`.
 
 ## Шаг 3. Публикация
 
@@ -143,15 +143,19 @@ sb.from('prompt_cards').update({ is_published: true }).eq('is_published', false)
 
 ## Добавление нового тега
 
-Одна запись в `landing/src/lib/tag-registry.ts`:
+Одна запись в `landing/src/lib/tag-registry.ts` и ключ в `landing/src/lib/tag-patterns.ts` (server-only; регулярки в реестр не класть — реестр уходит в клиентский чанк):
 
 ```typescript
-{ slug: "new_tag", dimension: "object_tag", labelRu: "Новый", labelEn: "New", urlPath: "/new-tag", patterns: [/паттерн/i] },
+{ slug: "new_tag", dimension: "object_tag", labelRu: "Новый", labelEn: "New", urlPath: "/new-tag" },
+```
+
+```typescript
+"object_tag:new_tag": [/паттерн/i],
 ```
 
 Автоматически заработает:
 - LLM-классификация (`fill-seo-tags.ts` строит enum из TAG_REGISTRY)
-- Regex fallback (через поле `patterns`)
+- Regex fallback (`patternsForTag` в `tag-patterns.ts`)
 - URL на лендинге (catch-all `[...slug]/page.tsx`)
 - После коммита в реестр: `cd landing && npm run seo:sync` — запись в `seo-content.ts` (L1 title/FAQ/howTo по шаблону из `seo-content-from-tag.ts`)
 - Для показа в меню — добавить `tagItem("new_tag")` в `landing/src/lib/menu.ts` (либо тег попадёт в группу «Ещё» по измерению)

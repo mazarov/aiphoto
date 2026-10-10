@@ -1,6 +1,7 @@
 /**
  * Fill seo_tags for prompt_cards using LLM (Gemini 2.5 Flash) or regex fallback.
- * Source of truth: TAG_REGISTRY from landing/src/lib/tag-registry.ts
+ * Source of truth: TAG_REGISTRY (landing/src/lib/tag-registry.ts) and
+ * patternsForTag (landing/src/lib/tag-patterns.ts, server-only).
  * Output: prompt_cards.seo_tags (jsonb), seo_readiness_score (0-100)
  *
  * Usage:
@@ -15,8 +16,16 @@ import { existsSync } from "node:fs";
 import { config as loadDotenv } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import { EXCLUSIVE_AUDIENCE_PROMPT_RULES, normalizeExclusiveAudience } from "../landing/src/lib/audience-exclusive";
+import { ensureReactServerCondition } from "../landing/src/lib/ensure-react-server-condition";
 import { TAG_REGISTRY, type Dimension, type TagEntry } from "../landing/src/lib/tag-registry";
 import { llmChat, RateLimitError } from "./lib/llm";
+
+ensureReactServerCondition();
+
+type PatternsForTag = typeof import("../landing/src/lib/tag-patterns").patternsForTag;
+let patternsForTag: PatternsForTag = () => {
+  throw new Error("tag patterns are not loaded");
+};
 
 // ── Types ──
 
@@ -195,7 +204,7 @@ function extractSeoTagsRegex(promptTexts: string[], title: string | null): SeoTa
 
   const seen = new Set<string>();
   for (const tag of TAG_REGISTRY) {
-    if (tag.patterns.some((p) => p.test(haystack)) && !seen.has(tag.slug)) {
+    if (patternsForTag(tag.dimension, tag.slug).some((p) => p.test(haystack)) && !seen.has(tag.slug)) {
       seen.add(tag.slug);
       result[tag.dimension].push(tag.slug);
     }
@@ -576,6 +585,7 @@ async function fetchPromptTextsByCardIds(
 // ── Main ──
 
 async function main() {
+  ({ patternsForTag } = await import("../landing/src/lib/tag-patterns"));
   const args = parseArgs();
   loadEnvFiles();
 
@@ -760,6 +770,21 @@ function slugToUrlPath(dim: Dimension, slug: string): string {
   return `${prefix}${urlSlug}`;
 }
 
+function appendPatternStubs(tags: NewTagMeta[]): void {
+  const patternsPath = path.resolve(process.cwd(), "landing/src/lib/tag-patterns.ts");
+  const { readFileSync, writeFileSync } = require("node:fs") as typeof import("node:fs");
+  const content = readFileSync(patternsPath, "utf-8");
+  const marker = "  // TAG_PATTERNS_END";
+  const markerIdx = content.indexOf(marker);
+  if (markerIdx === -1) {
+    console.error("   ✗ Could not find TAG_PATTERNS_END — add regex stubs in tag-patterns.ts by hand");
+    return;
+  }
+  const lines = tags.map((t) => `  "${t.dimension}:${t.slug}": [],`);
+  const updated = `${content.slice(0, markerIdx)}${lines.join("\n")}\n${content.slice(markerIdx)}`;
+  writeFileSync(patternsPath, updated, "utf-8");
+}
+
 function appendNewTagsToRegistry(tags: NewTagMeta[]): void {
   const registryPath = path.resolve(process.cwd(), "landing/src/lib/tag-registry.ts");
   const { readFileSync, writeFileSync } = require("node:fs") as typeof import("node:fs");
@@ -790,7 +815,7 @@ function appendNewTagsToRegistry(tags: NewTagMeta[]): void {
       const urlPath = slugToUrlPath(dim, t.slug);
       const escapedRu = t.labelRu.replace(/"/g, '\\"');
       const escapedEn = t.labelEn.replace(/"/g, '\\"');
-      newLines.push(`  { slug: "${t.slug}", dimension: "${dim}", labelRu: "${escapedRu}", labelEn: "${escapedEn}", urlPath: "${urlPath}", patterns: [] },`);
+      newLines.push(`  { slug: "${t.slug}", dimension: "${dim}", labelRu: "${escapedRu}", labelEn: "${escapedEn}", urlPath: "${urlPath}" },`);
     }
   }
 
@@ -822,6 +847,7 @@ function appendNewTagsToRegistry(tags: NewTagMeta[]): void {
   const updated = before + newLines.join("\n") + "\n" + after;
   writeFileSync(registryPath, updated, "utf-8");
 
+  appendPatternStubs(toAdd);
   console.log(`\n📝 Appended ${toAdd.length} new tags to TAG_REGISTRY:`);
   for (const t of toAdd) {
     console.log(`   + ${t.dimension}:${t.slug} — "${t.labelRu}" / "${t.labelEn}"`);

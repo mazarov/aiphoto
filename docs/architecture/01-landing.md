@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-10-10 (**regex тегов server-only:** `patterns` убраны из `TAG_REGISTRY` (его импортирует клиент) в `landing/src/lib/tag-patterns.ts` с `import "server-only"`. Клиентский импорт роняет `next build`; `check:browser-compat` дополнительно ищет характерный литерал `модель\s+в\s+платье` в `.next/static/chunks`. Node-скрипты `src/fill-seo-tags.ts` и `src/fill-seo-tags-regex.ts` сами перезапускаются с `--conditions=react-server`. Тесты, которые тянут этот модуль: `npx tsx --conditions react-server --test <file>`. См. «Поддержка браузеров» и «Tag Registry».)
+>
 > Последнее обновление: 2026-10-10 (**поддержка браузеров — Safari / iOS 16.0+ как контракт:** `browserslist` в `landing/package.json` опущен с `safari >= 16.4` до `safari >= 16` + `ios_saf >= 16`; esbuild панели STV получил тот же `target`. Причина инцидента: регулярки с lookbehind `(?<![а-яё])` в `tag-registry.ts` попадали в общий клиентский чанк root layout — Safari < 16.4 падал с SyntaxError на весь чанк, hydration не стартовала ни на одной странице (нет поиска, не слайдятся карточки, не открываются `/pricing` и карточка, CTA без фона из-за `@property` без фолбэка). Гейт: `npm run build` = STV + `next build` + **`check:browser-compat`** (`scripts/check-client-bundle-compat.mjs` сканирует `.next/static/chunks` и `public/stv-panel` на нетранспилируемые конструкции и валит сборку); ESLint `no-restricted-syntax` запрещает lookbehind в `src/**` (кроме `*.test.ts`). См. «Поддержка браузеров».)
 >
 > Последнее обновление: 2026-10-07 (**`/ii-fotosessiya` под tool-intent + админ публикации альбомов, SQL `275`:** новый Title/Description с «нейрофотосессия», порядок HowTo (3 шага) → сценарии → примеры → «Что такое нейрофотосессия» → «Сколько стоит ИИ фотосессия» (из `PHOTOSHOOT_CREDIT_COST` и treatment-плана) → FAQ 6. На хабе нет блока «Промты для ИИ фотосессии на русском» (на L2 секция промтов остаётся). Коллаж сценария берёт все кадры альбомов round-robin, один альбом докручивает 6 ячеек повтором, сценарий с < 4 кадров уходит из коллажа в чипы. `/admin/fotosessii` — очередь неопубликованных photoshoot-альбомов (RPC `admin_photoshoot_albums_queue`) с счётчиками по 17 сценариям; публикация через `publishPromptCard({ pinnedTags, extraRevalidatePaths })` — пины переживают hydration, exclusive-audience пин пишет `subject_source='manual'`. См. «Хаб ИИ-фотосессии» в SEO-разделе.)
@@ -1030,7 +1032,8 @@
 
 - **Один источник:** `browserslist` в `landing/package.json` — `chrome/edge/firefox >= 111`, **`safari >= 16`, `ios_saf >= 16`**. Его читают SWC (`next build`), autoprefixer и Tailwind. Панель STV (`scripts/build-stv-web.mjs`) дублирует контракт в esbuild `target: ["safari16", "ios16", …]`.
 - **Почему 16.0, а не 16.4:** iPhone 8 / X и часть iPhone на iOS 16.0–16.3 — Safari без regex lookbehind, `@property`, class static blocks, `Array.fromAsync`, `OffscreenCanvas`, `import maps`. Из них SWC лоурит только static blocks; остальное — ответственность кода.
-- **Что нельзя отправлять в браузер:** regex lookbehind `(?<=` / `(?<!` (SyntaxError всего чанка при парсе, не runtime-ошибка). Правило ESLint `no-restricted-syntax` в `landing/.eslintrc.json` блокирует такие литералы в `src/**` (исключение — `*.test.ts`, `scripts/**`). Паттерны `tag-registry.ts` переписаны через `(?:^|[^…])`; таблица импортируется клиентскими компонентами (`CardFilters`, `FilterFAB`, `ClientCardModal`, …), поэтому её регулярки живут в бандле.
+- **Что нельзя отправлять в браузер:** regex lookbehind `(?<=` / `(?<!` (SyntaxError всего чанка при парсе, не runtime-ошибка). Правило ESLint `no-restricted-syntax` в `landing/.eslintrc.json` блокирует такие литералы в `src/**` (исключение — `*.test.ts`, `scripts/**`).
+- **Regex тегов не в клиенте:** `TAG_REGISTRY` (`tag-registry.ts`) — slug, dimension, подписи, `urlPath`. Его импортируют клиентские фильтры и модалки. 178 регулярок лежат в `tag-patterns.ts`, первая строка — `import "server-only"`. Next не соберёт клиентский граф, если туда попадёт этот модуль. ESLint `no-restricted-imports` запрещает импорт из `components/`, `hooks/`, `context/`, `app/` (кроме `app/api/`). `check:browser-compat` падает, если в клиентском чанке есть литерал из `tag-patterns.ts`. Классификация (`seo-tags-classify.ts`, `POST /api/vibe/save`) и скрипты `src/fill-seo-tags.ts` / `src/fill-seo-tags-regex.ts` читают `patternsForTag`. Скрипты под Node сами перезапускаются с `--conditions=react-server`, потому что без этого условия пакет `server-only` бросает. Тесты того же графа: `npx tsx --conditions react-server --test <file>`.
 - **CSS без 16.4+ зависимостей по умолчанию:** `@property` только как прогрессивное улучшение с фолбэком в `var(--x, default)` (пример — `.prompt-detail-primary-cta`). `content-visibility`, `text-wrap: balance|pretty` — деградируют тихо. `:has()`, `@layer`, `@container`, `cqw/cqh`, `dvh` — в Safari 16.0 есть.
 - **Гейт сборки:** `npm run build` → `build:stv-web` → `next build` → **`check:browser-compat`**. Скрипт `scripts/check-client-bundle-compat.mjs` сканирует `.next/static/chunks/**/*.js` и `public/stv-panel/*.mjs` на `(?<=`/`(?<!` и `static {`, печатает чанк + контекст и выходит с кодом 1. Это ловит и зависимости из `node_modules`, которые SWC не трогает. Dockerfile вызывает тот же `npm run build`, так что сломанный образ не соберётся.
 - **Нет iOS-симулятора в CI:** проверка на реальном Safari 16.x — вручную; гейт покрывает класс «парсер не прочитал чанк», но не runtime-API (`requestIdleCallback`, `scrollend` — у них в коде есть фолбэки через `setTimeout`/`scroll` debounce).
@@ -1886,9 +1889,10 @@ interface TagEntry {
   labelRu: string;
   labelEn: string;
   urlPath: string;       // e.g. "/stil/cherno-beloe"
-  patterns: RegExp[];    // для regex-матчинга промтов
 }
 ```
+
+Regex-матчинг промтов — `tag-patterns.ts` (`patternsForTag(dimension, slug)`), ключ `"dimension:slug"`. Модуль server-only, в клиентский бандл не входит. Пустой массив у ключа — тег не матчится регуляркой (так автодописка из `fill-seo-tags.ts` ставит заглушку перед `TAG_PATTERNS_END`).
 
 Функции: `findTagByUrlPath`, `findTagBySlug`, `findTagByLastSegment`, `getAllTagPaths`, `getFirstTagFromSeoTags`, `getSiblingTags`.
 
@@ -1940,7 +1944,7 @@ type ResolvedRoute = {
 
 **Рендер иллюстраций:** только L1; `SeoHeroWithIllustrations` — один `article` (текст + карусель + footer chips). Все кадры в DOM для `alt`. FAQ без фото. Резолв: `getCardPhotosBySlugs` → `titleIncludes`. Schema: `ImageObject` на каждую иллюстрацию.
 
-**Карточки (аудит трендов):** в кластере ~2042 карточки (`prompt_clusters`, `s-mashinoy`). Тег `s_mashinoy` матчит `/с машин|авто|тачк/i` в `tag-registry.ts`; тренды «сирень + машина» и «номера» часто попадают в L1 по тексту промта без отдельного тега. Дотегирование `title_ru` — только при ingest новых карточек или если SQL-проверка на проде покажет пустую выдачу по `сирен`/`номер` в топе листинга; в рамках v5 правок кода тегов не было.
+**Карточки (аудит трендов):** в кластере ~2042 карточки (`prompt_clusters`, `s-mashinoy`). Тег `s_mashinoy` матчит `/с машин|авто|тачк/i` в `tag-patterns.ts`; тренды «сирень + машина» и «номера» часто попадают в L1 по тексту промта без отдельного тега. Дотегирование `title_ru` — только при ingest новых карточек или если SQL-проверка на проде покажет пустую выдачу по `сирен`/`номер` в топе листинга; в рамках v5 правок кода тегов не было.
 
 #### Кластер `/promty-dlya-foto-devushki/` (L1 `audience_tag:devushka`, 2026-09-02)
 
@@ -2161,7 +2165,8 @@ landing/src/
 │   ├── auth-session-hydrate.ts ← getSession overlay vs getUser; pageshow/visibility
 │   ├── supabase-browser.ts     ← Браузерный клиент (auth, reactions)
 │   ├── supabase-server-auth.ts ← Серверная авторизация (cookie client)
-│   ├── tag-registry.ts         ← Реестр SEO-тегов (5 измерений, 100+ тегов)
+│   ├── tag-registry.ts         ← Реестр SEO-тегов (slug, подписи, urlPath; без регулярок)
+│   ├── tag-patterns.ts         ← Regex тегов, server-only (`patternsForTag`)
 │   ├── route-resolver.ts       ← Резолвинг URL → теги (L1/L2/L3)
 │   ├── den-rozhdeniya-cluster.ts ← SSOT хаба ДР, child-alias, 301, combo-ключи
 │   ├── listing-catalog-hub.ts  ← диспетчер хабов каталога (пары, девушки, мужчины)

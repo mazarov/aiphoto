@@ -1,5 +1,7 @@
 # 03 — Пайплайн: парсинг → загрузка → публикация
 
+> Последнее обновление: 2026-10-10 (**regex тегов:** `patterns` больше не в `tag-registry.ts`. Матчинг — `landing/src/lib/tag-patterns.ts` (`patternsForTag`, server-only). Автодописка из `fill-seo-tags.ts` добавляет строку реестра без регулярки и пустой массив `[]` перед `TAG_PATTERNS_END`. `npx tsx src/fill-seo-tags.ts` сам перезапускается с `--conditions=react-server`.)
+>
 > Последнее обновление: 2026-09-26 (**subject audience:** после текстовых `seo_tags` каноническое фото классифицирует Gemini 2.5 Flash (`subject_audience`). Триггер SQL `256` пишет exclusive-слаг в `seo_tags.audience_tag`. Backfill — `src/standalone/backfill-card-subject-audience.mjs` (сначала `--dry-run`). Новые карточки — `publishPromptCard` `after()` при флаге `card_subject_audience_enabled`. Cron visual-embeddings добирает backlog. Новых env нет: `GEMINI_API_KEY` + `GEMINI_PROXY_BASE_URL`.
 >
 > Последнее обновление: 2026-09-14 (**junk card slug text:** `reanalyze-junk-cards.mjs` переписывает текст `/p/{slug}` из нового title, хвост `-2cd88` не меняет, старый URL → 301 `slug_redirects` через `upsert_card_titles_and_slug`. Полный slug ≤ 128. Карточки с уже нормальным title и мусорным slug — только URL, без Gemini. Теги не затираем.)
@@ -262,7 +264,7 @@ tail -f backfill-card-subject-audience.log
 
 Дальше `--priority exclusive --loop`, затем `visual_hook`, затем `all`. Пустой `GEMINI_PROXY_BASE_URL` — выход, без прямого Google. Stop-loss: на батче ≥ 50 при `failed/attempted > 10%` процесс выходит с кодом 2. Покрытие — RPC `subject_audience_coverage()`.
 
-**Авто-добавление тегов:** если LLM находит тег ≥ 3 раз, которого нет в `TAG_REGISTRY` — предлагает добавить в `landing/src/lib/tag-registry.ts`.
+**Авто-добавление тегов:** если LLM находит тег ≥ 3 раз, которого нет в `TAG_REGISTRY` — предлагает добавить в `landing/src/lib/tag-registry.ts` (метаданные) и ключ в `landing/src/lib/tag-patterns.ts` (регулярка или `[]`).
 
 ---
 
@@ -469,7 +471,7 @@ node fill-seo-tags-standalone.mjs --dataset <slug>
 > "LLM обнаружил N новых тегов. Вот теги с >= 3 вхождениями: [список]. Добавить их в tag-registry.ts?"
 
 Если пользователь подтверждает:
-1. Добавить теги в `landing/src/lib/tag-registry.ts` с правильными `urlPath` и `patterns`
+1. Добавить теги в `landing/src/lib/tag-registry.ts` (`urlPath`) и регулярку в `landing/src/lib/tag-patterns.ts`
 2. Закоммитить и запушить
 3. После деплоя — новые теги создадут страницы на лендинге
 

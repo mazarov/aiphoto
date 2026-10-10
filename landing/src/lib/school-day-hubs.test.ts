@@ -1,5 +1,7 @@
+/** `npx tsx --conditions react-server --test src/lib/school-day-hubs.test.ts` — pulls server-only tag-patterns. */
 import assert from "node:assert/strict";
 import test from "node:test";
+import { patternsForTag } from "./tag-patterns";
 import { findTagBySlug } from "./tag-registry";
 import { resolveUrlToTags } from "./route-resolver";
 import { getSeoForRoute } from "./seo-templates";
@@ -58,17 +60,19 @@ test("teacher pattern catches Днем, Днём and a teacher portrait", () => 
   assert.ok(educator);
   assert.equal(teacher.urlPath, DEN_UCHITELYA_HUB_PATH);
   assert.equal(educator.urlPath, DEN_VOSPITATELYA_HUB_PATH);
-  assert.equal(teacher.patterns.some((pattern) => pattern.test("промт ко дню учителя")), true);
-  assert.equal(teacher.patterns.some((pattern) => pattern.test("С Днем учителя!")), true);
-  assert.equal(teacher.patterns.some((pattern) => pattern.test("С Днём Учителя!")), true);
-  assert.equal(teacher.patterns.some((pattern) => pattern.test("smiling teacher holding school items")), true);
-  assert.equal(teacher.patterns.some((pattern) => pattern.test("портрет учителя")), true);
-  assert.equal(teacher.patterns.some((pattern) => pattern.test("атмосфера поучительная")), false);
-  assert.equal(teacher.patterns.some((pattern) => pattern.test("фото воспитателя")), false);
-  assert.equal(educator.patterns.some((pattern) => pattern.test("промт на день воспитателя")), true);
-  assert.equal(educator.patterns.some((pattern) => pattern.test("С Днём воспитателя")), true);
-  assert.equal(educator.patterns.some((pattern) => pattern.test("фото воспитателя")), true);
-  assert.equal(educator.patterns.some((pattern) => pattern.test("воспитательный час")), false);
+  const teacherPatterns = patternsForTag("occasion_tag", "den_uchitelya");
+  const educatorPatterns = patternsForTag("occasion_tag", "den_vospitatelya");
+  assert.equal(teacherPatterns.some((pattern) => pattern.test("промт ко дню учителя")), true);
+  assert.equal(teacherPatterns.some((pattern) => pattern.test("С Днем учителя!")), true);
+  assert.equal(teacherPatterns.some((pattern) => pattern.test("С Днём Учителя!")), true);
+  assert.equal(teacherPatterns.some((pattern) => pattern.test("smiling teacher holding school items")), true);
+  assert.equal(teacherPatterns.some((pattern) => pattern.test("портрет учителя")), true);
+  assert.equal(teacherPatterns.some((pattern) => pattern.test("атмосфера поучительная")), false);
+  assert.equal(teacherPatterns.some((pattern) => pattern.test("фото воспитателя")), false);
+  assert.equal(educatorPatterns.some((pattern) => pattern.test("промт на день воспитателя")), true);
+  assert.equal(educatorPatterns.some((pattern) => pattern.test("С Днём воспитателя")), true);
+  assert.equal(educatorPatterns.some((pattern) => pattern.test("фото воспитателя")), true);
+  assert.equal(educatorPatterns.some((pattern) => pattern.test("воспитательный час")), false);
 });
 
 test("teacher hub slots stay on different lemmas", () => {

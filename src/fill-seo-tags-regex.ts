@@ -13,7 +13,15 @@ import path from "node:path";
 import { existsSync } from "node:fs";
 import { config as loadDotenv } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
+import { ensureReactServerCondition } from "../landing/src/lib/ensure-react-server-condition";
 import { TAG_REGISTRY, type Dimension } from "../landing/src/lib/tag-registry";
+
+ensureReactServerCondition();
+
+type PatternsForTag = typeof import("../landing/src/lib/tag-patterns").patternsForTag;
+let patternsForTag: PatternsForTag = () => {
+  throw new Error("tag patterns are not loaded");
+};
 
 function loadEnvFiles() {
   const cwd = process.cwd();
@@ -60,7 +68,7 @@ function parseArgs(): Args {
 
 type SeoTags = Record<Dimension, string[]>;
 
-const tagsWithPatterns = TAG_REGISTRY.filter((t) => t.patterns.length > 0);
+let tagsWithPatterns: typeof TAG_REGISTRY = [];
 
 function matchTags(text: string): SeoTags {
   const result: SeoTags = {
@@ -72,7 +80,7 @@ function matchTags(text: string): SeoTags {
   };
 
   for (const tag of tagsWithPatterns) {
-    const matched = tag.patterns.some((p) => p.test(text));
+    const matched = patternsForTag(tag.dimension, tag.slug).some((p) => p.test(text));
     if (matched && !result[tag.dimension].includes(tag.slug)) {
       result[tag.dimension].push(tag.slug);
     }
@@ -86,6 +94,8 @@ function isEmptySeoTags(tags: SeoTags): boolean {
 }
 
 async function main() {
+  ({ patternsForTag } = await import("../landing/src/lib/tag-patterns"));
+  tagsWithPatterns = TAG_REGISTRY.filter((t) => patternsForTag(t.dimension, t.slug).length > 0);
   loadEnvFiles();
   const args = parseArgs();
 
