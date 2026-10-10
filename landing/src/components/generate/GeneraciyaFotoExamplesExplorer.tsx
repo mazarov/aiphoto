@@ -20,6 +20,8 @@ import {
   GENERACIYA_PO_FOTO_SEO,
 } from "@/lib/generaciya-foto-seo-copy";
 import { appendUniqueCardPage } from "@/lib/listing-cards";
+import { omitCardFromPages, omitHiddenCardIds } from "@/lib/debug-hide-card";
+import { useDebugCardHidden } from "@/hooks/useDebugCardHidden";
 import {
   LISTING_INFINITE_PAGE_SIZE,
   LISTING_SEARCH_PAGE_SIZE,
@@ -206,13 +208,21 @@ export function GeneraciyaFotoExamplesExplorer({
 
   hasMoreRef.current = hasMore;
 
+  const hiddenIdsRef = useRef(new Set<string>());
   const replaceCardPages = useCallback((nextCards: GenerationExampleCard[]) => {
-    setCardPages([nextCards]);
+    setCardPages([omitHiddenCardIds(nextCards, hiddenIdsRef.current)]);
   }, []);
 
   useEffect(() => {
     if (cards.length > 0) writeGenerationExampleNavigation(cards);
   }, [cards]);
+
+  useDebugCardHidden(
+    useCallback((detail) => {
+      hiddenIdsRef.current.add(detail.cardId);
+      setCardPages((pages) => omitCardFromPages(pages, detail.cardId));
+    }, []),
+  );
 
   useEffect(() => {
     if (hasExpandedRef.current) return;
@@ -259,7 +269,10 @@ export function GeneraciyaFotoExamplesExplorer({
         ranked_batch_size?: number;
         has_more?: boolean;
       };
-      const newCards = (data.cards ?? []).map(toGenerationExampleCard);
+      const newCards = omitHiddenCardIds(
+        (data.cards ?? []).map(toGenerationExampleCard),
+        hiddenIdsRef.current,
+      );
       const rankedSize = Math.max(0, Number(data.ranked_batch_size) || 0);
       const apiTotal = Number(data.total_count);
       if (Number.isFinite(apiTotal) && apiTotal >= 0) {

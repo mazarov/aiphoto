@@ -25,6 +25,7 @@ import { isCatalogAdminEmail } from "@/lib/catalog-admin";
 import {
   ADMIN_TECH_INFO_CHANGED_EVENT,
   dispatchDebugCardDeleted,
+  dispatchDebugCardVisibility,
   readAdminTechInfoEnabled,
 } from "@/lib/debug-tools-session";
 import { formatCompactCount } from "@/lib/format-view-count";
@@ -266,6 +267,8 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   const [setBeforeStatus, setSetBeforeStatus] = useState<string | null>(null);
   const [deleteSaving, setDeleteSaving] = useState(false);
   const [deleteStatus, setDeleteStatus] = useState<string | null>(null);
+  const [hideSaving, setHideSaving] = useState(false);
+  const [hideStatus, setHideStatus] = useState<string | null>(null);
   const [listingNavNeighbors, setListingNavNeighbors] =
     useState<ListingCardNavNeighbors | null>(() =>
       resolveListingNavNeighbors(data.slug)
@@ -340,6 +343,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     setPhotoshootExpanded(typeof currentSeed?.photoIndex === "number");
     setSetBeforeStatus(null);
     setDeleteStatus(null);
+    setHideStatus(null);
     setPubStatus(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: [data.id] only
   }, [data.id]);
@@ -662,6 +666,47 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     }
   }
 
+  async function handleDebugSetPublished(nextPublished: boolean) {
+    const verb = nextPublished ? "Вернуть карточку на витрину" : "Скрыть карточку с витрины";
+    const detail = nextPublished
+      ? "Она снова попадёт в каталог и поиск."
+      : "Она пропадёт из каталога и поиска. Строка в базе останется.";
+    if (!window.confirm(`${verb}?\n\n${detail}\n\nslug:\n${data.slug}`)) return;
+
+    setHideSaving(true);
+    setHideStatus(null);
+    try {
+      const res = await fetch("/api/debug-hide-card", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          cardId: data.id,
+          confirmSlug: data.slug,
+          published: nextPublished,
+        }),
+      });
+      const j = (await res.json()) as { error?: string; is_published?: boolean };
+      if (!res.ok) {
+        setHideStatus(`Ошибка: ${j.error || res.statusText}`);
+        return;
+      }
+      setPublishedLocal(nextPublished);
+      setHideStatus(nextPublished ? "На витрине" : "Скрыта с витрины");
+      if (!nextPublished) {
+        dispatchDebugCardVisibility({
+          cardId: data.id,
+          slug: data.slug,
+          published: false,
+        });
+      }
+    } catch (e) {
+      setHideStatus(`Ошибка: ${(e as Error).message}`);
+    } finally {
+      setHideSaving(false);
+    }
+  }
+
   async function handleDebugDeleteCard() {
     if (
       !window.confirm(
@@ -870,6 +915,32 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                 }`}
               >
                 {setBeforeStatus}
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-amber-200/80">
+            <button
+              type="button"
+              onClick={() => handleDebugSetPublished(!publishedLocal)}
+              disabled={hideSaving}
+              className="rounded-lg bg-zinc-900 border border-zinc-900 px-2.5 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-zinc-800 disabled:opacity-50"
+            >
+              {hideSaving
+                ? "Сохраняю…"
+                : publishedLocal
+                  ? "Скрыть с витрины"
+                  : "Вернуть на витрину"}
+            </button>
+            <span className="text-[10px] text-zinc-500">
+              {publishedLocal ? "на витрине" : "скрыта"}
+            </span>
+            {hideStatus && (
+              <span
+                className={`text-[11px] ${
+                  hideStatus.startsWith("Ошибка") ? "text-red-600" : "text-emerald-700"
+                }`}
+              >
+                {hideStatus}
               </span>
             )}
           </div>
@@ -1432,6 +1503,22 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                       </button>
                     </div>
                   </div>
+                  {debugMode ? (
+                    <div data-no-swipe className="pointer-events-auto flex justify-start pb-1">
+                      <button
+                        type="button"
+                        onClick={() => handleDebugSetPublished(!publishedLocal)}
+                        disabled={hideSaving}
+                        className="rounded-full bg-zinc-950/80 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm backdrop-blur-md disabled:opacity-50"
+                      >
+                        {hideSaving
+                          ? "Сохраняю…"
+                          : publishedLocal
+                            ? "Скрыть с витрины"
+                            : "Вернуть на витрину"}
+                      </button>
+                    </div>
+                  ) : null}
                   {photoshootGrid && photoshootExpanded ? (
                     <div className="pointer-events-auto flex justify-center pb-2">
                       <PhotoshootFrameStrip

@@ -15,6 +15,8 @@ import {
   primeListingNavigationCards,
   writeListingNavigationContext,
 } from "@/lib/listing-card-navigation-context";
+import { omitCardById, shouldDropHiddenCardFromListing } from "@/lib/debug-hide-card";
+import { useDebugCardHidden } from "@/hooks/useDebugCardHidden";
 import { ListingCardDebugOverlay } from "./ListingCardDebugOverlay";
 import { StableListingMasonry } from "./StableListingMasonry";
 import {
@@ -144,11 +146,13 @@ export function FilterableGrid({
   const [filterTotal, setFilterTotal] = useState<number | null>(null);
   const filterDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const filtersRef = useRef(filters);
+  const filterResultsRef = useRef(filterResults);
   const filterRankedOffsetRef = useRef(0);
   const filterSentinelRef = useRef<HTMLDivElement>(null);
   const filterLoadingRef = useRef(false);
   const filterHasMoreRef = useRef(false);
   filtersRef.current = filters;
+  filterResultsRef.current = filterResults;
   filterLoadingRef.current = filterSearching || filterLoadingMore;
   filterHasMoreRef.current = filterHasMore;
 
@@ -222,6 +226,18 @@ export function FilterableGrid({
     window.addEventListener(DEBUG_CARD_DELETED_EVENT, onDeleted);
     return () => window.removeEventListener(DEBUG_CARD_DELETED_EVENT, onDeleted);
   }, [isAdmin]);
+
+  useDebugCardHidden(
+    useCallback((detail) => {
+      if (!shouldDropHiddenCardFromListing(filtersRef.current.published)) return;
+      const prev = filterResultsRef.current;
+      if (!prev) return;
+      const next = omitCardById(prev, detail.cardId);
+      if (next === prev) return;
+      setFilterResults(next);
+      setFilterTotal((total) => (total != null ? Math.max(0, total - 1) : total));
+    }, []),
+  );
 
   useEffect(() => {
     if (!isAdmin) return;

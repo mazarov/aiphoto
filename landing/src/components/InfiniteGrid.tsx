@@ -18,6 +18,8 @@ import {
   resolveListingPageStep,
 } from "@/lib/listing-pagination";
 import { subscribeListingNavigationLoadMore } from "@/lib/listing-card-navigation-context";
+import { omitCardFromPages } from "@/lib/debug-hide-card";
+import { useDebugCardHidden } from "@/hooks/useDebugCardHidden";
 
 const PAGE_SIZE = LISTING_INFINITE_PAGE_SIZE;
 
@@ -191,6 +193,12 @@ export function InfiniteGrid({
         void loadMore();
       }),
     [loadMore]
+  );
+
+  useDebugCardHidden(
+    useCallback((detail) => {
+      setCardPages((pages) => omitCardFromPages(pages, detail.cardId));
+    }, []),
   );
 
   const showTeaserOverlay =

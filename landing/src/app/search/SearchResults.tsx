@@ -8,6 +8,8 @@ import {
   useMemo,
   useRef,
 } from "react";
+import { useDebugCardHidden } from "@/hooks/useDebugCardHidden";
+import { omitCardFromPages } from "@/lib/debug-hide-card";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ListingExplorerFrame } from "@/components/ListingExplorerFrame";
 import {
@@ -89,6 +91,12 @@ export function SearchResults({ initialQuery }: Props) {
   const [query, setQuery] = useState(initialQuery);
   const [cardPages, setCardPages] = useState<PromptCardFull[][]>([]);
   const cards = useMemo(() => cardPages.flat(), [cardPages]);
+
+  useDebugCardHidden(
+    useCallback((detail) => {
+      setCardPages((pages) => omitCardFromPages(pages, detail.cardId));
+    }, []),
+  );
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [matchType, setMatchType] = useState<string | null>(null);

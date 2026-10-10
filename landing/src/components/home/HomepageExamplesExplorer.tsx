@@ -5,8 +5,11 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
+import { useDebugCardHidden } from "@/hooks/useDebugCardHidden";
+import { omitCardById, omitHiddenCardIds } from "@/lib/debug-hide-card";
 import {
   ListingExplorerHeading,
   ListingExplorerSearch,
@@ -54,10 +57,18 @@ export function HomepageExamplesExplorer({
   const [cards, setCards] = useState(initialCards);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const hiddenIdsRef = useRef(new Set<string>());
 
   useEffect(() => {
     if (cards.length > 0) writeGenerationExampleNavigation(cards);
   }, [cards]);
+
+  useDebugCardHidden(
+    useCallback((detail) => {
+      hiddenIdsRef.current.add(detail.cardId);
+      setCards((current) => omitCardById(current, detail.cardId));
+    }, []),
+  );
 
   const setSearchQuery = useCallback((nextQuery: string) => {
     setQuery(nextQuery);
@@ -71,7 +82,7 @@ export function HomepageExamplesExplorer({
   useEffect(() => {
     const trimmed = query.trim();
     if (trimmed.length < 2 && !activeFilter) {
-      setCards(initialCards);
+      setCards(omitHiddenCardIds(initialCards, hiddenIdsRef.current));
       setLoading(false);
       setError("");
       return;
@@ -104,9 +115,12 @@ export function HomepageExamplesExplorer({
               cards?: PromptCardFull[];
             };
             setCards(
-              (payload.cards ?? [])
-                .map(toGenerationExampleCard)
-                .slice(0, RESULT_LIMIT)
+              omitHiddenCardIds(
+                (payload.cards ?? [])
+                  .map(toGenerationExampleCard)
+                  .slice(0, RESULT_LIMIT),
+                hiddenIdsRef.current,
+              ),
             );
           })
           .catch((fetchError: unknown) => {

@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useDebugCardHidden } from "@/hooks/useDebugCardHidden";
+import { omitCardById } from "@/lib/debug-hide-card";
 import { resolveAdLandingTitle } from "@/lib/ad-landing-title";
 import { useListingFilters } from "@/hooks/useListingFilters";
 import { useListingSort } from "@/hooks/useListingSort";
@@ -121,6 +123,14 @@ export function CatalogWithFilters({
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [searchCards, setSearchCards] = useState<PromptCardFull[] | null>(null);
+
+  useDebugCardHidden(
+    useCallback((detail) => {
+      setSearchCards((current) =>
+        current ? omitCardById(current, detail.cardId) : current,
+      );
+    }, []),
+  );
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
   const { filters, setFilter, applyFilters, resetFilters, activeCount, mergedRpcParams } =

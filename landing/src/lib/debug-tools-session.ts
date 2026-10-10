@@ -17,9 +17,16 @@ export type DebugFilterState = {
 };
 
 export const DEBUG_CARD_DELETED_EVENT = "promptshot:debug-card-deleted";
+export const DEBUG_CARD_VISIBILITY_EVENT = "promptshot:debug-card-visibility";
 export const ADMIN_TECH_INFO_CHANGED_EVENT = "promptshot:admin-tech-info-changed";
 
 export type DebugCardDeletedDetail = { cardId: string; slug: string };
+
+export type DebugCardVisibilityDetail = {
+  cardId: string;
+  slug: string;
+  published: boolean;
+};
 
 export function readDebugFilterState(): DebugFilterState | null {
   try {
@@ -63,4 +70,8 @@ export function writeAdminTechInfoEnabled(enabled: boolean): void {
 
 export function dispatchDebugCardDeleted(detail: DebugCardDeletedDetail): void {
   window.dispatchEvent(new CustomEvent(DEBUG_CARD_DELETED_EVENT, { detail }));
+}
+
+export function dispatchDebugCardVisibility(detail: DebugCardVisibilityDetail): void {
+  window.dispatchEvent(new CustomEvent(DEBUG_CARD_VISIBILITY_EVENT, { detail }));
 }

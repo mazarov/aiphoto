@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useDebugCardHidden } from "@/hooks/useDebugCardHidden";
 import { ListingPhotoTile } from "@/components/ListingPhotoTile";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import { buildHeroCarouselImageAlt } from "@/lib/hero-carousel-alt";
@@ -103,9 +104,23 @@ export function GeneraciyaFotoHeroCarousel({
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const { open, prefetchCard } = usePromptCardModal();
+  const [hiddenIds, setHiddenIds] = useState<ReadonlySet<string>>(() => new Set());
+  useDebugCardHidden(
+    useCallback((detail) => {
+      setHiddenIds((current) => {
+        if (current.has(detail.cardId)) return current;
+        const next = new Set(current);
+        next.add(detail.cardId);
+        return next;
+      });
+    }, []),
+  );
   const photos = useMemo(
-    () => takeHeroMarqueeCards(cards.filter((card) => card.photoUrl)),
-    [cards]
+    () =>
+      takeHeroMarqueeCards(
+        cards.filter((card) => card.photoUrl && !hiddenIds.has(card.id)),
+      ),
+    [cards, hiddenIds],
   );
   const featured = photos[0];
   const canLoop = photos.length >= 2;
