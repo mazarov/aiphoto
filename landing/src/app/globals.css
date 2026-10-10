@@ -755,7 +755,7 @@ p {
     background:
       linear-gradient(135deg, #6366f1 0%, #5b5cf0 52%, #8b5cf6 100%) padding-box,
       conic-gradient(
-          from var(--prompt-cta-border-angle),
+          from var(--prompt-cta-border-angle, 0deg),
           rgba(255, 255, 255, 0.2) 0deg,
           rgba(255, 255, 255, 0.2) 250deg,
           rgba(224, 231, 255, 0.95) 290deg,

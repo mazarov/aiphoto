@@ -15,7 +15,7 @@ alwaysApply: true
 
 ### Локально (каталог `landing/`)
 
-1. **`npm run build`** = **`npm run build:stv-web`** + **`next build`**.
+1. **`npm run build`** = **`npm run build:stv-web`** + **`next build`** + **`npm run check:browser-compat`** (гейт: клиентские чанки без regex lookbehind / static blocks — Safari / iOS 16.0+ по `browserslist`; падает — сборка падает, см. `scripts/check-client-bundle-compat.mjs`).
 2. **`build:stv-web`** ищет исходники панели в порядке: **`../extension/sidepanel`** (если есть в клоне), иначе **`landing/stv-web-sidepanel/`** (зеркало для Docker).
 3. После изменений в **`extension/sidepanel/`**, влияющих на веб-embed, из **`landing/`** выполнить **`npm run sync:stv-sidepanel`** и закоммитить обновлённое зеркало.
 4. Перед **`npm run dev`** для **`/embed/stv`** / модалки STV — **`npm run build:stv-web`** или **`npm run build`**.

@@ -6,7 +6,8 @@
     "chrome >= 111",
     "edge >= 111",
     "firefox >= 111",
-    "safari >= 16.4",
+    "safari >= 16",
+    "ios_saf >= 16",
     "not dead"
   ],
   "scripts": {
@@ -16,7 +17,8 @@
     "dev:clean": "rm -rf .next && next dev -p 3002",
     "build:stv-web": "node scripts/build-stv-web.mjs",
     "sync:stv-sidepanel": "node scripts/sync-stv-web-sidepanel.mjs",
-    "build": "npm run build:stv-web && next build",
+    "build": "npm run build:stv-web && next build && npm run check:browser-compat",
+    "check:browser-compat": "node scripts/check-client-bundle-compat.mjs",
     "start": "next start -p 3001",
     "lint": "next lint",
     "seo:check": "tsx scripts/sync-seo-content.ts --check",

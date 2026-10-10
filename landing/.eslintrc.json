@@ -1,3 +1,18 @@
 {
-  "extends": "next/core-web-vitals"
+  "extends": "next/core-web-vitals",
+  "rules": {
+    "no-restricted-syntax": [
+      "error",
+      {
+        "selector": "Literal[regex.pattern=/\\(\\?<[=!]/]",
+        "message": "Regex lookbehind is a SyntaxError in Safari < 16.4 and kills the whole client chunk. Use (?:^|[^…])… or keep the regex in a server-only module. See scripts/check-client-bundle-compat.mjs."
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx", "scripts/**"],
+      "rules": { "no-restricted-syntax": "off" }
+    }
+  ]
 }

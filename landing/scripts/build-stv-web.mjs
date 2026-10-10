@@ -37,6 +37,8 @@ await esbuild.build({
   bundle: true,
   format: "esm",
   platform: "browser",
+  // Same browser contract as `browserslist` in package.json (Safari / iOS 16.0+).
+  target: ["safari16", "ios16", "chrome111", "firefox111", "edge111"],
   outfile: join(outDir, "boot.mjs"),
   sourcemap: true,
   logLevel: "info",

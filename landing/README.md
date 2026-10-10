@@ -31,7 +31,8 @@ npm start
 
 - Запуск из каталога **`landing/`**.
 - **`build:stv-web`** смотрит **`../extension/sidepanel`**, иначе **`./stv-web-sidepanel/`** (зеркало в git для Docker). После правок в **`extension/sidepanel/`**: **`npm run sync:stv-sidepanel`**.
-- Скрипты: **`build:stv-web`** → `public/stv-panel/boot.mjs` + `styles.css`; **`build`** → STV + **`next build`**.
+- Скрипты: **`build:stv-web`** → `public/stv-panel/boot.mjs` + `styles.css`; **`build`** → STV + **`next build`** + **`check:browser-compat`**.
+- **`check:browser-compat`** (`scripts/check-client-bundle-compat.mjs`) сканирует клиентские чанки и панель STV на конструкции, которые Safari / iOS < 16.4 не парсит (regex lookbehind, class static blocks), и валит сборку. Контракт браузеров — `browserslist` в `package.json` (Safari / iOS **16.0+**). Lookbehind в `src/**` дополнительно запрещён ESLint (`no-restricted-syntax`).
 
 ## Steal This Vibe (extension + API)
 

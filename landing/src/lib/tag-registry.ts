@@ -11,7 +11,12 @@ export type TagEntry = {
   labelRu: string;
   labelEn: string;
   urlPath: string;
-  /** Regex patterns for extracting this tag from prompt text (used by fill-seo-tags) */
+  /**
+   * Regex patterns for extracting this tag from prompt text (used by fill-seo-tags).
+   * This table is imported by client components, so the literals ship to the browser.
+   * No lookbehind `(?<=` / `(?<!` — Safari < 16.4 fails to parse the whole chunk
+   * (see `scripts/check-client-bundle-compat.mjs`). Use `(?:^|[^…])` instead.
+   */
   patterns: RegExp[];
 };
 
@@ -78,8 +83,8 @@ export const TAG_REGISTRY: TagEntry[] = [
   { slug: "novyy_god", dimension: "occasion_tag", labelRu: "Новый год", labelEn: "New Year", urlPath: "/sobytiya/novyj-god", patterns: [/новый год|новогодн/i] },
   { slug: "svadba", dimension: "occasion_tag", labelRu: "Свадьба", labelEn: "Wedding", urlPath: "/sobytiya/svadba", patterns: [/свадьб/i] },
   { slug: "rozhdestvo", dimension: "occasion_tag", labelRu: "Рождество", labelEn: "Christmas", urlPath: "/sobytiya/rozhdestvo", patterns: [/рождеств|christmas/i] },
-  { slug: "den_uchitelya", dimension: "occasion_tag", labelRu: "День учителя", labelEn: "Teacher's Day", urlPath: "/promty-dlya-foto/den-uchitelya", patterns: [/д(?:ень|ня|ню|нем|нём)\s+учител|(?<![а-яё])учител|(?<![a-z])teacher\b/i] },
-  { slug: "den_vospitatelya", dimension: "occasion_tag", labelRu: "День воспитателя", labelEn: "Educator's Day", urlPath: "/promty-dlya-foto/den-vospitatelya", patterns: [/д(?:ень|ня|ню|нем|нём)\s+воспитател|(?<![а-яё])воспитател(?!ьн(?:ый|ая|ое|ые|ого))/i] },
+  { slug: "den_uchitelya", dimension: "occasion_tag", labelRu: "День учителя", labelEn: "Teacher's Day", urlPath: "/promty-dlya-foto/den-uchitelya", patterns: [/д(?:ень|ня|ню|нем|нём)\s+учител|(?:^|[^а-яё])учител|(?:^|[^a-z])teacher\b/i] },
+  { slug: "den_vospitatelya", dimension: "occasion_tag", labelRu: "День воспитателя", labelEn: "Educator's Day", urlPath: "/promty-dlya-foto/den-vospitatelya", patterns: [/д(?:ень|ня|ню|нем|нём)\s+воспитател|(?:^|[^а-яё])воспитател(?!ьн(?:ый|ая|ое|ые|ого))/i] },
 
   // ── object_tag ──
   { slug: "v_forme", dimension: "object_tag", labelRu: "В форме", labelEn: "In uniform", urlPath: "/v-forme", patterns: [/в форм|военн|солдат/i] },
