@@ -55,8 +55,154 @@ function signature(): string {
   return "—\nКоманда PromptShot\nhttps://promptshot.ru";
 }
 
-function wrapHtml(body: string): string {
-  return `<!doctype html><html><body style="font-family:system-ui,sans-serif;line-height:1.5;color:#18181b">${body.replace(/\n/g, "<br/>")}</body></html>`;
+const MAIL_FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif";
+const CTA_LINE = /^(.{1,80}?):\s+(https?:\/\/\S+)$/;
+const NPS_LINE = /^([1-9]|10)\s+—\s+(https?:\/\/\S+)$/;
+const UNSUB_LINE = /^Отписаться от рассылок:\s+(https?:\/\/\S+)$/;
+const URL_IN_TEXT = /https?:\/\/[^\s<>]+/g;
+
+type MailBlock =
+  | { type: "p"; text: string }
+  | { type: "button"; label: string; href: string }
+  | { type: "link"; label: string; href: string }
+  | { type: "nps"; scores: Array<{ score: string; href: string }> };
+
+function linkify(text: string): string {
+  let html = "";
+  let last = 0;
+  for (const match of text.matchAll(URL_IN_TEXT)) {
+    const index = match.index ?? 0;
+    html += escapeHtml(text.slice(last, index));
+    const url = match[0];
+    html += `<a href="${escapeHtml(url)}" style="color:#4f46e5;text-decoration:underline;">${escapeHtml(url)}</a>`;
+    last = index + url.length;
+  }
+  html += escapeHtml(text.slice(last));
+  return html;
+}
+
+function parseMailBlocks(lines: string[]): {
+  greeting: string;
+  blocks: MailBlock[];
+  unsubscribe: string | null;
+  signature: string[];
+} {
+  const flat = lines.join("\n").split("\n");
+  const signatureAt = flat.findIndex((line) => line.trim() === "—");
+  const head = signatureAt >= 0 ? flat.slice(0, signatureAt) : flat;
+  const signature = signatureAt >= 0 ? flat.slice(signatureAt).map((line) => line.trim()).filter(Boolean) : [];
+
+  let greeting = "";
+  const body: string[] = [];
+  let seen = false;
+  for (const line of head) {
+    if (!seen) {
+      if (!line.trim()) continue;
+      greeting = line.trim();
+      seen = true;
+      continue;
+    }
+    body.push(line);
+  }
+
+  const blocks: MailBlock[] = [];
+  let unsubscribe: string | null = null;
+  let buttonUsed = false;
+  let nps: Array<{ score: string; href: string }> | null = null;
+
+  function flushNps() {
+    if (nps && nps.length > 0) blocks.push({ type: "nps", scores: nps });
+    nps = null;
+  }
+
+  for (const raw of body) {
+    const line = raw.trim();
+    if (!line) {
+      flushNps();
+      continue;
+    }
+    const unsub = line.match(UNSUB_LINE);
+    if (unsub) {
+      flushNps();
+      unsubscribe = unsub[1];
+      continue;
+    }
+    const score = line.match(NPS_LINE);
+    if (score) {
+      if (!nps) nps = [];
+      nps.push({ score: score[1], href: score[2] });
+      continue;
+    }
+    flushNps();
+    const cta = line.match(CTA_LINE);
+    if (cta) {
+      const label = cta[1].trim();
+      const href = cta[2];
+      if (!buttonUsed) {
+        blocks.push({ type: "button", label, href });
+        buttonUsed = true;
+      } else {
+        blocks.push({ type: "link", label, href });
+      }
+      continue;
+    }
+    blocks.push({ type: "p", text: line });
+  }
+  flushNps();
+
+  return { greeting, blocks, unsubscribe, signature };
+}
+
+function renderMailBlocks(blocks: MailBlock[]): string {
+  return blocks
+    .map((block) => {
+      if (block.type === "p") {
+        return `<p style="margin:0 0 12px;font-family:${MAIL_FONT};font-size:16px;line-height:1.5;color:#18181b;">${linkify(block.text)}</p>`;
+      }
+      if (block.type === "button") {
+        return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 16px;"><tr><td bgcolor="#4f46e5" style="border-radius:12px;background:#4f46e5;"><a href="${escapeHtml(block.href)}" style="display:inline-block;padding:12px 20px;font-family:${MAIL_FONT};font-size:15px;line-height:1.2;font-weight:600;color:#ffffff;text-decoration:none;">${escapeHtml(block.label)}</a></td></tr></table>`;
+      }
+      if (block.type === "link") {
+        return `<p style="margin:0 0 8px;font-family:${MAIL_FONT};font-size:14px;line-height:1.5;"><a href="${escapeHtml(block.href)}" style="color:#4f46e5;text-decoration:underline;">${escapeHtml(block.label)}</a></p>`;
+      }
+      const cells = block.scores
+        .map(
+          (item) =>
+            `<td style="padding:0 4px 8px 0;"><a href="${escapeHtml(item.href)}" style="display:inline-block;width:32px;line-height:32px;text-align:center;border-radius:8px;background:#eef2ff;font-family:${MAIL_FONT};font-size:14px;font-weight:600;color:#4f46e5;text-decoration:none;">${escapeHtml(item.score)}</a></td>`,
+        )
+        .join("");
+      return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 12px;"><tr>${cells}</tr></table>`;
+    })
+    .join("");
+}
+
+function renderMailFooter(signature: string[], unsubscribe: string | null): string {
+  const signatureHtml = signature
+    .map((line) => {
+      if (/^https?:\/\//.test(line)) {
+        const label = line.replace(/^https?:\/\//, "");
+        return `<a href="${escapeHtml(line)}" style="color:#71717a;text-decoration:underline;">${escapeHtml(label)}</a>`;
+      }
+      return escapeHtml(line);
+    })
+    .join("<br/>");
+  const signatureBlock = signatureHtml
+    ? `<p style="margin:8px 0 0;font-family:${MAIL_FONT};font-size:13px;line-height:1.5;color:#71717a;">${signatureHtml}</p>`
+    : "";
+  const unsubBlock = unsubscribe
+    ? `<p style="margin:8px 0 0;font-family:${MAIL_FONT};font-size:12px;line-height:1.5;"><a href="${escapeHtml(unsubscribe)}" style="color:#a1a1aa;text-decoration:underline;">Отписаться от рассылок</a></p>`
+    : "";
+  if (!signatureBlock && !unsubBlock) return "";
+  return `<tr><td style="padding:0 32px 32px;">${signatureBlock}${unsubBlock}</td></tr>`;
+}
+
+function layoutMailHtml(lines: string[], subject: string): string {
+  const parsed = parseMailBlocks(lines);
+  const greeting = parsed.greeting
+    ? `<h1 style="margin:0 0 16px;font-family:${MAIL_FONT};font-size:22px;line-height:1.3;font-weight:600;color:#18181b;">${escapeHtml(parsed.greeting)}</h1>`
+    : "";
+  const footer = renderMailFooter(parsed.signature, parsed.unsubscribe);
+  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(subject)}</title></head><body style="margin:0;padding:0;background:#f4f4f5;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;"><tr><td align="center" style="padding:32px 16px;"><table role="presentation" width="560" cellpadding="0" cellspacing="0" style="width:560px;max-width:560px;background:#ffffff;border-radius:16px;"><tr><td style="padding:32px 32px 8px;"><p style="margin:0 0 20px;font-family:${MAIL_FONT};font-size:14px;line-height:1.4;font-weight:600;color:#4f46e5;">PromptShot</p>${greeting}${renderMailBlocks(parsed.blocks)}</td></tr>${footer}</table></td></tr></table></body></html>`;
 }
 
 function marketingHeaders(email: string): Array<{ Name: string; Value: string }> {
@@ -88,7 +234,7 @@ function buildMail(
   return {
     subject,
     text,
-    html: wrapHtml(escapeHtml(text)),
+    html: layoutMailHtml(lines, subject),
     headers: marketing ? marketingHeaders(toEmail) : [],
   };
 }

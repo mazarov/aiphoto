@@ -19,6 +19,12 @@ test("transactional templates do not add List-Unsubscribe", () => {
   assert.match(mail.text, /пакет «Оптимальный»/);
   assert.match(mail.text, /100/);
   assert.match(mail.text, /generaciya\/foto-po-opisaniyu/);
+  assert.match(
+    mail.html,
+    /href="https:\/\/promptshot\.ru\/generaciya\/foto-po-opisaniyu"[^>]*>Сделать фото</,
+  );
+  assert.match(mail.html, /background:#f4f4f5/);
+  assert.equal(mail.html.split("color:#ffffff").length - 1, 1);
   assert.deepEqual(mail.headers, []);
 });
 
@@ -75,6 +81,7 @@ test("nps after 2 is transactional and lists scores 1-10", () => {
     assert.match(mail.text, /порекомендовать/);
     assert.match(mail.text, /1 — https:\/\/promptshot\.ru\/ocenka\?t=/);
     assert.match(mail.text, /10 — /);
+    assert.equal(mail.html.match(/\/ocenka\?/g)?.length, 10);
     assert.deepEqual(mail.headers, []);
   } finally {
     process.env.MAIL_UNSUBSCRIBE_SECRET = previous;
@@ -96,7 +103,21 @@ test("campaign templates add one-click unsubscribe headers when secret exists", 
     assert.equal(mail.headers[0]?.Name, "List-Unsubscribe");
     assert.match(mail.headers[0]?.Value || "", /\/api\/mail\/unsubscribe\?t=/);
     assert.equal(mail.headers[1]?.Value, "List-Unsubscribe=One-Click");
+    assert.match(mail.html, /Отписаться от рассылок/);
   } finally {
     process.env.MAIL_UNSUBSCRIBE_SECRET = prev;
   }
+});
+
+test("campaign html escapes the body inside the card", () => {
+  const mail = renderMailTemplate(
+    "campaign",
+    { subject: "Новости", body_text: "<script>alert(1)</script>", display_name: "Максим" },
+    "user@example.com",
+  );
+  assert.match(mail.text, /<script>alert\(1\)<\/script>/);
+  assert.doesNotMatch(mail.html, /<script>/);
+  assert.match(mail.html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.match(mail.html, /background:#ffffff/);
+  assert.equal(mail.html.split("Здравствуйте, Максим!").length - 1, 1);
 });

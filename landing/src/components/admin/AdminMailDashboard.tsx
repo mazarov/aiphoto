@@ -30,6 +30,7 @@ type CatalogRow = {
   idempotencyKey: string;
   subject: string;
   text: string;
+  html: string;
 };
 
 type DailyTemplate = {
@@ -188,7 +189,7 @@ export function AdminMailDashboard() {
   const budget = (stats?.budget as Record<string, unknown> | undefined) || null;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className={`mx-auto space-y-6 ${tab === "catalog" ? "max-w-5xl" : "max-w-3xl"}`}>
       <div className="flex gap-2">
         <button
           type="button"
@@ -237,32 +238,33 @@ export function AdminMailDashboard() {
             </select>
           </label>
           {selectedCatalog ? (
-            <div className="mt-4 space-y-2 text-sm text-zinc-700">
-              <p>
-                <span className="font-semibold">Класс:</span> {selectedCatalog.kind}
-                {selectedCatalog.discountPercent
-                  ? ` · скидка ${selectedCatalog.discountPercent}%`
-                  : ""}
-              </p>
-              <p>
-                <span className="font-semibold">Кому:</span> {selectedCatalog.audience}
-              </p>
-              <p>
-                <span className="font-semibold">Когда:</span> {selectedCatalog.when}
-              </p>
-              <p>
-                <span className="font-semibold">Стоп:</span> {selectedCatalog.stop}
-              </p>
-              <p>
-                <span className="font-semibold">CTA:</span> {selectedCatalog.cta}
-              </p>
-              <p>
-                <span className="font-semibold">Ключ:</span> {selectedCatalog.idempotencyKey}
-              </p>
-              <p className="pt-2 font-semibold text-zinc-900">{selectedCatalog.subject}</p>
-              <pre className="whitespace-pre-wrap rounded-xl bg-zinc-50 p-3 text-xs text-zinc-700">
-                {selectedCatalog.text}
-              </pre>
+            <div className="mt-6 grid gap-6 md:grid-cols-[280px_minmax(0,1fr)]">
+              <div className="space-y-2 text-sm text-zinc-700">
+                <p>
+                  <span className="font-semibold">Класс:</span> {selectedCatalog.kind}
+                  {selectedCatalog.discountPercent
+                    ? ` · скидка ${selectedCatalog.discountPercent}%`
+                    : ""}
+                </p>
+                <p>
+                  <span className="font-semibold">Кому:</span> {selectedCatalog.audience}
+                </p>
+                <p>
+                  <span className="font-semibold">CTA:</span> {selectedCatalog.cta}
+                </p>
+                <p className="font-semibold text-zinc-900">{selectedCatalog.subject}</p>
+                <p className="text-xs text-zinc-500">
+                  {selectedCatalog.when}
+                  {" · "}
+                  {selectedCatalog.stop}
+                </p>
+              </div>
+              <iframe
+                title={selectedCatalog.subject}
+                sandbox=""
+                srcDoc={selectedCatalog.html}
+                className="h-[680px] w-full rounded-xl border border-zinc-200 bg-zinc-100"
+              />
             </div>
           ) : null}
         </section>
