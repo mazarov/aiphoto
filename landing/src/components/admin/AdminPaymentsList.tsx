@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { formatPaymentTrafficSource } from "@/lib/admin-payments";
+import {
+  ADMIN_PAYMENT_CSV_RANGE_MAX_DAYS,
+  adminPaymentMoscowToday,
+  formatPaymentTrafficSource,
+  parseAdminPaymentCsvRange,
+} from "@/lib/admin-payments";
 
 type Payment = {
   id: string;
@@ -81,6 +86,9 @@ export function AdminPaymentsList() {
   const [reconcilingId, setReconcilingId] = useState<string | null>(null);
   const [staleBusy, setStaleBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [csvFrom, setCsvFrom] = useState("");
+  const [csvTo, setCsvTo] = useState("");
+  const csvToday = adminPaymentMoscowToday();
 
   const load = useCallback(async (next?: string) => {
     setState({ loading: true, status: 0, error: "" });
@@ -165,6 +173,15 @@ export function AdminPaymentsList() {
   }, [load]);
 
   const exportCsv = useCallback(async () => {
+    const parsedRange = parseAdminPaymentCsvRange(csvFrom, csvTo);
+    if (!parsedRange.ok) {
+      setActionMessage(
+        parsedRange.error === "range_too_long"
+          ? `Период длиннее ${ADMIN_PAYMENT_CSV_RANGE_MAX_DAYS} дней. Разбейте выгрузку.`
+          : "Проверьте даты: «с» не позже «по».",
+      );
+      return;
+    }
     setExporting(true);
     setActionMessage("");
     try {
@@ -175,10 +192,18 @@ export function AdminPaymentsList() {
       });
       if (sourceFilter.trim()) params.set("source", sourceFilter.trim());
       if (campaignFilter.trim()) params.set("campaign", campaignFilter.trim());
+      if (parsedRange.range.fromDay) params.set("from", parsedRange.range.fromDay);
+      if (parsedRange.range.toDay) params.set("to", parsedRange.range.toDay);
       const response = await fetch(`/api/admin/payments?${params}`, { credentials: "include" });
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        setActionMessage(body.error || "Не удалось выгрузить CSV");
+        setActionMessage(
+          body.error === "range_too_long"
+            ? `Период длиннее ${ADMIN_PAYMENT_CSV_RANGE_MAX_DAYS} дней. Разбейте выгрузку.`
+            : body.error === "invalid_filter"
+              ? "Проверьте даты: «с» не позже «по»."
+              : body.error || "Не удалось выгрузить CSV",
+        );
         return;
       }
       const blob = await response.blob();
@@ -193,17 +218,20 @@ export function AdminPaymentsList() {
       URL.revokeObjectURL(downloadUrl);
       const count = Number(response.headers.get("X-Export-Count") || 0);
       const truncated = response.headers.get("X-Export-Truncated") === "1";
+      const period = parsedRange.range.fromDay || parsedRange.range.toDay
+        ? ` за ${parsedRange.range.fromDay || "…"} — ${parsedRange.range.toDay || "…"}`
+        : "";
       setActionMessage(
         truncated
-          ? `CSV: выгружено ${count} оплат, лимит достигнут. Сузьте фильтры.`
-          : `CSV: выгружено ${count} оплат`,
+          ? `CSV${period}: выгружено ${count} оплат, лимит достигнут. Сузьте период или фильтры.`
+          : `CSV${period}: выгружено ${count} оплат`,
       );
     } catch {
       setActionMessage("Ошибка сети при выгрузке CSV");
     } finally {
       setExporting(false);
     }
-  }, [campaignFilter, sourceFilter, statusFilter, testFilter]);
+  }, [campaignFilter, csvFrom, csvTo, sourceFilter, statusFilter, testFilter]);
 
   if (state.status === 401 || state.status === 403) {
     return <div className="mx-auto max-w-lg rounded-2xl border border-zinc-200 bg-white p-8 text-center shadow-sm">
@@ -227,23 +255,49 @@ export function AdminPaymentsList() {
         <h1 className="text-3xl font-bold tracking-tight text-zinc-900">Оплаты</h1>
         <p className="mt-1 text-sm text-zinc-500">Плательщики, статусы и начисление кредитов</p>
       </div>
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          disabled={exporting || state.loading}
-          onClick={() => void exportCsv()}
-          className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 disabled:opacity-50"
-        >
-          {exporting ? "Выгружаем…" : "Скачать CSV"}
-        </button>
-        <button
-          type="button"
-          disabled={staleBusy || state.loading}
-          onClick={() => void reconcileStale()}
-          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900 disabled:opacity-50"
-        >
-          {staleBusy ? "Сверяем…" : "Сверить зависшие YooKassa"}
-        </button>
+      <div className="flex flex-col items-start gap-2 sm:items-end">
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="text-sm text-zinc-600">
+            С
+            <input
+              type="date"
+              value={csvFrom}
+              max={csvTo || csvToday}
+              onChange={(event) => setCsvFrom(event.target.value)}
+              className="mt-1 block rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+            />
+          </label>
+          <label className="text-sm text-zinc-600">
+            По
+            <input
+              type="date"
+              value={csvTo}
+              min={csvFrom || undefined}
+              max={csvToday}
+              onChange={(event) => setCsvTo(event.target.value)}
+              className="mt-1 block rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900"
+            />
+          </label>
+          <button
+            type="button"
+            disabled={exporting || state.loading}
+            onClick={() => void exportCsv()}
+            className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 disabled:opacity-50"
+          >
+            {exporting ? "Выгружаем…" : "Скачать CSV"}
+          </button>
+          <button
+            type="button"
+            disabled={staleBusy || state.loading}
+            onClick={() => void reconcileStale()}
+            className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900 disabled:opacity-50"
+          >
+            {staleBusy ? "Сверяем…" : "Сверить зависшие YooKassa"}
+          </button>
+        </div>
+        <p className="text-xs text-zinc-500">
+          Период только для CSV. Дни по Москве, обе даты включительно. Пусто — вся история.
+        </p>
       </div>
     </header>
 

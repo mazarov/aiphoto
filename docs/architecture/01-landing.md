@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-11-08 (**admin payments CSV period:** `/admin/payments` поля «С» и «По» задают календарные дни Москвы только для «Скачать CSV». `GET /api/admin/payments?format=csv&from=&to=` — обе границы включительно, пустая сторона открыта, длиннее 366 дней → 400 `range_too_long`. Отбор `created_at` в `admin_landing_payments` (`p_created_from` inclusive, `p_created_to` exclusive), SQL `278`, индексы `(created_at DESC, id DESC)`. Список на странице эти даты не шлёт. Лимит 10 000 строк, UTF-8 BOM и `;` без изменений. Пока миграция не применена, выгрузка без дат работает по старой функции; с датами — только после `278`.)
+
 > Последнее обновление: 2026-11-08 (**кураторская шапка, SQL `277`:** карусель на `/`, L1-хабах каталога, `/generaciya/*` и `/nano-banana` читает `page_hero_cards`, не `resolve_route_cards`. Состав ручной, без лимита; порядок — время добавления в шапку (`page_hero_cards.created_at DESC`, новая карточка первая), затем `popularity_score DESC` (засеянные строки делят одно время), `prompt_cards.created_at`, `id`. Длительность бегущей ленты растёт с числом кадров больше 12 (`heroMarqueeDurationSeconds`), скорость та же. Пустая таблица — пустая карусель, без запасного `sort=new`. Сетка под шапкой по-прежнему «сначала новые». Сид `landing/scripts/seed-page-hero-cards.ts` один раз кладёт топ по популярности с прежними фильтрами шапки и пропускает путь, где строки уже есть. Catalog admin: «Убрать» на кадре карусели, «В шапку» на любой плитке сетки этой страницы, полоска со счётчиком и полем id/slug под каруселью; `GET/POST /api/page-hero`, `revalidatePath` только этого URL. `/ii-fotosessiya` не входит.)
 
 > Последнее обновление: 2026-10-18 (**вёрстка писем:** `renderMailTemplate` собирает HTML-карточку (кнопка из первой ссылки, подвал, ряд NPS). Вкладка «Каталог» на `/admin/mail` показывает этот HTML в iframe. Текст письма не менялся.)
@@ -1095,7 +1097,7 @@ SEO-кадры `/generaciya` → Только эти 25 URL (`isGeneraciyaSeoIma
 /admin/search           → Вкладка «Поиск»: зафиксированные запросы `/search`, размер выдачи, CTR в карточку, топ и нулевая выдача; свой период 1/7/30/90; `GET /api/admin/search-analytics`
 /admin/nps              → Вкладка «Оценки»: KPI/динамика/таблица NPS 1–10; свой период 1/7/30/90; `GET /api/admin/nps`. Спека `docs/14-09-nps-survey.md`
 /admin/analyze-history  → Закрытая история analyze/remix + все non-admin user generations; remix помечается бейджем и `change_request`; image job — бейдж `Gemini|xAI generate|edit`; private source previews выдаются signed, completed results публикуются идемпотентно. Mobile rows: dense (56px thumb, 1-line prompt) via `admin-dense-row.ts`. «Сгенерировать» / «Повторить» открывают тот же floating Generate Dock, что листинг (`isAdminGenerateDockPath`), без отдельной модалки и без idle FAB
-/admin/payments         → Закрытый cursor-реестр YooKassa/Robokassa: payer identity, RUB/status/test, credits/`credited_at`; кнопка «Скачать CSV» выгружает все строки текущих фильтров
+/admin/payments         → Закрытый cursor-реестр YooKassa/Robokassa: payer identity, RUB/status/test, credits/`credited_at`; «Скачать CSV» выгружает строки фильтров status/test/source/campaign. Поля «С» и «По» режут только файл по дням Москвы
 /admin/finance          → Live P&L: Сегодня/Вчера/7 дней + календарь; default `csv=0`; график выручка / косты стеком / опер. маржа; `csv=1` — monthly CSV override; `?tab=finance` с аналитики редиректит сюда
 /admin/seo              → Вотчлист топ-30 URL: фильтр дней, таблица + раскрытие запросов и график динамики
 /admin/mail             → Три вкладки: «Каталог» (HTML-карточка того же `renderMailTemplate` в iframe + правила `mail-catalog.ts`, без отправки), «Кампании» (dry-run → send) и «Статистика» (14 суток Moscow, sent/skip/fail по шаблону, сегодня ещё queued и остаток / 5000). Сегменты: `all_email`, `paid`, `exploring`, `paid_active`, `paid_quiet`, `empty`, `trial_only`. Тот же admin allowlist. Очередь outbox + due/квота внизу страницы не зависит от вкладки статистики
@@ -1225,7 +1227,7 @@ SEO-кадры `/generaciya` → Только эти 25 URL (`isGeneraciyaSeoIma
 | `/api/admin/seo-watchlist` | GET, admin auth: снимок топ-30 URL + запросы/дни из `seo-watchlist-snapshot.json` |
 | `/api/admin/finance/import` | POST, admin auth: multipart replace-импорт `kind=revenue\|cogs\|ads`, CSV/ZIP до 10 MB |
 | `/api/admin/finance/sync` | POST, admin auth: `{ month?: YYYY-MM }` — подтянуть Директ за месяц. Нет токена → 200 `{ ads: missing_token }` |
-| `/api/admin/payments` | GET, admin auth: cursor YooKassa/Robokassa ledger с status/test/source/campaign filters, payer identity и credit state (`credited` / `not_due` / `discrepancy` / `stale`); `format=csv` — полная выгрузка тех же фильтров (до 10 000 строк, `;` + UTF-8 BOM) |
+| `/api/admin/payments` | GET, admin auth: cursor YooKassa/Robokassa ledger с status/test/source/campaign filters, payer identity и credit state (`credited` / `not_due` / `discrepancy` / `stale`); `format=csv` — выгрузка тех же фильтров плюс `from`/`to` (дни Москвы, включительно, пустая сторона открыта, максимум 366 дней; SQL `278`) до 10 000 строк, `;` + UTF-8 BOM |
 | `/api/admin/payments/reconcile` | POST, admin auth: `{ paymentId \| yookassaPaymentId }` или `{ stale: true }` — ручной/batch reconcile через YooKassa GET |
 | `/api/admin/analyze-history` | GET, admin auth: cursor pagination private analyze/remix history (`kind`, `change_request`, `user_email` если был `user_id`), optional `client_source`, signed image URL (analyze only) |
 | `/api/admin/analyze-history/[id]/publish` | POST, admin auth: private analyze image → public result object → idempotent `prompt_cards` draft → общий SEO publish service |
@@ -1352,8 +1354,9 @@ SEO-кадры `/generaciya` → Только эти 25 URL (`isGeneraciyaSeoIma
   `landing_users` и shared `imageprompt_users`. Credit state: `credited`,
   `discrepancy` (`succeeded` без `credited_at`), `stale` (`created|pending` старше
   15 мин без начисления), иначе `not_due`. Ручная сверка —
-  `POST /api/admin/payments/reconcile`. CSV: `GET /api/admin/payments?format=csv`
-  с теми же фильтрами, серверная keyset-пагинация до 10 000 строк.
+  `POST /api/admin/payments/reconcile`. CSV: `GET /api/admin/payments?format=csv&from=&to=`
+  с теми же фильтрами status/test/source/campaign и окном `created_at` (дни Москвы,
+  `p_created_to` exclusive). Список даты не передаёт. Keyset до 10 000 строк. SQL `278`.
 - **Почта:** Yandex Cloud Postbox (SESv2, `ru-central1`, без proxy). События
   пишут `landing_mail_due` (`sql/206`); `POST /api/cron/mail-due` оценивает
   одного user через `mail-catalog.ts` и ставит `landing_enqueue_mail`.

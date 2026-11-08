@@ -3,9 +3,12 @@ import { requireAnalyticsAdmin } from "@/lib/analytics-admin";
 import {
   ADMIN_PAYMENT_CSV_MAX_ROWS,
   ADMIN_PAYMENT_CSV_PAGE_SIZE,
+  adminLandingPaymentsRpcArgs,
+  adminPaymentCsvFilename,
   encodeAdminPaymentCursor,
   parseAdminPaymentCursor,
   parseAdminPaymentAttributionFilter,
+  parseAdminPaymentCsvRange,
   parseAdminPaymentFormat,
   parseAdminPaymentLimit,
   parseAdminPaymentStatus,
@@ -35,17 +38,21 @@ async function loadPaymentPage(input: {
   campaign: string | null;
   cursor: { createdAt: string; id: string } | null;
   limit: number;
+  createdFrom?: string | null;
+  createdTo?: string | null;
 }): Promise<{ page: PaymentPage } | { error: string }> {
   const supabase = createSupabaseServer();
-  const { data, error } = await supabase.rpc("admin_landing_payments", {
-    p_status: input.status,
-    p_test: paymentTestFilterToRpc(input.testFilter),
-    p_source: input.source,
-    p_campaign: input.campaign,
-    p_cursor_created_at: input.cursor?.createdAt || null,
-    p_cursor_id: input.cursor?.id || null,
-    p_limit: input.limit,
-  });
+  const { data, error } = await supabase.rpc("admin_landing_payments", adminLandingPaymentsRpcArgs({
+    status: input.status,
+    test: paymentTestFilterToRpc(input.testFilter),
+    source: input.source,
+    campaign: input.campaign,
+    cursorCreatedAt: input.cursor?.createdAt || null,
+    cursorId: input.cursor?.id || null,
+    limit: input.limit,
+    createdFrom: input.createdFrom,
+    createdTo: input.createdTo,
+  }));
   if (error) return { error: error.message };
 
   const rows = (data || []) as AdminPaymentRow[];
@@ -78,9 +85,18 @@ export async function GET(req: NextRequest) {
   }
 
   if (format === "csv") {
+    const parsedRange = parseAdminPaymentCsvRange(
+      req.nextUrl.searchParams.get("from"),
+      req.nextUrl.searchParams.get("to"),
+    );
+    if (!parsedRange.ok) {
+      return NextResponse.json({ error: parsedRange.error }, { status: 400 });
+    }
+    const { range } = parsedRange;
     const items: AdminPaymentItem[] = [];
     let encodedCursor: string | null = null;
     let truncated = false;
+    const startedAt = Date.now();
     while (items.length < ADMIN_PAYMENT_CSV_MAX_ROWS) {
       const remaining = ADMIN_PAYMENT_CSV_MAX_ROWS - items.length;
       const loaded = await loadPaymentPage({
@@ -90,6 +106,8 @@ export async function GET(req: NextRequest) {
         campaign,
         cursor: parseAdminPaymentCursor(encodedCursor),
         limit: Math.min(ADMIN_PAYMENT_CSV_PAGE_SIZE, remaining),
+        createdFrom: range.fromIso,
+        createdTo: range.toExclusiveIso,
       });
       if ("error" in loaded) {
         console.error("[admin.payments] csv_fetch_failed", {
@@ -98,6 +116,8 @@ export async function GET(req: NextRequest) {
           testFilter,
           source,
           campaign,
+          from: range.fromDay,
+          to: range.toDay,
           message: loaded.error,
         });
         return NextResponse.json({ error: "payments_fetch_failed" }, { status: 500 });
@@ -117,11 +137,14 @@ export async function GET(req: NextRequest) {
       testFilter,
       source,
       campaign,
+      from: range.fromDay,
+      to: range.toDay,
       count: items.length,
       truncated,
+      elapsedMs: Date.now() - startedAt,
     });
 
-    const filename = `promptshot-payments-${new Date().toISOString().slice(0, 10)}.csv`;
+    const filename = adminPaymentCsvFilename(range);
     return new NextResponse(Buffer.from(serializeAdminPaymentsCsv(items), "utf8"), {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",

@@ -6,7 +6,12 @@ import {
   ADMIN_PAYMENT_CSV_SEPARATOR,
   escapeAdminPaymentCsvCell,
   formatPaymentTrafficSource,
+  ADMIN_PAYMENT_CSV_RANGE_MAX_DAYS,
+  adminLandingPaymentsRpcArgs,
+  adminPaymentCsvFilename,
+  adminPaymentMoscowToday,
   parseAdminPaymentAttributionFilter,
+  parseAdminPaymentCsvRange,
   parseAdminPaymentFormat,
   parseAdminPaymentStatus,
   parseAdminPaymentTestFilter,
@@ -196,4 +201,69 @@ test("payments csv uses BOM, semicolon, and quoted formula-safe cells", () => {
   assert.match(csv, /payer@example\.com/);
   assert.match(csv, /"Name; ""quoted"""/);
   assert.match(csv, /yandex \/ cpc/);
+});
+
+test("payments csv range is inclusive Moscow days and stays off the list rpc", () => {
+  assert.equal(adminPaymentMoscowToday(new Date("2026-11-07T22:00:00.000Z")), "2026-11-08");
+  const open = parseAdminPaymentCsvRange("  ", null);
+  assert.equal(open.ok, true);
+  if (!open.ok) return;
+  assert.deepEqual(open.range, {
+    fromDay: null,
+    toDay: null,
+    fromIso: null,
+    toExclusiveIso: null,
+  });
+
+  const day = parseAdminPaymentCsvRange("2026-11-01", "2026-11-01");
+  assert.equal(day.ok, true);
+  if (!day.ok) return;
+  assert.equal(day.range.fromIso, "2026-10-31T21:00:00.000Z");
+  assert.equal(day.range.toExclusiveIso, "2026-11-01T21:00:00.000Z");
+  assert.equal(
+    adminPaymentCsvFilename(day.range, new Date("2026-11-08T00:00:00.000Z")),
+    "promptshot-payments-2026-11-01_2026-11-01.csv",
+  );
+
+  const fromOnly = parseAdminPaymentCsvRange("2026-11-01", "");
+  assert.equal(fromOnly.ok, true);
+  if (!fromOnly.ok) return;
+  assert.equal(fromOnly.range.toExclusiveIso, null);
+  assert.equal(adminPaymentCsvFilename(fromOnly.range), "promptshot-payments-from-2026-11-01.csv");
+
+  assert.deepEqual(parseAdminPaymentCsvRange("2026-11-08", "2026-11-01"), { ok: false, error: "invalid_filter" });
+  assert.deepEqual(parseAdminPaymentCsvRange("2026-02-29", "2026-02-29"), { ok: false, error: "invalid_filter" });
+  assert.equal(parseAdminPaymentCsvRange("2024-02-29", "2024-02-29").ok, true);
+  assert.deepEqual(parseAdminPaymentCsvRange("2024-01-01", "2025-01-01"), { ok: false, error: "range_too_long" });
+  assert.equal(parseAdminPaymentCsvRange("2024-01-01", "2024-12-31").ok, true);
+  assert.equal(ADMIN_PAYMENT_CSV_RANGE_MAX_DAYS, 366);
+
+  const undated = adminLandingPaymentsRpcArgs({
+    status: "all",
+    test: null,
+    source: null,
+    campaign: null,
+    cursorCreatedAt: null,
+    cursorId: null,
+    limit: 30,
+  });
+  assert.equal("p_created_from" in undated, false);
+  assert.equal("p_created_to" in undated, false);
+  const dated = adminLandingPaymentsRpcArgs({
+    status: "succeeded",
+    test: false,
+    source: "yandex",
+    campaign: null,
+    cursorCreatedAt: null,
+    cursorId: null,
+    limit: 100,
+    createdFrom: day.range.fromIso,
+    createdTo: day.range.toExclusiveIso,
+  });
+  assert.equal(dated.p_created_from, "2026-10-31T21:00:00.000Z");
+  assert.equal(dated.p_created_to, "2026-11-01T21:00:00.000Z");
+  assert.equal(
+    adminPaymentCsvFilename({ fromDay: null, toDay: null }, new Date("2026-11-08T03:00:00.000Z")),
+    "promptshot-payments-2026-11-08.csv",
+  );
 });

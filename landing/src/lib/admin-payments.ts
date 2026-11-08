@@ -80,6 +80,31 @@ export const parseAdminPaymentCursor = parseAdminGenerationCursor;
 export const parseAdminPaymentLimit = parseAdminGenerationLimit;
 export const ADMIN_PAYMENT_CSV_MAX_ROWS = 10_000;
 export const ADMIN_PAYMENT_CSV_PAGE_SIZE = 100;
+export const ADMIN_PAYMENT_CSV_RANGE_MAX_DAYS = 366;
+export const ADMIN_PAYMENT_TIME_ZONE = "Europe/Moscow";
+
+export type AdminPaymentCsvRange = {
+  fromDay: string | null;
+  toDay: string | null;
+  fromIso: string | null;
+  toExclusiveIso: string | null;
+};
+
+export type AdminPaymentCsvRangeResult =
+  | { ok: true; range: AdminPaymentCsvRange }
+  | { ok: false; error: "invalid_filter" | "range_too_long" };
+
+export type AdminLandingPaymentsRpcArgs = {
+  p_status: AdminPaymentStatus;
+  p_test: boolean | null;
+  p_source: string | null;
+  p_campaign: string | null;
+  p_cursor_created_at: string | null;
+  p_cursor_id: string | null;
+  p_limit: number;
+  p_created_from?: string;
+  p_created_to?: string;
+};
 export const ADMIN_PAYMENT_CSV_SEPARATOR = ";";
 export const ADMIN_PAYMENT_CSV_BOM = "\uFEFF";
 export const ADMIN_PAYMENT_CSV_COLUMNS = [
@@ -117,6 +142,111 @@ export const ADMIN_PAYMENT_CSV_COLUMNS = [
 export function parseAdminPaymentFormat(raw: string | null): "json" | "csv" | null {
   const value = (raw || "json").toLowerCase();
   return value === "json" || value === "csv" ? value : null;
+}
+
+export function adminPaymentMoscowToday(now = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: ADMIN_PAYMENT_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}
+
+function parseAdminPaymentDay(raw: string | null | undefined): string | null {
+  const value = (raw || "").trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const utc = new Date(Date.UTC(year, month - 1, day));
+  if (
+    utc.getUTCFullYear() !== year
+    || utc.getUTCMonth() !== month - 1
+    || utc.getUTCDate() !== day
+    || year < 2020
+    || year > 2100
+  ) {
+    return null;
+  }
+  return value;
+}
+
+function addUtcCalendarDay(day: string, delta: number): string {
+  const [year, month, date] = day.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, date + delta)).toISOString().slice(0, 10);
+}
+
+function inclusiveCalendarSpan(fromDay: string, toDay: string): number {
+  const [fromYear, fromMonth, fromDate] = fromDay.split("-").map(Number);
+  const [toYear, toMonth, toDate] = toDay.split("-").map(Number);
+  const fromMs = Date.UTC(fromYear, fromMonth - 1, fromDate);
+  const toMs = Date.UTC(toYear, toMonth - 1, toDate);
+  return Math.round((toMs - fromMs) / 86_400_000) + 1;
+}
+
+function moscowDayStartIso(day: string): string {
+  return new Date(`${day}T00:00:00+03:00`).toISOString();
+}
+
+export function parseAdminPaymentCsvRange(
+  fromRaw: string | null | undefined,
+  toRaw: string | null | undefined,
+): AdminPaymentCsvRangeResult {
+  const fromText = (fromRaw || "").trim();
+  const toText = (toRaw || "").trim();
+  const fromDay = fromText ? parseAdminPaymentDay(fromText) : null;
+  const toDay = toText ? parseAdminPaymentDay(toText) : null;
+  if ((fromText && !fromDay) || (toText && !toDay)) return { ok: false, error: "invalid_filter" };
+  if (fromDay && toDay && fromDay > toDay) return { ok: false, error: "invalid_filter" };
+  if (fromDay && toDay && inclusiveCalendarSpan(fromDay, toDay) > ADMIN_PAYMENT_CSV_RANGE_MAX_DAYS) {
+    return { ok: false, error: "range_too_long" };
+  }
+  return {
+    ok: true,
+    range: {
+      fromDay,
+      toDay,
+      fromIso: fromDay ? moscowDayStartIso(fromDay) : null,
+      toExclusiveIso: toDay ? moscowDayStartIso(addUtcCalendarDay(toDay, 1)) : null,
+    },
+  };
+}
+
+export function adminPaymentCsvFilename(
+  range: Pick<AdminPaymentCsvRange, "fromDay" | "toDay">,
+  now = new Date(),
+): string {
+  if (range.fromDay && range.toDay) return `promptshot-payments-${range.fromDay}_${range.toDay}.csv`;
+  if (range.fromDay) return `promptshot-payments-from-${range.fromDay}.csv`;
+  if (range.toDay) return `promptshot-payments-to-${range.toDay}.csv`;
+  return `promptshot-payments-${now.toISOString().slice(0, 10)}.csv`;
+}
+
+export function adminLandingPaymentsRpcArgs(input: {
+  status: AdminPaymentStatus;
+  test: boolean | null;
+  source: string | null;
+  campaign: string | null;
+  cursorCreatedAt: string | null;
+  cursorId: string | null;
+  limit: number;
+  createdFrom?: string | null;
+  createdTo?: string | null;
+}): AdminLandingPaymentsRpcArgs {
+  const args: AdminLandingPaymentsRpcArgs = {
+    p_status: input.status,
+    p_test: input.test,
+    p_source: input.source,
+    p_campaign: input.campaign,
+    p_cursor_created_at: input.cursorCreatedAt,
+    p_cursor_id: input.cursorId,
+    p_limit: input.limit,
+  };
+  if (input.createdFrom) args.p_created_from = input.createdFrom;
+  if (input.createdTo) args.p_created_to = input.createdTo;
+  return args;
 }
 
 export function toAdminPaymentItem(
