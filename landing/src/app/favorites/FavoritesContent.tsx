@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { createSupabaseBrowser } from "@/lib/supabase-browser";
 import type { PromptCardFull } from "@/lib/supabase";
-import { ListingMasonry, ListingMasonryItem } from "@/components/ListingMasonry";
+import { ListingMasonry } from "@/components/ListingMasonry";
 import { ListingPhotoTile } from "@/components/ListingPhotoTile";
 import { toGenerationExampleCard } from "@/lib/generation/example-card";
 import { listingPhotoAspectRatio } from "@/lib/listing-masonry";
@@ -121,23 +121,21 @@ export function FavoritesContent() {
 
   return (
     <CardInteractionsProvider cardIds={cardIds}>
-      <ListingMasonry>
-        {cards.map((card, index) => {
+      <ListingMasonry
+        entries={cards.map((card, index) => {
           const example = toGenerationExampleCard(card);
-          return (
-            <ListingMasonryItem key={card.id}>
-              <ListingPhotoTile
-                card={example}
-                aspectRatio={listingPhotoAspectRatio(
-                  example.photoWidth,
-                  example.photoHeight,
-                  index
-                )}
-              />
-            </ListingMasonryItem>
+          const aspectRatio = listingPhotoAspectRatio(
+            example.photoWidth,
+            example.photoHeight,
+            index
           );
+          return {
+            key: card.id,
+            aspectRatio,
+            content: <ListingPhotoTile card={example} aspectRatio={aspectRatio} />,
+          };
         })}
-      </ListingMasonry>
+      />
     </CardInteractionsProvider>
   );
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ListingMasonry, ListingMasonryItem } from "@/components/ListingMasonry";
+import { ListingMasonry } from "@/components/ListingMasonry";
 import { ListingExplorerSearch } from "@/components/ListingExplorerSearch";
 import { ListingPhotoTile } from "@/components/ListingPhotoTile";
 import {
@@ -511,8 +511,6 @@ export function GeneraciyaFotoExamplesExplorer({
 
   const loadMoreBusy = loadingMore;
 
-  let cardOffset = 0;
-
   return (
     <div className={GF_BLOCK_FLUSH}>
       <div className="w-full">
@@ -654,30 +652,21 @@ export function GeneraciyaFotoExamplesExplorer({
       </div>
 
       <div className={`relative mt-5 ${showTeaserOverlay || (!inlineLoadMore && cards.length > 0 && !restrictToInitialCards) ? "overflow-hidden" : ""}`}>
-        {cardPages.map((page, pageIndex) => {
-          const pageOffset = cardOffset;
-          cardOffset += page.length;
-          return (
-            <ListingMasonry
-              key={`examples-page-${pageIndex}`}
-              loading={loading && pageIndex === 0}
-              className={pageIndex > 0 ? "mt-2 sm:mt-3" : undefined}
-            >
-              {page.map((card, index) => (
-                <ListingMasonryItem key={card.id}>
-                  <ListingPhotoTile
-                    card={card}
-                    aspectRatio={listingPhotoAspectRatio(
-                      card.photoWidth,
-                      card.photoHeight,
-                      pageOffset + index
-                    )}
-                  />
-                </ListingMasonryItem>
-              ))}
-            </ListingMasonry>
-          );
-        })}
+        <ListingMasonry
+          loading={loading}
+          entries={cards.map((card, index) => {
+            const aspectRatio = listingPhotoAspectRatio(
+              card.photoWidth,
+              card.photoHeight,
+              index
+            );
+            return {
+              key: card.id,
+              aspectRatio,
+              content: <ListingPhotoTile card={card} aspectRatio={aspectRatio} />,
+            };
+          })}
+        />
 
         {showTeaserOverlay ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30">

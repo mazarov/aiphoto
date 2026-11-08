@@ -260,7 +260,7 @@ p {
   }
 
   /**
-   * Stable prompt-card masonry.
+   * Stable prompt-card masonry (`ListingMasonry`), row-major order.
    * Positions are deterministic for 2/3/4 lanes and expressed in container
    * query units, so infinite-scroll append never moves the existing prefix.
    *

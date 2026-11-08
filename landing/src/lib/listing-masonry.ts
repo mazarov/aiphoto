@@ -56,33 +56,27 @@ function lengthExpression(
 }
 
 /**
- * Deterministic greedy lanes. Placement for an existing prefix never changes
- * when more cards append, unlike browser-balanced CSS columns.
+ * Row-order lanes: card `i` goes to lane `i % columnCount`, so popularity
+ * reads left to right, then top to bottom. Lane heights stay ragged.
+ * Placement for an existing prefix never changes when more cards append.
  */
 export function buildStableMasonryLayout(
   aspectRatios: readonly number[],
   columnCount: number,
-  gapPx: number,
-  representativeWidthPx: number
+  gapPx: number
 ): StableMasonryLayout {
   const safeColumns = Math.max(1, Math.floor(columnCount));
   const columnWidthFactor = 1 / safeColumns;
   const columnWidthPixelOffset =
     -((safeColumns - 1) * gapPx) / safeColumns;
-  const representativeColumnWidth =
-    (representativeWidthPx - (safeColumns - 1) * gapPx) / safeColumns;
-  const laneHeights = Array.from({ length: safeColumns }, () => 0);
   const laneFactors = Array.from({ length: safeColumns }, () => 0);
   const laneCounts = Array.from({ length: safeColumns }, () => 0);
   const placements: StableMasonryPlacement[] = [];
 
-  for (const rawAspect of aspectRatios) {
+  aspectRatios.forEach((rawAspect, index) => {
     const aspect =
       Number.isFinite(rawAspect) && rawAspect > 0 ? rawAspect : 3 / 4;
-    let lane = 0;
-    for (let index = 1; index < safeColumns; index += 1) {
-      if (laneHeights[index] < laneHeights[lane]) lane = index;
-    }
+    const lane = index % safeColumns;
 
     const topFactor = laneFactors[lane];
     const gapsBefore = laneCounts[lane];
@@ -104,10 +98,7 @@ export function buildStableMasonryLayout(
 
     laneFactors[lane] += 1 / aspect;
     laneCounts[lane] += 1;
-    laneHeights[lane] +=
-      representativeColumnWidth / aspect +
-      (laneCounts[lane] > 1 ? gapPx : 0);
-  }
+  });
 
   const laneHeightExpressions = laneFactors.map((factor, lane) =>
     lengthExpression(
@@ -128,5 +119,22 @@ export function buildStableMasonryLayout(
         ? laneHeightExpressions[0]
         : `min(${joinedLanes})`,
     placements,
+  };
+}
+
+export type ListingMasonryLayouts = {
+  mobile: StableMasonryLayout;
+  tablet: StableMasonryLayout;
+  desktop: StableMasonryLayout;
+};
+
+/** 2 / 3 / 4 lanes; breakpoints and gaps mirror `.stable-listing-masonry` in globals.css. */
+export function buildListingMasonryLayouts(
+  aspectRatios: readonly number[]
+): ListingMasonryLayouts {
+  return {
+    mobile: buildStableMasonryLayout(aspectRatios, 2, 8),
+    tablet: buildStableMasonryLayout(aspectRatios, 3, 12),
+    desktop: buildStableMasonryLayout(aspectRatios, 4, 12),
   };
 }

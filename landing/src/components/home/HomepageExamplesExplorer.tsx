@@ -15,7 +15,7 @@ import {
   ListingExplorerSearch,
 } from "@/components/ListingExplorerSearch";
 import { GF_BLOCK_FLUSH } from "@/components/generate/generaciya-foto-ui";
-import { ListingMasonry, ListingMasonryItem } from "@/components/ListingMasonry";
+import { ListingMasonry } from "@/components/ListingMasonry";
 import { ListingPhotoTile } from "@/components/ListingPhotoTile";
 import {
   getPinnedChips,
@@ -313,20 +313,21 @@ export function HomepageExamplesExplorer({
       </nav>
 
       <div className={`relative mt-5${showTeaser ? " overflow-hidden" : ""}`}>
-        <ListingMasonry loading={loading}>
-          {cards.map((card, index) => (
-            <ListingMasonryItem key={card.id}>
-              <ListingPhotoTile
-                card={card}
-                aspectRatio={listingPhotoAspectRatio(
-                  card.photoWidth,
-                  card.photoHeight,
-                  index
-                )}
-              />
-            </ListingMasonryItem>
-          ))}
-        </ListingMasonry>
+        <ListingMasonry
+          loading={loading}
+          entries={cards.map((card, index) => {
+            const aspectRatio = listingPhotoAspectRatio(
+              card.photoWidth,
+              card.photoHeight,
+              index
+            );
+            return {
+              key: card.id,
+              aspectRatio,
+              content: <ListingPhotoTile card={card} aspectRatio={aspectRatio} />,
+            };
+          })}
+        />
 
         {showTeaser ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30">

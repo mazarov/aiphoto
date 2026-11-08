@@ -16,7 +16,7 @@ import {
   ListingExplorerHeading,
   ListingExplorerSearch,
 } from "./ListingExplorerSearch";
-import { ListingMasonry, ListingMasonryItem } from "./ListingMasonry";
+import { ListingMasonry } from "./ListingMasonry";
 import { ListingPhotoTile } from "./ListingPhotoTile";
 import { ListingPromptCountBadge } from "./ListingPromptCountBadge";
 import {
@@ -292,25 +292,31 @@ export function CatalogWithFilters({
       <div className={`relative mt-5${isSearching ? " overflow-hidden" : ""}`}>
         {isSearching ? (
           <>
-            <ListingMasonry loading={searchLoading}>
-              {searchExamples.map((card, index) => (
-                <ListingMasonryItem key={card.id}>
-                  <ListingPhotoTile
-                    card={card}
-                    aspectRatio={listingPhotoAspectRatio(
-                      card.photoWidth,
-                      card.photoHeight,
-                      index
-                    )}
-                    imageAlt={listingHeadingImageAlt(
-                      index,
-                      headingAltSlots,
-                      card.title
-                    )}
-                  />
-                </ListingMasonryItem>
-              ))}
-            </ListingMasonry>
+            <ListingMasonry
+              loading={searchLoading}
+              entries={searchExamples.map((card, index) => {
+                const aspectRatio = listingPhotoAspectRatio(
+                  card.photoWidth,
+                  card.photoHeight,
+                  index
+                );
+                return {
+                  key: card.id,
+                  aspectRatio,
+                  content: (
+                    <ListingPhotoTile
+                      card={card}
+                      aspectRatio={aspectRatio}
+                      imageAlt={listingHeadingImageAlt(
+                        index,
+                        headingAltSlots,
+                        card.title
+                      )}
+                    />
+                  ),
+                };
+              })}
+            />
             {searchExamples.length > 0 ? (
               <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30">
                 <div
