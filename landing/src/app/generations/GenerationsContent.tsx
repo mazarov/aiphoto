@@ -269,7 +269,7 @@ export function GenerationsContent({
 
   const handleCardMetadataUpdated = (
     id: string,
-    metadata: Pick<GenerationHistoryItem, "cardId" | "cardSlug" | "isPublished">
+    metadata: Pick<GenerationHistoryItem, "cardId" | "cardSlug" | "isPublished" | "moderationStatus">
   ) => {
     setGenerations((prev) =>
       prev.map((item) => (item.id === id ? { ...item, ...metadata } : item))
@@ -375,8 +375,7 @@ export function GenerationsContent({
             selectMode={selectMode}
             selected={selectedIds.has(generation.id)}
             videoEnabled={videoEnabled}
-            publishReward={publishReward.config}
-            publishRewardRemaining={publishReward.remainingToday}
+            publishReward={publishReward.cardRepeatReward}
             publishHidden={publishReward.publishHidden}
             onEnterSelectMode={enterSelectMode}
             onToggleSelect={toggleSelect}

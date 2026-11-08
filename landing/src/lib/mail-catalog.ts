@@ -155,6 +155,17 @@ const CATALOG: MailCatalogEntry[] = [
     idempotencyKey: "{provider}_credited:{payment_id}",
   },
   {
+    id: "card_repeat_reward",
+    kind: "transactional",
+    title: "Кредит за повтор карточки",
+    audience: "Автор опубликованной карточки",
+    when: "Сразу после чужой платной генерации по карточке",
+    stop: "Ключ card_repeat_reward:{generation}. Не из очереди mail-due",
+    discountPercent: 0,
+    cta: "https://promptshot.ru/p/{slug}",
+    idempotencyKey: "card_repeat_reward:{generation}",
+  },
+  {
     id: "paid_unused",
     kind: "transactional",
     title: "Оплатил и не сгенерил",
@@ -264,6 +275,11 @@ export function mailCatalogFixture(id: MailTemplateId): Record<string, unknown> 
     survey_id: "11111111-1111-4111-8111-111111111111",
     subject: "Письмо PromptShot",
     body_text: "Пример тела кампании.",
+    card_slug: "primer",
+    card_title: "Портрет",
+    card_earned_total: 3,
+    card_max_credits: 50,
+    balance: 12,
   };
 }
 
@@ -336,6 +352,9 @@ export function evaluateMailDue(
   nowMs: number = Date.now(),
 ): MailDueDecision {
   const entry = getMailCatalogEntry(templateId);
+  if (templateId === "card_repeat_reward") {
+    return { action: "skip", reason: "event_only" };
+  }
   if (entry.kind === "marketing" && facts.marketingSentToday) {
     return { action: "skip", reason: "marketing_daily_cap" };
   }

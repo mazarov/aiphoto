@@ -10,6 +10,10 @@ import {
   type GenerationListRow,
 } from "@/lib/generations-list";
 import { landingGenerationsOwnerOrFilter } from "@/lib/landing-generations-access";
+import {
+  parseCardModerationStatus,
+  type CardModerationStatus,
+} from "@/lib/publish-reward";
 import { resolveSharedDbUserId } from "@/lib/resolve-db-user-id";
 import {
   chunkForPostgrestIn,
@@ -18,7 +22,12 @@ import {
   getStoragePublicUrl,
 } from "@/lib/supabase";
 
-type CardMeta = { id: string; slug: string | null; isPublished: boolean };
+type CardMeta = {
+  id: string;
+  slug: string | null;
+  isPublished: boolean;
+  moderationStatus: CardModerationStatus;
+};
 
 function toListingUrl(bucket: string, path: string): string {
   return getStorageCardMediaUrl(bucket, path, "listing");
@@ -56,6 +65,7 @@ export function mapGenerationListRow(
     cardId: card?.id ?? null,
     cardSlug: card?.slug ?? null,
     isPublished: card?.isPublished ?? false,
+    moderationStatus: card?.moderationStatus ?? "none",
   };
 }
 
@@ -108,7 +118,7 @@ async function loadCardMetadata(
   for (const part of chunkForPostgrestIn(cardIds)) {
     const { data: cards, error } = await supabase
       .from("prompt_cards")
-      .select("id, slug, is_published")
+      .select("id, slug, is_published, moderation_status")
       .in("id", part);
     if (error) {
       console.error("generations card metadata error:", error.message);
@@ -119,6 +129,9 @@ async function loadCardMetadata(
         id: card.id as string,
         slug: (card.slug as string | null) ?? null,
         isPublished: Boolean(card.is_published),
+        moderationStatus: parseCardModerationStatus(
+          (card as { moderation_status?: unknown }).moderation_status,
+        ),
       });
     }
   }

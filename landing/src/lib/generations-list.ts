@@ -80,6 +80,7 @@ export type GenerationHistoryItem = {
   cardId: string | null;
   cardSlug: string | null;
   isPublished: boolean;
+  moderationStatus: "none" | "pending" | "approved" | "rejected";
 };
 
 export type GenerationListPage = {

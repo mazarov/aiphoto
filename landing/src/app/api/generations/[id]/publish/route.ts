@@ -6,9 +6,10 @@ import {
   ensureCardForCompletedGeneration,
   getOwnedGenerationForCardAction,
 } from "@/lib/generation-card-actions";
-import { grantPublishRewardAfterPublication } from "@/lib/grant-publish-reward";
+import { isPhotoshootEditKind } from "@/lib/photoshoot";
 import { publishPromptCard } from "@/lib/prompt-card-publication";
 import { isPublishHiddenForUser } from "@/lib/publish-access";
+import { submitPromptCardForModeration } from "@/lib/submit-card-moderation";
 
 export const maxDuration = 120;
 
@@ -55,35 +56,48 @@ export async function POST(
     }
 
     const card = await ensureCardForCompletedGeneration(supabase, generation);
-    const published = await publishPromptCard(supabase, card.cardId);
-    const reward = await grantPublishRewardAfterPublication(supabase, {
-      generationId: id,
-      authUserId: user.id,
-      alreadyPublished: published.alreadyPublished,
-      firstPublishedAt: published.firstPublishedAt,
-    });
+    if (card.isPublished && isPhotoshootEditKind(generation.edit_kind)) {
+      const published = await publishPromptCard(supabase, card.cardId);
+      console.log("[generations.publish] prompts refreshed", {
+        generationId: id,
+        cardId: published.cardId,
+        slug: published.slug,
+        latencyMs: Date.now() - startedAt,
+      });
+      return NextResponse.json({
+        ok: true,
+        cardId: published.cardId,
+        slug: published.slug,
+        isPublished: true,
+        alreadyPublished: true,
+        moderationStatus: "approved",
+        seoReadinessScore: published.seoReadinessScore,
+        promptsReady: published.promptsReady,
+        reward: null,
+      });
+    }
 
-    console.log("[generations.publish] completed", {
+    const submitted = await submitPromptCardForModeration(supabase, card.cardId);
+    console.log("[generations.publish] moderation_requested", {
       generationId: id,
-      cardId: published.cardId,
-      slug: published.slug,
-      alreadyPublished: published.alreadyPublished,
-      seoReadinessScore: published.seoReadinessScore,
-      promptsReady: published.promptsReady,
-      rewardStatus: reward?.status ?? null,
-      rewardCredits: reward?.credits ?? 0,
+      cardId: submitted.cardId,
+      slug: submitted.slug,
+      userId: user.id,
+      isPublished: submitted.isPublished,
+      moderationStatus: submitted.moderationStatus,
+      alreadyPublished: submitted.alreadyPublished,
       latencyMs: Date.now() - startedAt,
     });
 
     return NextResponse.json({
       ok: true,
-      cardId: published.cardId,
-      slug: published.slug,
-      isPublished: true,
-      alreadyPublished: published.alreadyPublished,
-      seoReadinessScore: published.seoReadinessScore,
-      promptsReady: published.promptsReady,
-      reward,
+      cardId: submitted.cardId,
+      slug: submitted.slug,
+      isPublished: submitted.isPublished,
+      alreadyPublished: submitted.alreadyPublished,
+      moderationStatus: submitted.moderationStatus,
+      promptsReady: submitted.isPublished,
+      reward: null,
     });
   } catch (err) {
     console.error("[generations.publish] failed", {

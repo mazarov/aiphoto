@@ -7,7 +7,11 @@ import {
 } from "@/lib/admin-generation-queue";
 
 export type AdminUserGenerationStatus = "all" | "pending" | "processing" | "completed" | "failed";
-export type AdminUserGenerationPublicationFilter = "all" | "unpublished" | "published";
+export type AdminUserGenerationPublicationFilter =
+  | "all"
+  | "unpublished"
+  | "published"
+  | "pending_moderation";
 
 export type AdminUserGenerationRow = {
   id: string;
@@ -35,6 +39,7 @@ export type AdminUserGenerationRow = {
   card_exists: boolean;
   is_published: boolean;
   card_slug: string | null;
+  moderation_status: string | null;
 };
 
 export const encodeAdminUserGenerationCursor = encodeAdminGenerationCursor;
@@ -53,7 +58,9 @@ export function parseAdminUserGenerationPublicationFilter(
   raw: string | null
 ): AdminUserGenerationPublicationFilter | null {
   const value = (raw || "all").toLowerCase();
-  return value === "all" || value === "unpublished" || value === "published" ? value : null;
+  return value === "all" || value === "unpublished" || value === "published" || value === "pending_moderation"
+    ? value
+    : null;
 }
 
 export function parseAdminUserGenerationClientSource(raw: string | null): string | null | undefined {

@@ -15,6 +15,8 @@ export type GenerationResultAction = {
   creditUnaffordable?: boolean;
   /** Emerald `+N✦` for publish bonus — not a spend. */
   creditReward?: number;
+  /** Overrides the emerald pill text, e.g. `до +50✦`. */
+  creditRewardLabel?: string;
   icon: ReactNode;
   onClick: () => void;
   disabled?: boolean;
@@ -44,7 +46,7 @@ const RAIL_BTN_ORBIT = `${RESULT_RAIL_BUTTON_BASE} relative isolate overflow-vis
 const RAIL_BTN_CREDIT = `${RESULT_RAIL_BUTTON_BASE} mt-1.5 overflow-visible ${RESULT_RAIL_BUTTON_GLASS}`;
 
 function hasTopCreditBadge(action: GenerationResultAction) {
-  return action.creditCost != null || action.creditReward != null;
+  return action.creditCost != null || action.creditReward != null || Boolean(action.creditRewardLabel);
 }
 
 function railButtonClass(action: GenerationResultAction) {
@@ -73,7 +75,12 @@ function RailActionButton({ action }: { action: GenerationResultAction }) {
           </span>
         </>
       ) : null}
-      {typeof action.creditReward === "number" ? (
+      {action.creditRewardLabel ? (
+        <PublishRewardBadge
+          label={action.creditRewardLabel}
+          className="pointer-events-none absolute -top-2.5 right-2 z-20"
+        />
+      ) : typeof action.creditReward === "number" ? (
         <PublishRewardBadge
           credits={action.creditReward}
           className="pointer-events-none absolute -top-2.5 right-2 z-20"

@@ -148,6 +148,91 @@ export function parsePublishRewardRpc(value: unknown): PublishRewardResult | nul
   };
 }
 
+export type CardModerationStatus = "none" | "pending" | "approved" | "rejected";
+
+export type CardRepeatRewardConfig = {
+  enabled: boolean;
+  credits: number;
+  maxPerCard: number;
+};
+
+export const DEFAULT_CARD_REPEAT_REWARD_CONFIG: CardRepeatRewardConfig = {
+  enabled: false,
+  credits: 1,
+  maxPerCard: 50,
+};
+
+export function parseCardModerationStatus(value: unknown): CardModerationStatus {
+  if (
+    value === "none" ||
+    value === "pending" ||
+    value === "approved" ||
+    value === "rejected"
+  ) {
+    return value;
+  }
+  return "none";
+}
+
+export function parseCardRepeatRewardConfig(
+  config: Record<string, string | undefined>,
+): CardRepeatRewardConfig {
+  return {
+    enabled: isPublishRewardFlagOn(config.card_repeat_reward_enabled),
+    credits: parsePublishRewardInt(
+      config.card_repeat_reward_credits,
+      DEFAULT_CARD_REPEAT_REWARD_CONFIG.credits,
+    ),
+    maxPerCard: parsePublishRewardInt(
+      config.card_repeat_reward_max_per_card,
+      DEFAULT_CARD_REPEAT_REWARD_CONFIG.maxPerCard,
+    ),
+  };
+}
+
+/** Null when the repeat bonus is off or the amounts are zero. */
+export function cardRepeatRewardOffer(
+  config: CardRepeatRewardConfig,
+): { credits: number; maxPerCard: number } | null {
+  if (!config.enabled || config.credits <= 0 || config.maxPerCard <= 0) return null;
+  return { credits: config.credits, maxPerCard: config.maxPerCard };
+}
+
+export function cardRepeatRewardBadgeLabel(maxPerCard: number): string {
+  return `до +${maxPerCard}✦`;
+}
+
+export function cardRepeatRewardDetail(credits: number, maxPerCard: number): string {
+  return `На витрину после модерации · +${credits}✦ за повтор (до ${maxPerCard})`;
+}
+
+export function cardRepeatRewardMenuHint(credits: number, maxPerCard: number): string {
+  const noun = credits === 1 ? "кредит" : credits < 5 ? "кредита" : "кредитов";
+  return `После модерации · +${credits} ${noun} за повтор (до ${maxPerCard})`;
+}
+
+export function publishModerationToast(credits: number, maxPerCard: number): string {
+  const each = credits === 1 ? "1 кредиту" : `${credits} кредитам`;
+  return `Отправлено на модерацию. После публикации вы будете получать по ${each} за каждый повтор (до ${maxPerCard} кредитов)`;
+}
+
+export function ownerDraftModerationCopy(
+  status: CardModerationStatus,
+  offer: { credits: number; maxPerCard: number } | null,
+): string {
+  if (status === "pending") {
+    if (!offer) return "На модерации — появится на витрине после проверки";
+    return `На модерации — появится на витрине после проверки (+${offer.credits} кредит за каждый повтор, до ${offer.maxPerCard} кредитов)`;
+  }
+  if (status === "rejected") {
+    return "Модерация отклонила публикацию. Можно отправить ещё раз.";
+  }
+  if (!offer) {
+    return "Черновик — отправьте на модерацию. На витрине фото появится после проверки.";
+  }
+  return `Черновик — отправьте на модерацию. После публикации на витрине вы получите по ${offer.credits} кредиту за каждый повтор другими пользователями (до ${offer.maxPerCard} кредитов)`;
+}
+
 export function publishRewardToastMessage(input: {
   promptsReady?: boolean;
   wasPublished: boolean;

@@ -5,6 +5,7 @@ import {
 } from "@/lib/card-image-presets";
 import { LISTING_DEFAULT_SORT, type ListingSort } from "@/lib/listing-sort";
 import { usableCatalogPrompt } from "@/lib/photoshoot";
+import { parseCardModerationStatus, type CardModerationStatus } from "@/lib/publish-reward";
 import { resolveSharedDbUserIdFromAuthId } from "@/lib/resolve-db-user-id";
 import { createSupabaseServer } from "./supabase-server-client";
 
@@ -1042,6 +1043,7 @@ export type CardPageData = {
   dislikesCount: number;
   viewCount: number;
   isPublished: boolean;
+  moderationStatus: CardModerationStatus;
   authorUserId: string | null;
   authorAvatarUrl: string | null;
   authorDisplayName: string | null;
@@ -1066,7 +1068,7 @@ async function fetchCardPageDataCore(
   const { data: card, error: cardError } = await supabase
     .from("prompt_cards")
     .select(
-      "id,slug,title_ru,title_en,seo_tags,seo_readiness_score,hashtags,is_published,source_date,source_dataset_slug,source_message_id,card_split_index,card_split_total,likes_count,dislikes_count,view_count,author_user_id"
+      "id,slug,title_ru,title_en,seo_tags,seo_readiness_score,hashtags,is_published,moderation_status,source_date,source_dataset_slug,source_message_id,card_split_index,card_split_total,likes_count,dislikes_count,view_count,author_user_id"
     )
     .eq("slug", slug)
     .maybeSingle();
@@ -1078,6 +1080,9 @@ async function fetchCardPageDataCore(
   if (!card) return null;
 
   const isPublished = !!(card as { is_published?: boolean }).is_published;
+  const moderationStatus = parseCardModerationStatus(
+    (card as { moderation_status?: unknown }).moderation_status,
+  );
 
   const authorUserId =
     ((card as { author_user_id?: string | null }).author_user_id ?? null) as string | null;
@@ -1292,6 +1297,7 @@ async function fetchCardPageDataCore(
     dislikesCount: (card as Record<string, unknown>).dislikes_count as number ?? 0,
     viewCount: (card as Record<string, unknown>).view_count as number ?? 0,
     isPublished,
+    moderationStatus,
     authorUserId,
     authorAvatarUrl,
     authorDisplayName,

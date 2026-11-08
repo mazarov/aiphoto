@@ -87,13 +87,13 @@ import {
 } from "@/lib/photoshoot";
 import { CardHeroVideo } from "@/components/CardHeroVideo";
 import { PublishRewardBadge } from "@/components/generate/PublishRewardBadge";
-import { requestCreditBalanceRefresh } from "@/lib/credit-balance-events";
 import { usePublishReward } from "@/lib/use-publish-reward";
 import {
-  publishRewardAmount,
-  publishRewardKindForGeneration,
-  visiblePublishRewardCredits,
-  type PublishRewardResult,
+  cardRepeatRewardBadgeLabel,
+  cardRepeatRewardOffer,
+  ownerDraftModerationCopy,
+  parseCardModerationStatus,
+  type CardModerationStatus,
 } from "@/lib/publish-reward";
 
 /** Desktop editorial panel chips (tier A = 13px). */
@@ -228,6 +228,9 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   } = usePromptCardModal();
   const title = data.title_ru || data.title_en || "Без названия";
   const [publishedLocal, setPublishedLocal] = useState(data.isPublished);
+  const [moderationLocal, setModerationLocal] = useState<CardModerationStatus>(
+    parseCardModerationStatus(data.moderationStatus),
+  );
   const [pubSaving, setPubSaving] = useState(false);
   const [pubStatus, setPubStatus] = useState<string | null>(null);
   const publishReward = usePublishReward(data.viewerIsOwner);
@@ -360,7 +363,8 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
 
   useEffect(() => {
     setPublishedLocal(data.isPublished);
-  }, [data.isPublished, data.id]);
+    setModerationLocal(parseCardModerationStatus(data.moderationStatus));
+  }, [data.isPublished, data.moderationStatus, data.id]);
 
   useEffect(() => {
     const refreshNeighbors = () => {
@@ -416,20 +420,15 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
       });
       const j = (await res.json()) as {
         error?: string;
-        reward?: PublishRewardResult | null;
+        is_published?: boolean;
+        moderationStatus?: string;
       };
       if (!res.ok) {
         setPubStatus(j.error || res.statusText);
         return;
       }
-      setPublishedLocal(nextPublished);
-      if (
-        nextPublished &&
-        typeof j.reward?.credits === "number" &&
-        j.reward.credits > 0
-      ) {
-        requestCreditBalanceRefresh();
-      }
+      setPublishedLocal(typeof j.is_published === "boolean" ? j.is_published : nextPublished);
+      setModerationLocal(parseCardModerationStatus(j.moderationStatus));
       router.refresh();
     } catch (e) {
       setPubStatus((e as Error).message);
@@ -519,18 +518,9 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     storagePaths: photoMeta.map((media) => media.path),
   });
   const photoshootGrid = isPhotoshoot && photos.length === 4;
-  const ownerPublishReward = visiblePublishRewardCredits({
-    enabled: publishReward.config.enabled,
-    isPublished: publishedLocal,
-    amount: publishRewardAmount(
-      publishRewardKindForGeneration({
-        modality: videoUrl ? "video" : "image",
-        editKind: isPhotoshoot ? "photoshoot" : null,
-      }),
-      publishReward.config,
-    ),
-    remainingToday: publishReward.remainingToday,
-  });
+  const repeatOffer = cardRepeatRewardOffer(publishReward.cardRepeatReward);
+  const draftCopy = ownerDraftModerationCopy(moderationLocal, repeatOffer);
+  const pendingModeration = moderationLocal === "pending" && !publishedLocal;
   const promptsFollowPhotos =
     data.promptTexts.length === photos.length && photos.length > 1;
   const visiblePromptTexts = visiblePromptTextsForPhoto({
@@ -1303,22 +1293,22 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     {title}
                   </div>
                   {!publishedLocal && data.viewerIsOwner && (
-                    <div className="mt-1 text-[13px] text-amber-700">
-                      Черновик — виден только вам
+                    <div className="mt-1 line-clamp-3 text-[13px] text-amber-700">
+                      {draftCopy}
                     </div>
                   )}
                 </div>
                 {showOwnerPublish && (
                   <button
                     type="button"
-                    disabled={pubSaving}
+                    disabled={pubSaving || pendingModeration}
                     onClick={() => handleVisibilityChange(!publishedLocal)}
                     className={`${OVERLAY_BUTTON_UA_RESET} inline-flex shrink-0 items-center gap-1 rounded-lg bg-zinc-100 px-2.5 py-1.5 text-[13px] font-semibold text-zinc-700 transition-colors hover:bg-zinc-200 disabled:opacity-50`}
                   >
-                    {pubSaving ? "…" : publishedLocal ? "Скрыть" : "Опубл."}
-                    {!publishedLocal && typeof ownerPublishReward === "number" ? (
+                    {pubSaving ? "…" : publishedLocal ? "Скрыть" : pendingModeration ? "Модерация" : "На модерацию"}
+                    {!publishedLocal && !pendingModeration && repeatOffer ? (
                       <PublishRewardBadge
-                        credits={ownerPublishReward}
+                        label={cardRepeatRewardBadgeLabel(repeatOffer.maxPerCard)}
                         className="ml-1"
                       />
                     ) : null}
@@ -1947,7 +1937,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     {data.authorDisplayName || "Автор"}
                   </div>
                   {!publishedLocal && data.viewerIsOwner && (
-                    <div className="text-xs text-amber-800">Черновик — виден только вам</div>
+                    <div className="text-xs text-amber-800">{draftCopy}</div>
                   )}
                 </div>
               </div>
@@ -1955,7 +1945,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                 <div className="flex flex-col items-center gap-1 sm:items-start">
                   <button
                     type="button"
-                    disabled={pubSaving}
+                    disabled={pubSaving || pendingModeration}
                     onClick={() => handleVisibilityChange(!publishedLocal)}
                     className="inline-flex items-center gap-1.5 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:opacity-50"
                   >
@@ -1963,10 +1953,12 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                       ? "Сохранение…"
                       : publishedLocal
                         ? "Скрыть"
-                        : "Опубликовать"}
-                    {!publishedLocal && typeof ownerPublishReward === "number" ? (
+                        : pendingModeration
+                          ? "На модерации"
+                          : "Отправить на модерацию"}
+                    {!publishedLocal && !pendingModeration && repeatOffer ? (
                       <PublishRewardBadge
-                        credits={ownerPublishReward}
+                        label={cardRepeatRewardBadgeLabel(repeatOffer.maxPerCard)}
                         className="ml-1"
                       />
                     ) : null}

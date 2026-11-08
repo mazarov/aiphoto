@@ -221,6 +221,7 @@ export async function GET(req: NextRequest) {
         ? `/p/${row.card_slug}`
         : null,
       publicationStatus,
+      moderationStatus: row.moderation_status || "none",
       publishHidden: Boolean(
         (row.requester_auth_user_id && publishHiddenByUser.get(row.requester_auth_user_id))
         || publishHiddenByUser.get(row.user_id)

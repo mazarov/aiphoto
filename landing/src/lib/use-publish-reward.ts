@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import {
+  DEFAULT_CARD_REPEAT_REWARD_CONFIG,
   DEFAULT_PUBLISH_REWARD_CONFIG,
+  type CardRepeatRewardConfig,
   type PublishRewardConfig,
 } from "@/lib/publish-reward";
 import { IMAGE_GENERATION_MODALITY } from "@/lib/generation/image-options";
@@ -10,6 +12,9 @@ import { IMAGE_GENERATION_MODALITY } from "@/lib/generation/image-options";
 export function usePublishReward(enabled = true) {
   const [config, setConfig] = useState<PublishRewardConfig>(
     DEFAULT_PUBLISH_REWARD_CONFIG,
+  );
+  const [cardRepeatReward, setCardRepeatReward] = useState<CardRepeatRewardConfig>(
+    DEFAULT_CARD_REPEAT_REWARD_CONFIG,
   );
   const [remainingToday, setRemainingToday] = useState(0);
   const [publishHidden, setPublishHidden] = useState(false);
@@ -32,6 +37,7 @@ export function usePublishReward(enabled = true) {
         const configData = configRes.ok
           ? ((await configRes.json().catch(() => ({}))) as {
               publishReward?: PublishRewardConfig;
+              cardRepeatReward?: CardRepeatRewardConfig;
             })
           : {};
         const meData = meRes.ok
@@ -46,6 +52,12 @@ export function usePublishReward(enabled = true) {
             ...configData.publishReward,
           });
         }
+        if (configData.cardRepeatReward) {
+          setCardRepeatReward({
+            ...DEFAULT_CARD_REPEAT_REWARD_CONFIG,
+            ...configData.cardRepeatReward,
+          });
+        }
         const remaining = Number(meData.publishRewardRemainingToday);
         setRemainingToday(Number.isFinite(remaining) ? remaining : 0);
         setPublishHidden(meData.publishHidden === true);
@@ -56,5 +68,5 @@ export function usePublishReward(enabled = true) {
     return () => controller.abort();
   }, [enabled]);
 
-  return { config, remainingToday, setRemainingToday, publishHidden };
+  return { config, cardRepeatReward, remainingToday, setRemainingToday, publishHidden };
 }

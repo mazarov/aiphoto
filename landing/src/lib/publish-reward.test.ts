@@ -1,9 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  DEFAULT_CARD_REPEAT_REWARD_CONFIG,
   DEFAULT_PUBLISH_REWARD_CONFIG,
   PUBLISH_REWARD_RETRY_WINDOW_MS,
+  cardRepeatRewardBadgeLabel,
+  cardRepeatRewardDetail,
+  cardRepeatRewardMenuHint,
+  cardRepeatRewardOffer,
+  ownerDraftModerationCopy,
+  parseCardModerationStatus,
+  parseCardRepeatRewardConfig,
   parsePublishRewardConfig,
+  publishModerationToast,
   publishRewardAmount,
   publishRewardCreditsLabel,
   publishRewardKindForGeneration,
@@ -177,4 +186,37 @@ test("config parser is fail-closed", () => {
     dailyCap: 20,
   });
   assert.equal(parsePublishRewardConfig({}).enabled, false);
+});
+
+test("repeat reward copy is fail-closed until the flag is on", () => {
+  assert.equal(DEFAULT_CARD_REPEAT_REWARD_CONFIG.enabled, false);
+  assert.equal(cardRepeatRewardOffer(DEFAULT_CARD_REPEAT_REWARD_CONFIG), null);
+  assert.equal(parseCardRepeatRewardConfig({}).enabled, false);
+  assert.equal(parseCardModerationStatus("nope"), "none");
+  assert.equal(parseCardModerationStatus("pending"), "pending");
+
+  const offer = cardRepeatRewardOffer(
+    parseCardRepeatRewardConfig({
+      card_repeat_reward_enabled: "true",
+      card_repeat_reward_credits: "1",
+      card_repeat_reward_max_per_card: "50",
+    }),
+  );
+  assert.deepEqual(offer, { credits: 1, maxPerCard: 50 });
+  assert.equal(cardRepeatRewardBadgeLabel(50), "до +50✦");
+  assert.equal(
+    cardRepeatRewardDetail(1, 50),
+    "На витрину после модерации · +1✦ за повтор (до 50)",
+  );
+  assert.equal(
+    cardRepeatRewardMenuHint(1, 50),
+    "После модерации · +1 кредит за повтор (до 50)",
+  );
+  assert.match(publishModerationToast(1, 50), /по 1 кредиту за каждый повтор \(до 50 кредитов\)/);
+  assert.match(
+    ownerDraftModerationCopy("none", offer),
+    /отправьте на модерацию/i,
+  );
+  assert.match(ownerDraftModerationCopy("pending", offer), /На модерации/);
+  assert.match(ownerDraftModerationCopy("rejected", null), /отклонила/);
 });

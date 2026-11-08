@@ -282,14 +282,16 @@ import {
   resolvePhotoshootSheetAspect,
 } from "@/lib/photoshoot";
 import {
-  DEFAULT_PUBLISH_REWARD_CONFIG,
-  publishRewardAmount,
-  publishRewardCreditsLabel,
-  publishRewardKindForGeneration,
+  DEFAULT_CARD_REPEAT_REWARD_CONFIG,
+  cardRepeatRewardBadgeLabel,
+  cardRepeatRewardDetail,
+  cardRepeatRewardMenuHint,
+  cardRepeatRewardOffer,
+  parseCardModerationStatus,
+  publishModerationToast,
   publishRewardToastMessage,
-  visiblePublishRewardCredits,
-  type PublishRewardConfig,
-  type PublishRewardResult,
+  type CardModerationStatus,
+  type CardRepeatRewardConfig,
 } from "@/lib/publish-reward";
 import { showUserPublishControl } from "@/lib/publish-access";
 import {
@@ -739,10 +741,11 @@ export function CardInlineGeneratePanel({
       (seededResult && seed.isPublished) || restoredLastResult?.isPublished
     )
   );
+  const [moderationStatus, setModerationStatus] = useState<CardModerationStatus>("none");
   const [publishedSlug, setPublishedSlug] = useState<string | null>(null);
-  const [publishRewardConfig, setPublishRewardConfig] =
-    useState<PublishRewardConfig>(DEFAULT_PUBLISH_REWARD_CONFIG);
-  const [publishRewardRemaining, setPublishRewardRemaining] = useState(0);
+  const [cardRepeatReward, setCardRepeatReward] = useState<CardRepeatRewardConfig>(
+    DEFAULT_CARD_REPEAT_REWARD_CONFIG,
+  );
   const [publishHidden, setPublishHidden] = useState(false);
   const [toast, setToast] = useState("");
   const [expandedControlLocal, setExpandedControlLocal] = useState<
@@ -1104,7 +1107,8 @@ export function CardInlineGeneratePanel({
           preserveOutfitEnabled?: boolean;
           composeExampleMatchEnabled?: boolean;
           photoshootComposeExampleEnabled?: boolean;
-          publishReward?: PublishRewardConfig;
+          publishReward?: { enabled?: boolean };
+          cardRepeatReward?: CardRepeatRewardConfig;
         };
         const photosData = (await photosRes.json().catch(() => ({}))) as {
           photos?: UserPhoto[];
@@ -1118,7 +1122,6 @@ export function CardInlineGeneratePanel({
         const meData = meRes.ok
           ? ((await meRes.json().catch(() => ({}))) as {
               credits?: number;
-              publishRewardRemainingToday?: number;
               publishHidden?: boolean;
             })
           : {};
@@ -1133,6 +1136,7 @@ export function CardInlineGeneratePanel({
                   aspectRatio?: string;
                   resultUrl?: string | null;
                   isPublished?: boolean;
+                  moderationStatus?: string;
                   modality?: string;
                   resultMimeType?: string | null;
                   editKind?: string | null;
@@ -1185,14 +1189,12 @@ export function CardInlineGeneratePanel({
         setPhotoshootComposeExampleEnabled(
           Boolean(configData.photoshootComposeExampleEnabled),
         );
-        if (configData.publishReward) {
-          setPublishRewardConfig({
-            ...DEFAULT_PUBLISH_REWARD_CONFIG,
-            ...configData.publishReward,
+        if (configData.cardRepeatReward) {
+          setCardRepeatReward({
+            ...DEFAULT_CARD_REPEAT_REWARD_CONFIG,
+            ...configData.cardRepeatReward,
           });
         }
-        const remaining = Number(meData.publishRewardRemainingToday);
-        setPublishRewardRemaining(Number.isFinite(remaining) ? remaining : 0);
         setPublishHidden(meData.publishHidden === true);
         const nextVideoModels = Array.isArray(videoConfigData.models)
           ? videoConfigData.models
@@ -1399,6 +1401,7 @@ export function CardInlineGeneratePanel({
           };
           setSubmittedPrompt(prompt);
           setIsPublished(Boolean(lastCompleted.isPublished));
+          setModerationStatus(parseCardModerationStatus(lastCompleted.moderationStatus));
           setResultEditKind(lastCompleted.editKind || null);
           setStickerFromResultOpen(false);
           setStickerFromResultParentId(null);
@@ -2487,6 +2490,7 @@ export function CardInlineGeneratePanel({
       let listingRepeatFollowupWaitStarted = 0;
       let photoshootTilesWaitStarted = 0;
       setIsPublished(false);
+      setModerationStatus("none");
       requestCreditBalanceRefresh();
 
       while (true) {
@@ -2745,7 +2749,8 @@ export function CardInlineGeneratePanel({
           error?: string;
           promptsReady?: boolean;
           slug?: string;
-          reward?: PublishRewardResult | null;
+          isPublished?: boolean;
+          moderationStatus?: string;
         };
         if (!res.ok) {
           throw new Error(
@@ -2759,21 +2764,22 @@ export function CardInlineGeneratePanel({
           );
         }
         const wasPublished = isPublished;
-        setIsPublished(true);
+        const nowPublished = data.isPublished === true;
+        setIsPublished(nowPublished);
+        setModerationStatus(parseCardModerationStatus(data.moderationStatus));
         if (data.slug) setPublishedSlug(data.slug);
-        if (typeof data.reward?.credits === "number" && data.reward.credits > 0) {
-          setPublishRewardRemaining((current) =>
-            Math.max(0, current - data.reward!.credits),
-          );
-          requestCreditBalanceRefresh();
-        }
         setMenuOpen(false);
+        const offer = cardRepeatRewardOffer(cardRepeatReward);
         setToast(
-          publishRewardToastMessage({
-            promptsReady: data.promptsReady,
-            wasPublished,
-            reward: data.reward,
-          }),
+          nowPublished
+            ? publishRewardToastMessage({
+                promptsReady: data.promptsReady,
+                wasPublished,
+                reward: null,
+              })
+            : offer
+              ? publishModerationToast(offer.credits, offer.maxPerCard)
+              : "Отправлено на модерацию. На витрине фото появится после проверки.",
         );
       } catch (err) {
         setToast(err instanceof Error ? err.message : "Не удалось опубликовать");
@@ -2956,6 +2962,7 @@ export function CardInlineGeneratePanel({
     photoshootDismissedRef.current = false;
     setResultPreviewOpen(false);
     setIsPublished(false);
+    setModerationStatus("none");
     setResultModality("image");
     if (composeModeRef.current === "video") {
       enterImageCompose();
@@ -3272,16 +3279,11 @@ export function CardInlineGeneratePanel({
     stickerResult,
     stickerPackResult,
   });
-  const publishRewardKind = publishRewardKindForGeneration({
-    modality: resultModality,
-    editKind: resultEditKind,
-  });
-  const publishRewardVisible = visiblePublishRewardCredits({
-    enabled: publishRewardConfig.enabled,
-    isPublished,
-    amount: publishRewardAmount(publishRewardKind, publishRewardConfig),
-    remainingToday: publishRewardRemaining,
-  });
+  const repeatOffer = !isPublished ? cardRepeatRewardOffer(cardRepeatReward) : null;
+  const pendingModeration = moderationStatus === "pending" && !isPublished;
+  const publishHint = repeatOffer
+    ? cardRepeatRewardMenuHint(repeatOffer.credits, repeatOffer.maxPerCard)
+    : null;
   const showPublishRail = !stickerResult && showUserPublishControl({
     publishHidden,
     isPublished,
@@ -3478,6 +3480,7 @@ export function CardInlineGeneratePanel({
       // The new row is one sticker — drop the pack film if the source was a pack tile.
       setPhotoshootTileUrls(null);
       setIsPublished(false);
+      setModerationStatus("none");
       setPublishedSlug(null);
       rememberLastDockResult({
         generationId: data.id,
@@ -3526,6 +3529,7 @@ export function CardInlineGeneratePanel({
       setResultEditKind(STICKER_EDIT_KIND);
       setPhotoshootTileUrls(null);
       setIsPublished(false);
+      setModerationStatus("none");
       setPublishedSlug(null);
       rememberLastDockResult({
         generationId: data.id,
@@ -3830,7 +3834,8 @@ export function CardInlineGeneratePanel({
                 allowRepublish={isPhotoshootEditKind(resultEditKind)}
                 canAnimate={videoEnabled && resultModality === "image" && !stickerResult}
                 canSaveToLibrary={resultModality !== "video"}
-                publishRewardCredits={publishRewardVisible}
+                moderationStatus={moderationStatus}
+                publishHint={publishHint}
                 busyAction={busyAction}
                 onAction={(action) => {
                   void handleResultAction(action);
@@ -3884,19 +3889,24 @@ export function CardInlineGeneratePanel({
                   ? isPhotoshootEditKind(resultEditKind)
                     ? "Обновить промпты"
                     : "В каталоге"
-                  : "Опубликовать",
-              detail: isPublished
-                ? undefined
-                : publishRewardVisible != null
-                  ? publishRewardCreditsLabel(publishRewardVisible)
-                  : undefined,
-              creditReward: publishRewardVisible ?? undefined,
-              disabled: Boolean(busyAction) || (isPublished && !publishedSlug && !isPhotoshootEditKind(resultEditKind)),
+                  : pendingModeration
+                    ? "На модерации"
+                    : "Опубликовать",
+              detail: !isPublished && !pendingModeration && repeatOffer
+                ? cardRepeatRewardDetail(repeatOffer.credits, repeatOffer.maxPerCard)
+                : undefined,
+              creditRewardLabel: !isPublished && !pendingModeration && repeatOffer
+                ? cardRepeatRewardBadgeLabel(repeatOffer.maxPerCard)
+                : undefined,
+              wrap: true,
+              disabled: Boolean(busyAction) || pendingModeration || (isPublished && !publishedSlug && !isPhotoshootEditKind(resultEditKind)),
               ariaLabel: isPublished
                 ? "Открыть карточку в каталоге"
-                : publishRewardVisible != null
-                  ? `Опубликовать в каталог, ${publishRewardCreditsLabel(publishRewardVisible)}`
-                  : "Опубликовать в каталог",
+                : pendingModeration
+                  ? "На модерации"
+                  : repeatOffer
+                    ? `Опубликовать в каталог. ${cardRepeatRewardDetail(repeatOffer.credits, repeatOffer.maxPerCard)}`
+                    : "Опубликовать в каталог",
               onClick: () => {
                 if (isPublished && publishedSlug && !isPhotoshootEditKind(resultEditKind)) {
                   window.location.assign(`/p/${publishedSlug}`);
@@ -4412,7 +4422,8 @@ export function CardInlineGeneratePanel({
               allowRepublish={isPhotoshootEditKind(resultEditKind)}
               canAnimate={videoEnabled && resultModality === "image" && !stickerResult}
               canSaveToLibrary={resultModality !== "video"}
-              publishRewardCredits={publishRewardVisible}
+              moderationStatus={moderationStatus}
+              publishHint={publishHint}
               busyAction={busyAction}
               onAction={(action) => {
                 void handleResultAction(action);

@@ -27,7 +27,7 @@ import {
   STICKER_PACK_COUNT,
   parseStickerPackCreditCost,
 } from "@/lib/sticker-pack";
-import { parsePublishRewardConfig } from "@/lib/publish-reward";
+import { parseCardRepeatRewardConfig, parsePublishRewardConfig } from "@/lib/publish-reward";
 import { LISTING_VIDEO_REPEAT_CONFIG_KEY } from "@/lib/listing-video-repeat";
 import { isListingVideoRepeatUnlocked } from "@/lib/listing-video-repeat-access";
 import { PRESERVE_OUTFIT_CONFIG_KEY } from "@/lib/wardrobe-policy";
@@ -98,6 +98,9 @@ export async function GET(req: NextRequest) {
         "publish_reward_video",
         "publish_reward_photoshoot",
         "publish_reward_daily_cap",
+        "card_repeat_reward_enabled",
+        "card_repeat_reward_credits",
+        "card_repeat_reward_max_per_card",
         LISTING_VIDEO_REPEAT_CONFIG_KEY,
         PRESERVE_OUTFIT_CONFIG_KEY,
         COMPOSE_EXAMPLE_MATCH_CONFIG_KEY,
@@ -110,6 +113,7 @@ export async function GET(req: NextRequest) {
       config[row.key] = row.value;
     }
     const publishReward = parsePublishRewardConfig(config);
+    const cardRepeatReward = parseCardRepeatRewardConfig(config);
     const listingVideoRepeatEnabled = isListingVideoRepeatUnlocked(
       config[LISTING_VIDEO_REPEAT_CONFIG_KEY],
       user?.email,
@@ -161,6 +165,7 @@ export async function GET(req: NextRequest) {
         photoshootComposeExampleEnabled,
         extensionLiteGenerateEnabled,
         publishReward,
+        cardRepeatReward,
       });
     }
 
@@ -233,6 +238,7 @@ export async function GET(req: NextRequest) {
       photoshootComposeExampleEnabled,
       extensionLiteGenerateEnabled,
       publishReward,
+      cardRepeatReward,
     });
   } catch (err) {
     console.error("generation-config error:", err);

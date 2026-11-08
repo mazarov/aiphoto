@@ -27,6 +27,7 @@ export const MAIL_TEMPLATE_IDS = [
   "winback_30",
   "nps_after_2",
   "nps_credits_empty",
+  "card_repeat_reward",
 ] as const;
 
 export type MailTemplateId = (typeof MAIL_TEMPLATE_IDS)[number];
@@ -545,6 +546,39 @@ export function renderMailTemplate(
       ],
       toEmail,
       true,
+    );
+  }
+
+  if (templateId === "card_repeat_reward") {
+    const earned = payload.card_earned_total;
+    const maxCredits = payload.card_max_credits;
+    const earnedLabel =
+      typeof earned === "number" || typeof earned === "string" ? String(earned) : "—";
+    const maxLabel =
+      typeof maxCredits === "number" || typeof maxCredits === "string"
+        ? String(maxCredits)
+        : "50";
+    const slug = payloadString(payload, "card_slug");
+    const title = payloadString(payload, "card_title");
+    const cardLine = slug
+      ? `Карточка${title ? ` «${title}»` : ""}: https://promptshot.ru/p/${slug}`
+      : null;
+    return buildMail(
+      "Вам начислен +1 кредит за генерацию по вашему фото в PromptShot",
+      [
+        hi,
+        "",
+        "Другой пользователь сгенерировал фото по вашей опубликованной карточке.",
+        "",
+        `Начислен +${creditLabel} кредит. По этой карточке накоплено ${earnedLabel} из ${maxLabel}.`,
+        ...(cardLine ? [cardLine] : []),
+        "",
+        "Сделать фото: https://promptshot.ru/generaciya/foto-po-opisaniyu",
+        "",
+        signature(),
+      ],
+      toEmail,
+      false,
     );
   }
 

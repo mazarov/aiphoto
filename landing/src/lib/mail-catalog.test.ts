@@ -107,6 +107,16 @@ test("credits_empty waits 14 days between sends", () => {
   assert.equal(ready.action, "send");
 });
 
+test("card repeat reward is event-only and never queued by mail-due", () => {
+  const decision = evaluateMailDue("card_repeat_reward", baseFacts);
+  assert.deepEqual(decision, { action: "skip", reason: "event_only" });
+  const previews = listMailCatalogPreviews();
+  const preview = previews.find((item) => item.id === "card_repeat_reward");
+  assert.ok(preview);
+  assert.equal(preview?.kind, "transactional");
+  assert.match(preview?.subject || "", /начислен \+1 кредит/);
+});
+
 test("nps after 2 sends once", () => {
   const ready = evaluateMailDue("nps_after_2", baseFacts);
   assert.equal(ready.action, "send");

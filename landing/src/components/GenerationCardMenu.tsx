@@ -26,6 +26,9 @@ type Props = {
   canAnimate?: boolean;
   canSaveToLibrary?: boolean;
   publishRewardCredits?: number | null;
+  /** Second line under «Опубликовать», e.g. moderation + repeat bonus. */
+  publishHint?: string | null;
+  moderationStatus?: "none" | "pending" | "approved" | "rejected";
   busyAction: GenerationMenuAction | null;
   onAction: (action: GenerationMenuAction) => void;
 };
@@ -148,6 +151,8 @@ export function GenerationCardMenu({
   canAnimate = false,
   canSaveToLibrary = true,
   publishRewardCredits = null,
+  publishHint = null,
+  moderationStatus = "none",
   busyAction,
   onAction,
 }: Props) {
@@ -268,7 +273,7 @@ export function GenerationCardMenu({
         type="button"
         role="menuitem"
         className={ITEM}
-        disabled={!canPublish || (isPublished && !allowRepublish) || Boolean(busyAction)}
+        disabled={!canPublish || moderationStatus === "pending" || (isPublished && !allowRepublish) || Boolean(busyAction)}
         onClick={() => run("publish")}
       >
         <IconPublish className="h-4 w-4 shrink-0" />
@@ -276,13 +281,19 @@ export function GenerationCardMenu({
           <span className="block">
             {busyAction === "publish"
               ? "Публикация…"
+              : moderationStatus === "pending"
+                ? "На модерации"
               : isPublished
                 ? allowRepublish
                   ? "Обновить промпты"
                   : "Опубликовано"
                 : "Опубликовать"}
           </span>
-          {typeof publishRewardCredits === "number" ? (
+          {!isPublished && moderationStatus !== "pending" && publishHint ? (
+            <span className="mt-0.5 block text-[13px] font-medium leading-tight text-emerald-300">
+              {publishHint}
+            </span>
+          ) : typeof publishRewardCredits === "number" ? (
             <span className="mt-0.5 block text-[13px] font-medium text-emerald-300">
               {publishRewardCreditsLabel(publishRewardCredits)}
             </span>

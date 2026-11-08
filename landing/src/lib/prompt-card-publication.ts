@@ -380,6 +380,7 @@ export async function publishPromptCard(
     .from("prompt_cards")
     .update({
       is_published: true,
+      moderation_status: "approved",
       seo_tags: classified.seo_tags,
       seo_readiness_score: classified.seo_readiness_score,
       updated_at: new Date().toISOString(),

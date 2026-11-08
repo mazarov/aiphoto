@@ -54,6 +54,7 @@ type Item = {
   resultUrl: string | null;
   cardUrl: string | null;
   publicationStatus: PublicationStatus;
+  moderationStatus?: string;
   publishHidden?: boolean;
   canPublish: boolean;
 };
@@ -67,6 +68,7 @@ const STATUS_OPTIONS = [
 ] as const;
 const PUBLICATION_OPTIONS = [
   ["all", "Все публикации"],
+  ["pending_moderation", "На модерации"],
   ["unpublished", "Не опубликовано"],
   ["published", "Опубликовано"],
 ] as const;
@@ -161,11 +163,41 @@ export function AdminUserGenerationsList({
           : body.error || "Ошибка публикации";
         throw new Error(message);
       }
-      setItems((current) => current.map((item) => item.id === id
-        ? { ...item, publicationStatus: "published", cardUrl: body.cardUrl }
-        : item));
+      setItems((current) => {
+        if (publication === "pending_moderation") {
+          return current.filter((item) => item.id !== id);
+        }
+        return current.map((item) => item.id === id
+          ? { ...item, publicationStatus: "published", moderationStatus: "approved", cardUrl: body.cardUrl }
+          : item);
+      });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Ошибка публикации");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const reject = async (id: string) => {
+    setBusy(id);
+    setError("");
+    try {
+      const response = await fetch(`/api/admin/user-generations/${id}/reject`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "Не удалось отклонить");
+      setItems((current) => {
+        if (publication === "pending_moderation") {
+          return current.filter((item) => item.id !== id);
+        }
+        return current.map((item) => item.id === id
+          ? { ...item, moderationStatus: "rejected", publicationStatus: "unpublished", cardUrl: null }
+          : item);
+      });
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Ошибка отклонения");
     } finally {
       setBusy(null);
     }
@@ -246,6 +278,11 @@ export function AdminUserGenerationsList({
                 Фотосессия
               </span>
             )}
+            {item.moderationStatus === "pending" && (
+              <span className={`${adminDenseBadgeClass} bg-amber-100 text-amber-800`}>
+                На модерации
+              </span>
+            )}
             <span className={`${adminDenseBadgeClass} text-white`}
               style={{ background: clientSourceColor(item.clientSource) }}>
               {clientSourceLabel(item.clientSource)}
@@ -310,6 +347,15 @@ export function AdminUserGenerationsList({
               className="text-amber-700 disabled:opacity-40">
               {busy === item.id ? "Публикация…" : item.requesterAuthUserId ? "Опубликовать" : "Нет автора"}
             </button>}
+            {item.moderationStatus === "pending" && item.publicationStatus !== "published" && (
+              <button
+                disabled={Boolean(busy)}
+                onClick={() => void reject(item.id)}
+                className="text-rose-700 disabled:opacity-40"
+              >
+                {busy === item.id ? "Отклоняем…" : "Отклонить"}
+              </button>
+            )}
             {item.publicationStatus === "published" && <span className="text-emerald-600">Опубликовано</span>}
             {item.cardUrl && <a href={item.cardUrl} target="_blank" rel="noreferrer" className="text-sky-600">Открыть карточку</a>}
           </div>}

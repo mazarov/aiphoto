@@ -109,6 +109,30 @@ test("campaign templates add one-click unsubscribe headers when secret exists", 
   }
 });
 
+test("card repeat reward is transactional and names the card total", () => {
+  const mail = renderMailTemplate(
+    "card_repeat_reward",
+    {
+      display_name: "Максим",
+      credits: 1,
+      card_slug: "primer",
+      card_title: "Портрет",
+      card_earned_total: 3,
+      card_max_credits: 50,
+    },
+    "user@example.com",
+  );
+  assert.equal(
+    mail.subject,
+    "Вам начислен +1 кредит за генерацию по вашему фото в PromptShot",
+  );
+  assert.match(mail.text, /\+1 кредит/);
+  assert.match(mail.text, /3 из 50/);
+  assert.match(mail.text, /https:\/\/promptshot\.ru\/p\/primer/);
+  assert.equal(mail.headers.length, 0);
+  assert.doesNotMatch(mail.text, /Отписаться/);
+});
+
 test("campaign html escapes the body inside the card", () => {
   const mail = renderMailTemplate(
     "campaign",

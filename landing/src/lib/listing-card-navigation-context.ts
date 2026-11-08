@@ -141,6 +141,7 @@ export function toListingCardPageData(
     dislikesCount: card.dislikesCount,
     viewCount: card.viewCount,
     isPublished: card.isPublished ?? true,
+    moderationStatus: "none",
     authorUserId: null,
     authorAvatarUrl: null,
     authorDisplayName: null,

@@ -14,6 +14,8 @@ test("admin user generation filters are strict and normalized", () => {
   assert.equal(parseAdminUserGenerationStatus("PROCESSING"), "processing");
   assert.equal(parseAdminUserGenerationStatus("retrying"), null);
   assert.equal(parseAdminUserGenerationPublicationFilter("PUBLISHED"), "published");
+  assert.equal(parseAdminUserGenerationPublicationFilter("pending_moderation"), "pending_moderation");
+  assert.equal(parseAdminUserGenerationPublicationFilter("PENDING_MODERATION"), "pending_moderation");
   assert.equal(parseAdminUserGenerationPublicationFilter("missing"), null);
   assert.equal(parseAdminUserGenerationClientSource(null), null);
   assert.equal(parseAdminUserGenerationClientSource("all"), null);

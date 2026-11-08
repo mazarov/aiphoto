@@ -26,7 +26,6 @@ import { ListingCardVideo } from "@/components/ListingCardVideo";
 import { PhotoshootListingBadge } from "@/components/PhotoshootListingBadge";
 import { PhotoshootListingGrid } from "@/components/PhotoshootListingGrid";
 import { isPhotoshootEditKind } from "@/lib/photoshoot";
-import { requestCreditBalanceRefresh } from "@/lib/credit-balance-events";
 import {
   generationGridDisplay,
   generationListingAspectRatio,
@@ -35,12 +34,14 @@ import {
 import { isStickerEditKind } from "@/lib/sticker";
 import { STICKER_PACK_CTA_LABEL, isStickerPackEditKind } from "@/lib/sticker-pack";
 import {
-  publishRewardAmount,
-  publishRewardKindForGeneration,
+  cardRepeatRewardBadgeLabel,
+  cardRepeatRewardDetail,
+  cardRepeatRewardMenuHint,
+  cardRepeatRewardOffer,
+  parseCardModerationStatus,
+  publishModerationToast,
   publishRewardToastMessage,
-  visiblePublishRewardCredits,
-  type PublishRewardConfig,
-  type PublishRewardResult,
+  type CardRepeatRewardConfig,
 } from "@/lib/publish-reward";
 import { showUserPublishControl } from "@/lib/publish-access";
 
@@ -51,8 +52,7 @@ type Props = {
   selectMode: boolean;
   selected: boolean;
   videoEnabled?: boolean;
-  publishReward?: PublishRewardConfig;
-  publishRewardRemaining?: number;
+  publishReward?: CardRepeatRewardConfig;
   publishHidden?: boolean;
   priority?: boolean;
   onEnterSelectMode: (id: string) => void;
@@ -60,7 +60,7 @@ type Props = {
   onDeleted: (id: string) => void;
   onCardMetadataUpdated: (
     id: string,
-    metadata: Pick<GenerationHistoryItem, "cardId" | "cardSlug" | "isPublished">
+    metadata: Pick<GenerationHistoryItem, "cardId" | "cardSlug" | "isPublished" | "moderationStatus">
   ) => void;
   onToast?: (message: string) => void;
 };
@@ -78,7 +78,6 @@ export function GenerationHistoryCard({
   selected,
   videoEnabled = false,
   publishReward,
-  publishRewardRemaining = 0,
   publishHidden = false,
   priority = false,
   onEnterSelectMode,
@@ -114,19 +113,11 @@ export function GenerationHistoryCard({
     !isStickerPack &&
     generation.status === "completed" &&
     hasResult;
-  const publishRewardVisible = publishReward
-    ? visiblePublishRewardCredits({
-        enabled: publishReward.enabled,
-        isPublished: generation.isPublished,
-        amount: publishRewardAmount(
-          publishRewardKindForGeneration({
-            modality: generation.modality,
-            editKind: generation.editKind,
-          }),
-          publishReward,
-        ),
-        remainingToday: publishRewardRemaining,
-      })
+  const pendingModeration =
+    parseCardModerationStatus(generation.moderationStatus) === "pending" &&
+    !generation.isPublished;
+  const repeatOffer = !generation.isPublished && !pendingModeration
+    ? cardRepeatRewardOffer(publishReward ?? { enabled: false, credits: 1, maxPerCard: 50 })
     : null;
   const showPublishOverlay = showUserPublishControl({
     publishHidden,
@@ -255,7 +246,7 @@ export function GenerationHistoryCard({
     }
 
     if (action === "publish") {
-      if (!canOpenCard || publishHidden || (generation.isPublished && !isPhotoshoot)) return;
+      if (!canOpenCard || publishHidden || pendingModeration || (generation.isPublished && !isPhotoshoot)) return;
       setBusyAction("publish");
       try {
         const res = await fetch(`/api/generations/${generation.id}/publish`, {
@@ -267,8 +258,8 @@ export function GenerationHistoryCard({
           cardId?: string;
           slug?: string;
           isPublished?: boolean;
+          moderationStatus?: string;
           promptsReady?: boolean;
-          reward?: PublishRewardResult | null;
         };
         if (!res.ok || !data.cardId || !data.slug) {
           throw new Error(
@@ -281,21 +272,24 @@ export function GenerationHistoryCard({
                   : "Не удалось опубликовать",
           );
         }
+        const nowPublished = data.isPublished === true;
         onCardMetadataUpdated(generation.id, {
           cardId: data.cardId,
           cardSlug: data.slug,
-          isPublished: true,
+          isPublished: nowPublished,
+          moderationStatus: parseCardModerationStatus(data.moderationStatus),
         });
         setMenuOpen(false);
-        if (typeof data.reward?.credits === "number" && data.reward.credits > 0) {
-          requestCreditBalanceRefresh();
-        }
         toast(
-          publishRewardToastMessage({
-            promptsReady: data.promptsReady,
-            wasPublished: generation.isPublished,
-            reward: data.reward,
-          }),
+          nowPublished
+            ? publishRewardToastMessage({
+                promptsReady: data.promptsReady,
+                wasPublished: generation.isPublished,
+                reward: null,
+              })
+            : repeatOffer
+              ? publishModerationToast(repeatOffer.credits, repeatOffer.maxPerCard)
+              : "Отправлено на модерацию. На витрине фото появится после проверки.",
         );
       } catch (err) {
         toast(err instanceof Error ? err.message : "Не удалось опубликовать");
@@ -449,7 +443,14 @@ export function GenerationHistoryCard({
             {showPublishOverlay ? (
             <button
               type="button"
-              disabled={Boolean(busyAction) || (generation.isPublished && !generation.cardSlug && !isPhotoshoot)}
+              disabled={Boolean(busyAction) || pendingModeration || (generation.isPublished && !generation.cardSlug && !isPhotoshoot)}
+              title={
+                repeatOffer
+                  ? cardRepeatRewardDetail(repeatOffer.credits, repeatOffer.maxPerCard)
+                  : pendingModeration
+                    ? "На модерации — на витрине после проверки"
+                    : undefined
+              }
               className={`${OVERLAY_BUTTON_UA_RESET} ${CARD_OVERLAY_ACTION_PILL} min-w-0 flex-1 px-2 text-[13px] font-semibold text-white`}
               onClick={(event) => {
                 event.preventDefault();
@@ -475,10 +476,12 @@ export function GenerationHistoryCard({
                     ? isPhotoshoot
                       ? "Обновить"
                       : "В каталоге"
-                    : "Опубликовать"}
+                    : pendingModeration
+                      ? "На модерации"
+                      : "Опубликовать"}
               </span>
-              {typeof publishRewardVisible === "number" ? (
-                <span className="shrink-0 text-emerald-300">+{publishRewardVisible}✦</span>
+              {repeatOffer ? (
+                <span className="shrink-0 text-emerald-300">{cardRepeatRewardBadgeLabel(repeatOffer.maxPerCard)}</span>
               ) : null}
             </button>
             ) : null}
@@ -546,9 +549,14 @@ export function GenerationHistoryCard({
               showPublish={!publishHidden}
               isPublished={generation.isPublished}
               allowRepublish={isPhotoshoot}
+              moderationStatus={parseCardModerationStatus(generation.moderationStatus)}
+              publishHint={
+                repeatOffer
+                  ? cardRepeatRewardMenuHint(repeatOffer.credits, repeatOffer.maxPerCard)
+                  : null
+              }
               canAnimate={false}
               canSaveToLibrary={!isVideo}
-              publishRewardCredits={publishRewardVisible}
               busyAction={busyAction}
               onAction={(action) => {
                 void handleAction(action);
