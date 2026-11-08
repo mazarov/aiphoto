@@ -1,5 +1,7 @@
 # 03 — Пайплайн: парсинг → загрузка → публикация
 
+> Последнее обновление: 2026-11-08 (**visual embedding backlog:** минутный крон ЮKassa на каждой 5-й минуте UTC забирает 8 `prompt_card_visual_embedding_jobs`. Отдельный cron на `/api/cron/visual-embeddings` не поставлен. Публикация по-прежнему не ждёт Gemini и в `after()` обрабатывает одно самое старое задание.
+
 > Последнее обновление: 2026-10-10 (**regex тегов:** `patterns` больше не в `tag-registry.ts`. Матчинг — `landing/src/lib/tag-patterns.ts` (`patternsForTag`, server-only). Автодописка из `fill-seo-tags.ts` добавляет строку реестра без регулярки и пустой массив `[]` перед `TAG_PATTERNS_END`. `npx tsx src/fill-seo-tags.ts` сам перезапускается с `--conditions=react-server`.)
 >
 > Последнее обновление: 2026-09-26 (**subject audience:** после текстовых `seo_tags` каноническое фото классифицирует Gemini 2.5 Flash (`subject_audience`). Триггер SQL `256` пишет exclusive-слаг в `seo_tags.audience_tag`. Backfill — `src/standalone/backfill-card-subject-audience.mjs` (сначала `--dry-run`). Новые карточки — `publishPromptCard` `after()` при флаге `card_subject_audience_enabled`. Cron visual-embeddings добирает backlog. Новых env нет: `GEMINI_API_KEY` + `GEMINI_PROXY_BASE_URL`.

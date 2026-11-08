@@ -1,6 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { logProductSnapshot } from "@/lib/ops-snapshot";
 import { createSupabaseServer } from "@/lib/supabase";
+import {
+  drainVisualEmbeddingBacklog,
+  shouldDrainVisualEmbeddings,
+} from "@/lib/visual-embedding-cron";
 import { flushUnsentYandexPurchaseConversions } from "@/lib/yandex-metrika-measurement";
 import { reconcileStaleYooKassaPayments } from "@/lib/yookassa-payments";
 
@@ -22,6 +26,20 @@ export async function POST(request: NextRequest) {
   let supabase: ReturnType<typeof createSupabaseServer> | null = null;
   try {
     supabase = createSupabaseServer();
+    if (shouldDrainVisualEmbeddings()) {
+      after(async () => {
+        try {
+          const embeddings = await drainVisualEmbeddingBacklog({
+            supabase: createSupabaseServer(),
+          });
+          console.info("[visual-embeddings] cron", embeddings);
+        } catch (error) {
+          console.warn("[visual-embeddings] cron failed", {
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+      });
+    }
     const summary = await reconcileStaleYooKassaPayments(supabase);
     let conversions = { scanned: 0, reported: 0, skipped: 0 };
     try {

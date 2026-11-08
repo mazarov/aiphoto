@@ -7,6 +7,7 @@ import { processVisualEmbeddingJobs } from "@/lib/visual-embedding-jobs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 120;
 
 function authorizeCron(request: NextRequest): boolean {
   const secret = process.env.CRON_SECRET?.trim();
@@ -85,10 +86,20 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json(
-      { enqueued: enqueued ?? 0, ...processed, coverage, queryEmbeddings, subjectAudience },
-      { headers: { "Cache-Control": "no-store" } },
-    );
+    const body = {
+      enqueued: enqueued ?? 0,
+      ...processed,
+      coverage,
+      queryEmbeddings,
+      subjectAudience,
+    };
+    console.info("[visual-embeddings] cron", {
+      enqueued: body.enqueued,
+      claimed: processed.claimed,
+      completed: processed.completed,
+      failed: processed.failed,
+    });
+    return NextResponse.json(body, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("[visual-embeddings] cron failed", {
       message: error instanceof Error ? error.message : String(error),
