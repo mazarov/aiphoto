@@ -54,14 +54,14 @@ test("takeSearchPage uses the extra row as hasMore, not as a visible card", () =
   });
 });
 
-test("listing starts with 10 ranked rows and then advances by 24", () => {
-  assert.equal(LISTING_SSR_INITIAL_LIMIT, 10);
+test("listing starts with 20 ranked rows and then advances by 24", () => {
+  assert.equal(LISTING_SSR_INITIAL_LIMIT, 20);
   assert.equal(LISTING_INFINITE_PAGE_SIZE, 24);
   assert.deepEqual(
     Array.from({ length: 4 }, (_, index) =>
       LISTING_SSR_INITIAL_LIMIT + LISTING_INFINITE_PAGE_SIZE * index
     ),
-    [10, 34, 58, 82]
+    [20, 44, 68, 92]
   );
 });
 

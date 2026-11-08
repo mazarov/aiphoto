@@ -41,6 +41,8 @@ type Props = {
   /** Listing sort — forwarded to admin `/api/search-cards` (default `new`). */
   sort?: ListingSort;
   headingAltSlots?: readonly string[];
+  /** Catalog teaser: hide the hanging tail under the «Ещё» row. */
+  clipToShortestColumn?: boolean;
 };
 
 function getSeoTagSlugs(seoTags: unknown): string[] {
@@ -118,6 +120,7 @@ export function FilterableGrid({
   initialDataset,
   sort = LISTING_DEFAULT_SORT,
   headingAltSlots,
+  clipToShortestColumn = false,
 }: Props) {
   const { user } = useAuth();
   const isAdmin = isCatalogAdminEmail(user?.email);
@@ -505,6 +508,7 @@ export function FilterableGrid({
               cardPages={listingPages}
               lcpPriorityCount={lcpPriorityCount}
               headingAltSlots={headingAltSlots}
+              clipToShortestColumn={clipToShortestColumn}
               debugOverlay={
                 isAdmin && techInfoEnabled
                   ? (card) => <ListingCardDebugOverlay card={card} />

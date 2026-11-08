@@ -49,6 +49,11 @@ export function schoolDayHubSpec(pathname: string): SchoolDayHubSpec | null {
   return SPEC_BY_HUB.get(stripTrailingSlash(pathname)) ?? null;
 }
 
+/** Clean hub URL for the SEO image stack. Child paths stay on the catalog preset. */
+export function isSchoolDaySeoImagePath(pathname: string): boolean {
+  return schoolDayHubSpec(pathname) !== null;
+}
+
 /** Carousel stays on the occasion tag. Query filters on the page do not leak in. */
 export function schoolDayHubHeroFetchParams(slug: string) {
   return (_routeParams: {

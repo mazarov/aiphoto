@@ -8,7 +8,7 @@ export const MEN_HUB_LOAD_MORE_LABEL = "Больше промтов для му�
 export const MEN_HUB_GENERATE_CTA = "Создать фото мужчины";
 export const MEN_HUB_HERO_ARIA_LABEL = "Примеры фото мужчины";
 
-/** Newest men stills for the homepage-style hero marquee. Listing SSR is only 10. */
+/** Newest men stills for the homepage-style hero marquee. Listing SSR is 20. */
 export const MEN_HUB_HERO_CARD_LIMIT = 16;
 
 /** Catalog example chip «Мужчины» — same listing tag as `/generaciya-foto` quick filters. */

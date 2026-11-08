@@ -8,7 +8,7 @@ export const GIRLS_HUB_LOAD_MORE_LABEL = "Больше промтов для д�
 export const GIRLS_HUB_GENERATE_CTA = "Повторить на своём фото";
 export const GIRLS_HUB_HERO_ARIA_LABEL = "Примеры фото девушки";
 
-/** Newest girl stills for the homepage-style hero marquee. Listing SSR is only 10. */
+/** Newest girl stills for the homepage-style hero marquee. Listing SSR is 20. */
 export const GIRLS_HUB_HERO_CARD_LIMIT = 16;
 
 /** Catalog example chip «Девушки» — same listing tag as `/generaciya-foto` quick filters. */

@@ -38,7 +38,10 @@ export type StableMasonryPlacement = {
 };
 
 export type StableMasonryLayout = {
+  /** Tallest lane. The canvas uses this when every card stays visible. */
   height: string;
+  /** Shortest lane. A teaser clips here so every column still has a card. */
+  minHeight: string;
   placements: StableMasonryPlacement[];
 };
 
@@ -114,11 +117,16 @@ export function buildStableMasonryLayout(
     )
   );
 
+  const joinedLanes = laneHeightExpressions.join(", ");
   return {
     height:
       laneHeightExpressions.length === 1
         ? laneHeightExpressions[0]
-        : `max(${laneHeightExpressions.join(", ")})`,
+        : `max(${joinedLanes})`,
+    minHeight:
+      laneHeightExpressions.length === 1
+        ? laneHeightExpressions[0]
+        : `min(${joinedLanes})`,
     placements,
   };
 }

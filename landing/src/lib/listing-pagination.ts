@@ -2,7 +2,7 @@
  * Категорийные листинги `[...slug]`: меньше работы на SSR / первый байт,
  * остальное — `InfiniteGrid` → GET `/api/listing`.
  */
-export const LISTING_SSR_INITIAL_LIMIT = 10;
+export const LISTING_SSR_INITIAL_LIMIT = 20;
 
 /** Every public listing's load-more button, first teaser and the ones after it. */
 export const LISTING_LOAD_MORE_LABEL = "Ещё";

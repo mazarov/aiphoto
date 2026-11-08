@@ -310,6 +310,37 @@ p {
     }
   }
 
+  /* Teaser «Ещё»: end the canvas on the shortest column so every column
+     still has a card. Taller cards continue under that edge. */
+  .stable-listing-masonry-teaser .stable-listing-masonry-canvas {
+    height: var(--masonry-min-height-2);
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      #000 0,
+      #000 calc(100% - 88px),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      #000 0,
+      #000 calc(100% - 88px),
+      transparent 100%
+    );
+  }
+
+  @media (min-width: 640px) {
+    .stable-listing-masonry-teaser .stable-listing-masonry-canvas {
+      height: var(--masonry-min-height-3);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .stable-listing-masonry-teaser .stable-listing-masonry-canvas {
+      height: var(--masonry-min-height-4);
+    }
+  }
+
   /**
    * listing-grid-clamp: hide items in the incomplete last row while hasMore=true.
    * Breakpoints mirror the listing grid column counts (2 / 3 / 4 / 5).

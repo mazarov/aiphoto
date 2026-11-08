@@ -7,7 +7,7 @@ export const PAIRS_HUB_LOAD_MORE_LABEL = "Больше промтов для п�
 export const PAIRS_HUB_GENERATE_CTA = "Создать фото пары";
 export const PAIRS_HUB_HERO_ARIA_LABEL = "Примеры парных фото";
 
-/** Newest pair stills for the homepage-style hero marquee. Listing SSR is only 10. */
+/** Newest pair stills for the homepage-style hero marquee. Listing SSR is 20. */
 export const PAIRS_HUB_HERO_CARD_LIMIT = 16;
 
 /** Catalog example chip «Пары» — same listing tag as `/generaciya-foto` quick filters. */

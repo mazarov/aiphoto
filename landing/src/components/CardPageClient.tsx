@@ -113,8 +113,9 @@ const MOBILE_FS_ACTION = `${MOBILE_FS_CHIP} rounded-xl font-semibold`;
 
 const DEVUSHKI_TRY_LABEL = GIRLS_HUB_GENERATE_CTA;
 const DEVUSHKI_TRY_ARIA = "Повторить этот образ на своём фото";
-/** Полноэкранный текст промпта: та же glass-подложка, что у чипов. */
-const MOBILE_FS_EXPAND = `${MOBILE_FS_CHIP} leading-relaxed`;
+/** Full prompt sheet. Opaque: glass (`bg-black/15` + blur) made the text unreadable on light photos. */
+const PROMPT_SHEET_TEXT =
+  "select-text whitespace-pre-wrap text-[13px] font-medium leading-relaxed text-white";
 
 /** Mobile has-photos bottom bar: prompt + Lexy only (listing arrows live in the right stack). */
 const MOBILE_PHOTO_ACTIONS_GRID =
@@ -592,13 +593,17 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     }
   }
 
-  async function handleCopy() {
+  async function handleCopy(opts?: { closeOverlay?: boolean }) {
     const str = selectedPrompt;
     if (!str) return;
+    const closeIfCopied = (ok: boolean) => {
+      if (ok && opts?.closeOverlay) setMobilePromptOverlay(false);
+    };
     if (copyTextSyncFallback(str)) {
       setStickyCopy("ok");
       recordAcquisitionClientEvent("prompt_copy", { cardSlug: data.slug });
       window.setTimeout(() => setStickyCopy("idle"), 2200);
+      closeIfCopied(true);
       return;
     }
     const ok = await copyTextUniversal(str);
@@ -607,6 +612,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     }
     setStickyCopy(ok ? "ok" : "fail");
     window.setTimeout(() => setStickyCopy("idle"), 2200);
+    closeIfCopied(ok);
   }
 
   async function handleCopySingle(text: string, idx: number) {
@@ -1202,7 +1208,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                       role="dialog"
                       aria-modal="true"
                       aria-labelledby="desktop-prompt-overlay-title"
-                      className="absolute inset-0 z-40 flex flex-col bg-black/48 backdrop-blur-md"
+                      className="absolute inset-0 z-40 flex flex-col bg-zinc-950"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <header className="flex shrink-0 items-center justify-end px-3 pt-3">
@@ -1221,7 +1227,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                         </button>
                       </header>
                       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3">
-                        <p className="select-text whitespace-pre-wrap text-[13px] leading-relaxed text-white/92">
+                        <p className={PROMPT_SHEET_TEXT}>
                           {selectedPrompt}
                         </p>
                       </div>
@@ -1231,7 +1237,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            void handleCopy();
+                            void handleCopy({ closeOverlay: true });
                           }}
                           className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-11 w-full items-center justify-center gap-2 px-4 py-3 text-[13px] font-semibold text-white ${MOBILE_FS_ACTION}`}
                         >
@@ -1811,11 +1817,11 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     aria-modal="true"
                     aria-labelledby="mobile-prompt-overlay-title"
                     data-no-swipe
-                    className="absolute inset-0 z-[110] flex flex-col bg-black/48 backdrop-blur-md"
+                    className="absolute inset-0 z-[110] flex flex-col bg-zinc-950"
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <div className={`flex min-h-0 flex-1 flex-col rounded-none ${MOBILE_FS_EXPAND} px-4 py-0`}>
+                    <div className="flex min-h-0 flex-1 flex-col px-4 py-0">
                       <header className="flex shrink-0 items-center justify-end pt-[max(12px,env(safe-area-inset-top))]">
                         <h2 id="mobile-prompt-overlay-title" className="sr-only">
                           Промпт
@@ -1832,7 +1838,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                         </button>
                       </header>
                       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-3 [-webkit-overflow-scrolling:touch]">
-                        <p className="select-text whitespace-pre-wrap text-[13px] leading-relaxed text-white/92">
+                        <p className={PROMPT_SHEET_TEXT}>
                           {selectedPrompt}
                         </p>
                       </div>
@@ -1843,7 +1849,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            void handleCopy();
+                            void handleCopy({ closeOverlay: true });
                           }}
                           className={`${OVERLAY_BUTTON_UA_RESET} shadow-none flex min-h-11 w-full items-center justify-center gap-2 px-4 py-3 font-semibold text-white ${MOBILE_FS_ACTION}`}
                         >

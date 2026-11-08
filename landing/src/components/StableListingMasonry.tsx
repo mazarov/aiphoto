@@ -20,12 +20,17 @@ type Props = {
   loading?: boolean;
   debugOverlay?: (card: PromptCardFull) => ReactNode;
   headingAltSlots?: readonly string[];
+  /** Clip the canvas to the shortest column while «Ещё» covers the last row. */
+  clipToShortestColumn?: boolean;
 };
 
 type MasonryCustomProperties = CSSProperties & {
   "--masonry-height-2": string;
   "--masonry-height-3": string;
   "--masonry-height-4": string;
+  "--masonry-min-height-2": string;
+  "--masonry-min-height-3": string;
+  "--masonry-min-height-4": string;
 };
 
 type ItemCustomProperties = CSSProperties & {
@@ -50,6 +55,7 @@ export function StableListingMasonry({
   loading = false,
   debugOverlay,
   headingAltSlots,
+  clipToShortestColumn = false,
 }: Props) {
   const cards = useMemo(() => cardPages.flat(), [cardPages]);
   const aspects = useMemo(
@@ -76,13 +82,16 @@ export function StableListingMasonry({
     "--masonry-height-2": layouts.mobile.height,
     "--masonry-height-3": layouts.tablet.height,
     "--masonry-height-4": layouts.desktop.height,
+    "--masonry-min-height-2": layouts.mobile.minHeight,
+    "--masonry-min-height-3": layouts.tablet.minHeight,
+    "--masonry-min-height-4": layouts.desktop.minHeight,
   };
 
   return (
     <div
       className={`stable-listing-masonry transition-opacity ${
-        loading ? "opacity-55" : "opacity-100"
-      }`}
+        clipToShortestColumn ? "stable-listing-masonry-teaser " : ""
+      }${loading ? "opacity-55" : "opacity-100"}`}
       style={containerStyle}
       aria-live="polite"
       aria-busy={loading || undefined}

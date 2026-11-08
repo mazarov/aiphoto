@@ -46,4 +46,6 @@ test("stable masonry places new cards inside existing lanes", () => {
   assert.equal(layout.placements.length, 5);
   assert.notEqual(layout.placements[4]?.top, "calc(0cqw)");
   assert.match(layout.height, /^max\(/);
+  assert.match(layout.minHeight, /^min\(/);
+  assert.notEqual(layout.minHeight, layout.height);
 });

@@ -24,8 +24,12 @@ import { useDebugCardHidden } from "@/hooks/useDebugCardHidden";
 
 const PAGE_SIZE = LISTING_INFINITE_PAGE_SIZE;
 
+/** Same pill as the listing generate FAB. */
 const TEASER_LOAD_MORE_BUTTON =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-indigo-200 bg-white/95 px-5 text-sm font-semibold text-indigo-700 shadow-sm backdrop-blur-sm transition hover:border-indigo-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-indigo-600 px-5 text-[13px] font-semibold text-white shadow-[0_12px_32px_-10px_rgba(79,70,229,0.55)] transition hover:bg-indigo-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60";
+
+/** How far the last full row dissolves into the panel. The button sits in this band. */
+const TEASER_ROW_FADE_PX = 88;
 
 function TeaserLoadMoreChevron() {
   return (
@@ -54,7 +58,7 @@ type Props = {
   searchQuery?: string | null;
   searchFilters?: Record<string, string | null | undefined>;
   searchHasMore?: boolean;
-  /** First screen like `/generaciya-foto`: fade + «Ещё», then the same button below. */
+  /** Catalog hubs: «Ещё» floats on the photos, including after the first page. */
   teaserLoadMore?: boolean;
   headingAltSlots?: readonly string[];
 };
@@ -78,7 +82,6 @@ export function InfiniteGrid({
   const cards = useMemo(() => cardPages.flat(), [cardPages]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
-  const [galleryRevealed, setGalleryRevealed] = useState(false);
   const [hasMore, setHasMore] = useState(() =>
     searchQuery
       ? searchHasMore
@@ -154,7 +157,6 @@ export function InfiniteGrid({
         : resolveListingPageStep(rankedSize);
       if (newCards.length > 0) {
         setCardPages((prev) => appendUniqueCardPage(prev, newCards));
-        if (teaserLoadMore) setGalleryRevealed(true);
       }
       offsetRef.current = oldOffset + step;
 
@@ -199,33 +201,27 @@ export function InfiniteGrid({
     }, []),
   );
 
-  const showTeaserOverlay =
-    teaserLoadMore && hasMore && !galleryRevealed && cards.length > 0;
-  const showTeaserMoreButton =
-    teaserLoadMore && hasMore && galleryRevealed;
+  const showFloatingMore =
+    teaserLoadMore && hasMore && cards.length > 0;
 
   return (
     <>
-      <div
-        className={`mb-8${showTeaserOverlay ? " relative overflow-hidden" : ""}`}
-      >
+      <div className={`mb-8${showFloatingMore ? " relative" : ""}`}>
         <FilterableGrid
           cards={cards}
           cardPages={cardPages}
           sort={sort}
           headingAltSlots={headingAltSlots}
+          clipToShortestColumn={showFloatingMore}
         />
-        {showTeaserOverlay ? (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30">
+        {showFloatingMore ? (
+          <>
             <div
-              className="absolute inset-x-0 bottom-0 h-32 backdrop-blur-[6px] [mask-image:linear-gradient(to_top,black,transparent)] sm:h-40"
+              className="absolute inset-x-0 bottom-0 z-20"
+              style={{ height: TEASER_ROW_FADE_PX }}
               aria-hidden
             />
-            <div
-              className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-white/50 via-white/15 to-transparent sm:h-40"
-              aria-hidden
-            />
-            <div className="relative flex justify-center pb-24 pt-16 sm:pb-28 sm:pt-20">
+            <div className="pointer-events-none absolute inset-x-0 bottom-3 z-30 flex justify-center">
               <button
                 type="button"
                 disabled={loading}
@@ -236,26 +232,21 @@ export function InfiniteGrid({
                 <TeaserLoadMoreChevron />
               </button>
             </div>
-          </div>
+          </>
         ) : null}
       </div>
 
       {teaserLoadMore ? null : <div ref={sentinelRef} className="h-px" />}
 
-      {showTeaserMoreButton || (hasMore && !loading && searchQuery) ? (
+      {hasMore && !loading && searchQuery ? (
         <div className="flex flex-col items-center gap-3 py-4">
           <button
             type="button"
             disabled={loading}
             onClick={() => void loadMore()}
-            className={
-              showTeaserMoreButton
-                ? TEASER_LOAD_MORE_BUTTON
-                : "min-h-11 rounded-full border border-zinc-300 bg-white px-5 text-sm font-semibold text-zinc-800 transition-colors hover:bg-zinc-50"
-            }
+            className="min-h-11 rounded-full border border-zinc-300 bg-white px-5 text-sm font-semibold text-zinc-800 transition-colors hover:bg-zinc-50"
           >
             {loading ? "Загружаем…" : LISTING_LOAD_MORE_LABEL}
-            {showTeaserMoreButton ? <TeaserLoadMoreChevron /> : null}
           </button>
         </div>
       ) : null}
