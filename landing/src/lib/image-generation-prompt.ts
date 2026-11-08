@@ -6,7 +6,7 @@
 import { looksLikeCameraOrbitInstruction } from "./camera-orbit";
 import { looksLikePhotoshootInstruction, PHOTOSHOOT_FLUSH_PANELS_RULE } from "./photoshoot";
 import {
-  applyWardrobePolicyToPrompt,
+  preparePromptForIdentityPhotoGeneration,
   type WardrobePolicy,
 } from "./wardrobe-policy";
 
@@ -54,6 +54,26 @@ The input image(s) show the SUBJECT (a real person). Output exactly one new phot
 - Scene, pose, lighting, and camera follow the text. Do not invent a new outfit to fit the scene.
 - Result must look naturally photographed, not pasted or flatly composited.
 ${IMAGE_QUALITY_CRITICAL_BULLET}
+`.trim();
+
+export const GENERATE_LANDING_CARD_STYLIZED_CRITICAL_RULES = `
+CRITICAL RULES
+The input image(s) show the SUBJECT (a real person). Output exactly one new artwork of that same person rendered in the exact artistic medium, brushwork, surface texture, and stylization described in Genre, Rendering, Color, and Avoid above. Do NOT output a photorealistic photograph.
+
+- Identity in target style: preserve the recognizable person from the input photo (face structure, key features, eye color, natural hair pigment), but paint or render their skin, hair, and features completely in the target illustration, digital painting, graphic, or 3D style. Do not leave photographic skin pores or paste a photo face onto a painted body.
+- Pose, expression & accessories: follow Pose, Mood, and Clothing from the text above. Do not copy a conflicting facial expression (such as an open smile when the prompt is calm/neutral or frowning) or unrequested facial piercings/accessories from the input photo.
+- Wardrobe — fully replace clothing: ignore the apparel, shoes, and visible accessories in the input photo as the outfit to keep. Dress the subject exactly as the text prompt describes.
+- Medium fidelity: preserve visible brushstrokes, painted color planes, airbrushed/porcelain or impasto finish, and stylized proportions as described in Rendering and Avoid. Never convert the artwork into a realistic photograph.
+`.trim();
+
+export const GENERATE_LANDING_CARD_STYLIZED_KEEP_WARDROBE_RULES = `
+CRITICAL RULES
+The input image(s) show the SUBJECT (a real person). Output exactly one new artwork of that same person rendered in the exact artistic medium, brushwork, surface texture, and stylization described in Genre, Rendering, Color, and Avoid above. Do NOT output a photorealistic photograph.
+
+- Identity in target style: preserve the recognizable person from the input photo (face structure, key features, eye color, natural hair pigment), translated completely into the target illustration, digital painting, graphic, or 3D style.
+- Pose & expression: follow Pose and Mood from the text above rather than copying a conflicting expression from the input photo.
+- Wardrobe — lock clothing from the input photo: keep the same garments, shoes, and visible worn accessories from the input photo, rendered in the target artistic medium. Ignore garments named in the text.
+- Medium fidelity: preserve visible brushstrokes, painted color planes, and stylized finish as described in Rendering and Avoid. Never convert the artwork into a realistic photograph.
 `.trim();
 
 export const GENERATE_TEXT_TO_IMAGE_CRITICAL_RULES = `
@@ -138,12 +158,15 @@ export function assembleLandingCardFinalPrompt(
   wardrobePolicy: WardrobePolicy = "replace",
 ): string {
   const policy = wardrobePolicy === "keep" ? "keep" : "replace";
-  return joinFinalPromptParts(
-    applyWardrobePolicyToPrompt(String(rawCardPrompt ?? "").trimEnd(), policy),
-    policy === "keep"
+  const prepared = preparePromptForIdentityPhotoGeneration(rawCardPrompt, policy);
+  const rules = prepared.stylized
+    ? policy === "keep"
+      ? GENERATE_LANDING_CARD_STYLIZED_KEEP_WARDROBE_RULES
+      : GENERATE_LANDING_CARD_STYLIZED_CRITICAL_RULES
+    : policy === "keep"
       ? GENERATE_LANDING_CARD_KEEP_WARDROBE_RULES
-      : GENERATE_LANDING_CARD_CRITICAL_RULES,
-  );
+      : GENERATE_LANDING_CARD_CRITICAL_RULES;
+  return joinFinalPromptParts(prepared.body, rules);
 }
 
 export function assembleTextToImageFinalPrompt(rawPrompt: string): string {

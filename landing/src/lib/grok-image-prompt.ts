@@ -5,7 +5,7 @@
 import { looksLikeCameraOrbitInstruction } from "./camera-orbit";
 import { looksLikePhotoshootInstruction, PHOTOSHOOT_FLUSH_PANELS_RULE } from "./photoshoot";
 import {
-  applyWardrobePolicyToPrompt,
+  preparePromptForIdentityPhotoGeneration,
   type WardrobePolicy,
 } from "./wardrobe-policy";
 
@@ -27,6 +27,24 @@ const KEEP_WARDROBE_RULES = [
   "Keep the same clothing, shoes, and worn accessories from the subject photo.",
   "Ignore garments or colors named in the text. Do not change the outfit.",
   "The result must look naturally photographed, not pasted.",
+].join("\n");
+
+const STYLIZED_IDENTITY_RULES = [
+  "The provided photo(s) show the SUBJECT (a real person).",
+  "Output exactly one new artwork of that same person rendered in the exact artistic medium, brushwork, and stylization described in Genre, Rendering, Color, and Avoid above. Do NOT output a photorealistic photograph.",
+  "Preserve recognizable identity (face structure, key features, eye color, natural hair pigment), but paint or render skin, hair, and features completely in the target illustration, digital painting, graphic, or 3D style.",
+  "Follow Pose, Mood, and Clothing from the text above; do not copy a conflicting facial expression (such as an open smile when the prompt is calm/neutral or frowning) or unrequested facial piercings from the subject photo.",
+  "Unless the text explicitly says to keep the outfit, replace clothing to match the prompt.",
+  "Preserve visible brushstrokes, painted color planes, and stylized finish. Never convert the artwork into a realistic photograph.",
+].join("\n");
+
+const STYLIZED_KEEP_WARDROBE_RULES = [
+  "The provided photo(s) show the SUBJECT (a real person).",
+  "Output exactly one new artwork of that same person rendered in the exact artistic medium, brushwork, and stylization described in Genre, Rendering, Color, and Avoid above. Do NOT output a photorealistic photograph.",
+  "Preserve recognizable identity (face structure, key features, eye color, natural hair pigment), rendered completely in the target illustration, digital painting, graphic, or 3D style.",
+  "Follow Pose and Mood from the text above rather than copying a conflicting expression from the subject photo.",
+  "Keep the same clothing, shoes, and worn accessories from the subject photo, rendered in the target artistic medium. Ignore garments named in the text.",
+  "Preserve visible brushstrokes, painted color planes, and stylized finish. Never convert the artwork into a realistic photograph.",
 ].join("\n");
 
 const TEXT_ONLY_RULES = [
@@ -64,10 +82,15 @@ export function assembleGrokImageToImagePrompt(
   wardrobePolicy: WardrobePolicy = "replace",
 ): string {
   const policy = wardrobePolicy === "keep" ? "keep" : "replace";
-  return joinPrompt(
-    applyWardrobePolicyToPrompt(rawPrompt, policy),
-    policy === "keep" ? KEEP_WARDROBE_RULES : IDENTITY_RULES,
-  );
+  const prepared = preparePromptForIdentityPhotoGeneration(rawPrompt, policy);
+  const rules = prepared.stylized
+    ? policy === "keep"
+      ? STYLIZED_KEEP_WARDROBE_RULES
+      : STYLIZED_IDENTITY_RULES
+    : policy === "keep"
+      ? KEEP_WARDROBE_RULES
+      : IDENTITY_RULES;
+  return joinPrompt(prepared.body, rules);
 }
 
 export function assembleGrokImageEditPrompt(editInstruction: string): string {

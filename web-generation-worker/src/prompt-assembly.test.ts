@@ -116,3 +116,38 @@ test("dual-image vibe prompt appends grooming recency tail only when requested",
   assert.match(dual, /LAST — must show/);
   assert.doesNotMatch(single, /LAST — must show/);
 });
+
+test("stylized illustration card prompt strips text-only CRITICAL RULES, neutralizes Appearance, and forbids photorealistic output", () => {
+  const rawAnalyzePrompt = [
+    "Visual Hook:",
+    "Портрет женщины в розовом вязаном свитере.",
+    "Genre:",
+    "Портретная иллюстрация в стиле цифровой живописи.",
+    "Rendering:",
+    "Изображение выполнено в технике цифровой живописи с мягкими мазками.",
+    "Appearance:",
+    "У женщины длинные каштановые волосы и голубые глаза, 20-30 лет.",
+    "Pose:",
+    "Торс повернут на три четверти, губы сомкнуты.",
+    "Avoid:",
+    "- Превращение изображения в фотографию",
+    "",
+    "CRITICAL RULES",
+    "- Повтори кадр по секциям выше. Исходное фото в генерацию не прикладывается: внешность брать из Appearance, не из фразы «сохрани лицо».",
+    "- Сохрани носитель и технику исполнения из Genre, Rendering и Avoid. Не переводи иллюстрацию или 3D в фотографию.",
+  ].join("\n");
+
+  const gemini = assembleLandingCardFinalPrompt(rawAnalyzePrompt, "replace");
+  const grok = assembleGrokImageToImagePrompt(rawAnalyzePrompt, "replace");
+
+  assert.equal(gemini.match(/^CRITICAL RULES$/gm)?.length, 1);
+  assert.doesNotMatch(gemini, /Исходное фото в генерацию не прикладывается/);
+  assert.doesNotMatch(gemini, /20-30 лет/);
+  assert.match(gemini, /Do NOT output a photorealistic photograph/);
+  assert.doesNotMatch(gemini, /Output exactly one new photorealistic photograph/);
+
+  assert.doesNotMatch(grok, /Исходное фото в генерацию не прикладывается/);
+  assert.doesNotMatch(grok, /20-30 лет/);
+  assert.match(grok, /Do NOT output a photorealistic photograph/);
+  assert.doesNotMatch(grok, /Output exactly one new photorealistic photograph/);
+});
