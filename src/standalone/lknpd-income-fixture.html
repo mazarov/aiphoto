@@ -1,0 +1,57 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>PromptShot → Мой налог fixture</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 24px; max-width: 720px; color: #111; }
+  h1 { font-size: 20px; }
+  p, li { line-height: 1.45; }
+  button { padding: 8px 12px; }
+</style>
+<h1>Фикстура кабинета ФНС</h1>
+<p>Панель справа — тот же boot, что в Tampermonkey. API здесь мок: ИНН 770000000000, чеков в ФНС нет.</p>
+<p><button id="csv">Скачать тестовый CSV</button></p>
+<ul>
+  <li>Загрузите CSV в панель.</li>
+  <li>Оставьте Dry-run — кнопка не должна бить в сеть.</li>
+  <li>Снимите Dry-run и подтвердите: в логе появится uuid мок-чека.</li>
+</ul>
+<script type="module">
+  import * as core from "./lknpd-income-core.mjs";
+  import { bootLknpdIncome, createCabinetSession } from "./lknpd-income-boot.mjs";
+
+  const HEADER = "created_at;payer_email;payer_name;payer_provider;auth_user_id;landing_user_id;identity_mismatch;plan_id;paywall_variant;amount_rub;credits;test;status;provider;provider_status;provider_payment_id;credit_state;credited_at;source;utm_source;utm_medium;utm_campaign;utm_content;utm_term;utm_landing_path;yclid;visitor_id;session_id;id";
+  const live = "2026-09-18T10:05:00.000Z;buyer@example.com;Buyer;yandex;auth-1;land-1;false;start;treatment;299;100;false;succeeded;yookassa;succeeded;yk-1;credited;2026-09-18T10:05:00.000Z;yandex;yandex;cpc;;;;;;;;11111111-1111-1111-1111-111111111111";
+  const testPay = "2026-09-18T10:05:00.000Z;buyer@example.com;Buyer;yandex;auth-1;land-1;false;trial;treatment;99;30;true;succeeded;yookassa;succeeded;yk-2;credited;2026-09-18T10:05:00.000Z;yandex;yandex;cpc;;;;;;;;22222222-2222-2222-2222-222222222222";
+  const csv = `\uFEFF${HEADER}\n${live}\n${testPay}\n`;
+
+  document.getElementById("csv").addEventListener("click", () => {
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "promptshot-payments-fixture.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  let receiptNo = 0;
+  const session = createCabinetSession();
+  session.bearer = "fixture-token";
+  bootLknpdIncome(core, {
+    session,
+    skipHooks: true,
+    request: async (path, options = {}) => {
+      if (path === "/user") {
+        return { inn: "770000000000", displayName: "Фикстура" };
+      }
+      if (path.startsWith("/incomes")) {
+        return { content: [] };
+      }
+      if (path === "/income" && options.method === "POST") {
+        receiptNo += 1;
+        return { approvedReceiptUuid: `fixture-receipt-${receiptNo}` };
+      }
+      throw new Error(`unexpected ${path}`);
+    },
+  });
+</script>

@@ -31,6 +31,7 @@ import {
   hasMoreSearchPages,
   resolveListingPageStep,
 } from "@/lib/listing-pagination";
+import { LISTING_DEFAULT_SORT } from "@/lib/listing-sort";
 import { LISTING_SHELL_LINK_SCROLL } from "@/lib/scroll-preservation";
 import {
   GF_BLOCK_FLUSH,
@@ -254,7 +255,7 @@ export function GeneraciyaFotoExamplesExplorer({
           if (value) sp.set(key, value);
         }
         if (loadMoreListing.strict) sp.set("strict", "1");
-        sp.set("sort", loadMoreListing.sort ?? "new");
+        sp.set("sort", loadMoreListing.sort ?? LISTING_DEFAULT_SORT);
       }
 
       const response = await fetch(`/api/listing?${sp.toString()}`, {
@@ -432,7 +433,7 @@ export function GeneraciyaFotoExamplesExplorer({
             : `/api/listing?${new URLSearchParams({
                 [activeFilter!.dimension]: activeFilter!.value,
                 limit: String(RESULT_LIMIT),
-                sort: "new",
+                sort: LISTING_DEFAULT_SORT,
                 strict: "1",
               })}`;
 

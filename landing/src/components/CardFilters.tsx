@@ -9,7 +9,7 @@ import { isCatalogAdminEmail } from "@/lib/catalog-admin";
 import { LISTING_LCP_PRIORITY_GRID_ITEMS } from "@/lib/listing-lcp";
 import { appendUniqueCardsById } from "@/lib/listing-cards";
 import { LISTING_INFINITE_PAGE_SIZE } from "@/lib/listing-pagination";
-import type { ListingSort } from "@/lib/listing-sort";
+import { LISTING_DEFAULT_SORT, type ListingSort } from "@/lib/listing-sort";
 import {
   buildListingSlugOrder,
   primeListingNavigationCards,
@@ -116,7 +116,7 @@ export function FilterableGrid({
   cardPages,
   lcpPriorityCount = LISTING_LCP_PRIORITY_GRID_ITEMS,
   initialDataset,
-  sort = "new",
+  sort = LISTING_DEFAULT_SORT,
   headingAltSlots,
 }: Props) {
   const { user } = useAuth();
@@ -291,8 +291,7 @@ export function FilterableGrid({
         ...(f.selectedTag && { seoTag: f.selectedTag }),
         ...(f.dataset && { dataset: f.dataset }),
       });
-      // Default listing sort is `new` (omit param); only non-default `popular` is sent.
-      if (sortRef.current === "popular") u.set("sort", "popular");
+      u.set("sort", sortRef.current);
       const res = await fetch(`/api/search-cards?${u}`, { credentials: "include" });
       const data = await res.json();
       const newCards = (data.cards || []) as PromptCardFull[];

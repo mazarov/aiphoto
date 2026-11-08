@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  chromeExtensionIds,
+  chromeExtensionOrigins,
   mapPromptshotPathToSource,
   normalizePromptshotPath,
   resolveClientSource,
@@ -123,6 +125,38 @@ test("resolveClientSource accepts only page x-client from the web", () => {
     })),
     "foto_v_promt",
   );
+});
+
+test("chrome extension id lists accept comma-separated env values", () => {
+  assert.deepEqual(chromeExtensionIds(" AbCd , efgh "), ["abcd", "efgh"]);
+  assert.deepEqual(chromeExtensionIds(""), []);
+  assert.deepEqual(chromeExtensionIds(null), []);
+  assert.deepEqual(chromeExtensionOrigins("AbCd,efgh"), [
+    "chrome-extension://abcd",
+    "chrome-extension://efgh",
+  ]);
+});
+
+test("resolveClientSource maps Lite extension ids and leaves other extensions as STV", () => {
+  const prev = process.env.CHROME_EXTENSION_ID_LITE;
+  process.env.CHROME_EXTENSION_ID_LITE = "LiteId, unpackedid";
+  try {
+    assert.equal(
+      resolveClientSource(req({ origin: "chrome-extension://liteid" })),
+      "extension_lite",
+    );
+    assert.equal(
+      resolveClientSource(req({ origin: "chrome-extension://unpackedid" })),
+      "extension_lite",
+    );
+    assert.equal(
+      resolveClientSource(req({ origin: "chrome-extension://abcd" })),
+      "extension_stv",
+    );
+  } finally {
+    if (prev === undefined) delete process.env.CHROME_EXTENSION_ID_LITE;
+    else process.env.CHROME_EXTENSION_ID_LITE = prev;
+  }
 });
 
 test("resolveClientSource keeps extension and site hosts", () => {

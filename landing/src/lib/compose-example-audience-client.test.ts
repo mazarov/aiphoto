@@ -41,16 +41,16 @@ test("readComposeExampleAudience uses photo tag then memory cache", () => {
 test("composeExampleAudienceListingUrl warms newest and tagged first pages", () => {
   assert.equal(
     composeExampleAudienceListingUrl(null),
-    "/api/listing?limit=12&sort=new",
+    "/api/listing?limit=12&sort=popular",
   );
   assert.equal(
     composeExampleAudienceListingUrl("devochka"),
-    "/api/listing?limit=12&sort=new&audience_tag=devochka&strict=1",
+    "/api/listing?limit=12&sort=popular&audience_tag=devochka&strict=1",
   );
 });
 
 test("example listing memory cache hydrates the picker without a second fetch", () => {
-  const url = "/api/listing?limit=12&sort=new";
+  const url = "/api/listing?limit=12&sort=popular";
   rememberComposeExampleListing(url, {
     cards: [],
     ranked_batch_size: 12,

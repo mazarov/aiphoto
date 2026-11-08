@@ -12,13 +12,13 @@ function SidebarSkeleton() {
   );
 }
 
-/** Skeleton под реальный `CardPageLayout`: на мобиле — fullscreen тёмная подложка как у immersive; md+ — шапка + сайдбар + светлый hero */
+/** Skeleton под реальный `CardPageLayout`: до lg — fullscreen тёмная подложка как у immersive; lg+ — шапка + сайдбар + светлый hero */
 export default function CardLoading() {
   return (
     <>
       {/* Мобила: один слой без фейковой шапки (как `CardPageLayout` при fullscreen) */}
       <div
-        className="flex min-h-[100dvh] flex-col bg-zinc-950 px-4 md:hidden"
+        className="flex min-h-[100dvh] flex-col bg-zinc-950 px-4 lg:hidden"
         aria-busy="true"
         aria-label="Загрузка карточки"
       >
@@ -30,7 +30,7 @@ export default function CardLoading() {
       </div>
 
       {/* Планшет / десктоп — приближаемся к финальному layout с сайдбаром */}
-      <div className="hidden md:block" aria-busy="true" aria-label="Загрузка карточки">
+      <div className="hidden lg:block" aria-busy="true" aria-label="Загрузка карточки">
         <div className="sticky top-0 z-40 flex h-[57px] items-center justify-between border-b border-zinc-100 bg-white px-5 lg:hidden">
           <div className="h-7 w-28 animate-pulse rounded-lg bg-zinc-100" />
           <div className="hidden h-9 w-80 animate-pulse rounded-xl bg-zinc-50 lg:block" />

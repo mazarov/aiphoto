@@ -20,7 +20,7 @@ test("render URL carries the listing and hero presets", () => {
       "a/b.jpg",
       "listing",
     ),
-    "https://storage.example/storage/v1/render/image/public/cards/a/b.jpg?width=512&quality=58",
+    "https://storage.example/storage/v1/render/image/public/cards/a/b.jpg?width=1024&quality=60",
   );
   assert.equal(
     buildStorageRenderImagePublicUrl(
@@ -29,6 +29,6 @@ test("render URL carries the listing and hero presets", () => {
       "a/b.jpg",
       "hero",
     ),
-    "https://storage.example/storage/v1/render/image/public/cards/a/b.jpg?width=512&quality=70",
+    "https://storage.example/storage/v1/render/image/public/cards/a/b.jpg?width=1920&quality=100",
   );
 });

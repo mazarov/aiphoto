@@ -2,9 +2,12 @@ export type ListingSort = "popular" | "new";
 
 export const LISTING_SORT_STORAGE_KEY = "promptshot_listing_sort";
 
+/** Public listings. `/trends` is the only feed that passes `new` explicitly. */
+export const LISTING_DEFAULT_SORT: ListingSort = "popular";
+
 export function parseListingSort(raw: string | null | undefined): ListingSort {
-  if (raw === "popular") return "popular";
-  return "new";
+  if (raw === "new" || raw === "popular") return raw;
+  return LISTING_DEFAULT_SORT;
 }
 
 /** Returns false when raw is present but not popular|new (API → 400). */

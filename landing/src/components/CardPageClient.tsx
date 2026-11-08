@@ -21,6 +21,8 @@ import {
   resolveCardRepeatAction,
 } from "@/lib/card-repeat-auth";
 import { peekLastListingPath } from "@/lib/scroll-preservation";
+import { isDevushkiCopyNudgeEligibleCard } from "@/lib/devushki-copy-nudge";
+import { GIRLS_HUB_GENERATE_CTA } from "@/lib/promty-dlya-foto-devushki-cluster";
 import { isCatalogAdminEmail } from "@/lib/catalog-admin";
 import {
   ADMIN_TECH_INFO_CHANGED_EVENT,
@@ -35,6 +37,7 @@ import {
 } from "@/lib/card-overlay-action-pill";
 import { CARD_OVERLAY_PHOTO_COUNTER_CLASS } from "@/lib/card-overlay-photo-counter";
 import {
+  CARD_IMAGE_HERO_NEXT_QUALITY,
   CARD_IMAGE_NEXT_QUALITY,
   SIZES_CARD_GRID,
   SIZES_CARD_HERO,
@@ -107,6 +110,9 @@ const MOBILE_FS_CHIP_MUTED =
   "text-[13px] font-medium bg-black/15 text-white/80 backdrop-blur-md shadow-none transition-colors hover:bg-black/25";
 /** Кнопки поверх фото (промпт / Lexy) — без «полосы», тот же glass. */
 const MOBILE_FS_ACTION = `${MOBILE_FS_CHIP} rounded-xl font-semibold`;
+
+const DEVUSHKI_TRY_LABEL = GIRLS_HUB_GENERATE_CTA;
+const DEVUSHKI_TRY_ARIA = "Повторить этот образ на своём фото";
 /** Полноэкранный текст промпта: та же glass-подложка, что у чипов. */
 const MOBILE_FS_EXPAND = `${MOBILE_FS_CHIP} leading-relaxed`;
 
@@ -495,6 +501,12 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   );
 
   const hasPrompts = data.promptTexts.length > 0;
+  const devushkiImmersive = isDevushkiCopyNudgeEligibleCard({
+    seoTags: data.seo_tags,
+    lastListingPath: null,
+  });
+  const generateIdleLabel = devushkiImmersive ? DEVUSHKI_TRY_LABEL : "Повторить";
+  const generateIdleAria = devushkiImmersive ? DEVUSHKI_TRY_ARIA : undefined;
   const hasPhotos = photos.length > 0;
   const videoUrl = data.videoUrl;
   const isPhotoshoot = isPhotoshootUgcListing({
@@ -590,7 +602,9 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
       return;
     }
     const ok = await copyTextUniversal(str);
-    if (ok) recordAcquisitionClientEvent("prompt_copy", { cardSlug: data.slug });
+    if (ok) {
+      recordAcquisitionClientEvent("prompt_copy", { cardSlug: data.slug });
+    }
     setStickyCopy(ok ? "ok" : "fail");
     window.setTimeout(() => setStickyCopy("idle"), 2200);
   }
@@ -773,7 +787,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     // Mobile-only hint; desktop already has ↑↓ on the photo.
     const isMobile =
       typeof window !== "undefined" &&
-      window.matchMedia("(max-width: 767px)").matches;
+      window.matchMedia("(max-width: 1023px)").matches;
     if (!isMobile) {
       setShowSwipeOnboarding(false);
       return;
@@ -802,7 +816,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   useEffect(() => {
     const pin = peekAuthReturnCardPin();
     if (!pin || data.slug !== pin) return;
-    const desktop = window.matchMedia("(min-width: 768px)").matches;
+    const desktop = window.matchMedia("(min-width: 1024px)").matches;
     if (desktop) {
       releaseAuthReturnCardPin();
       if (authCardPinned) setAuthCardPinned(false);
@@ -827,15 +841,15 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
       className={
         hasPhotos
           ? isModal
-            ? "max-md:h-full max-md:overflow-hidden"
-            : "mx-auto w-full max-w-7xl px-5 py-6 max-md:max-w-2xl max-md:pb-6 md:px-6 md:py-8 lg:py-10"
+            ? "max-lg:h-full max-lg:overflow-hidden"
+            : "mx-auto w-full max-w-7xl px-5 py-6 max-lg:max-w-none max-lg:px-0 max-lg:py-0 lg:flex lg:h-full lg:min-h-0 lg:flex-1 lg:flex-col lg:px-6 lg:py-4"
           : "mx-auto max-w-2xl px-5 py-6 pb-28 lg:py-10"
       }
     >
       {/* Breadcrumb — direct /p page only (not in modal); hidden on mobile */}
       {!isModal && (
         <nav
-          className={`mb-6 hidden items-center gap-1.5 text-sm text-zinc-500 sm:flex ${
+          className={`mb-6 hidden shrink-0 items-center gap-1.5 text-sm text-zinc-500 sm:flex ${
             hasPhotos ? "md:mb-4 md:text-zinc-400" : ""
           }`}
         >
@@ -867,7 +881,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
       {debugMode && (
         <div
           data-card-modal-surface={isModal ? "" : undefined}
-          className={`mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 font-mono text-xs text-zinc-700 space-y-1.5 ${hasPhotos ? "max-md:hidden" : ""}`}
+          className={`mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 font-mono text-xs text-zinc-700 space-y-1.5 ${hasPhotos ? "max-lg:hidden" : ""}`}
         >
           <div className="flex items-center gap-2 mb-2">
             <span className="rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white">DEBUG</span>
@@ -969,14 +983,20 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
       {/* ── Hero (desktop split / mobile immersive) ── */}
       {hasPhotos && (
         <>
-          {/* Desktop split: compact photo + editorial details panel — LCP for md+ */}
-          <div className="relative mx-auto hidden w-fit max-w-full md:flex md:h-[clamp(30rem,min(85vh,calc(100vw-30rem)),57.5rem)] md:items-stretch md:gap-4 lg:gap-5">
+          {/* Desktop split from lg (1024): below that the listing is still the mobile shell, so the card is fullscreen. */}
+          <div
+            className={`relative mx-auto hidden w-fit max-w-full lg:flex lg:items-stretch lg:gap-5 ${
+              isModal
+                ? "lg:h-[clamp(30rem,min(85vh,calc(100vw-30rem)),57.5rem)]"
+                : "min-h-0 lg:h-auto lg:min-h-0 lg:max-h-full lg:flex-1"
+            }`}
+          >
             {/* Left: photo */}
             <div className="group relative flex h-full min-h-0 min-w-0 shrink items-start justify-center">
               {currentPhoto ? (
                 <div
                   data-card-modal-surface={isModal ? "" : undefined}
-                  className="relative mx-auto h-full aspect-[3/4] w-auto max-w-none overflow-hidden rounded-2xl bg-zinc-900 shadow-2xl ring-1 ring-white/10"
+                  className="relative mx-auto h-full aspect-[3/4] w-auto max-w-none overflow-hidden rounded-2xl bg-zinc-900"
                 >
                   {photoshootGrid ? (
                     <PhotoshootListingGrid
@@ -998,18 +1018,18 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                         alt=""
                         fill
                         sizes={SIZES_CARD_HERO}
-                        quality={CARD_IMAGE_NEXT_QUALITY}
-                        className="scale-110 object-cover opacity-60 blur-2xl"
+                        quality={CARD_IMAGE_HERO_NEXT_QUALITY}
+                        className="scale-110 object-cover opacity-40 blur-2xl"
                         aria-hidden
                       />
-                      <div className="pointer-events-none absolute inset-0 z-[1] bg-black/10" aria-hidden />
+                      <div className="pointer-events-none absolute inset-0 z-[1] bg-black/45" aria-hidden />
                       <Image
                         key={`desktop-hero-${currentPhoto}`}
                         src={currentPhoto}
                         alt={buildCardImageAlt(title, [], photoIndex)}
                         fill
                         sizes={SIZES_CARD_HERO}
-                        quality={CARD_IMAGE_NEXT_QUALITY}
+                        quality={CARD_IMAGE_HERO_NEXT_QUALITY}
                         className="z-[2] animate-fade-in object-contain"
                         priority
                         fetchPriority="high"
@@ -1066,7 +1086,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     </div>
                   )}
                   {groupCards.length > 1 && (
-                    <div className="pointer-events-none absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1">
+                    <div className={`pointer-events-none absolute left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 ${devushkiImmersive ? "bottom-[4.75rem]" : "bottom-2"}`}>
                       <div className="pointer-events-auto flex items-center gap-1">
                         {groupCards.map((card) => {
                           const isActive = card.id === data.id;
@@ -1107,7 +1127,36 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                       </div>
                     </div>
                   )}
-                  <div className="absolute right-3 top-1/2 z-30 flex -translate-y-1/2 flex-col gap-2">
+                  <div className="absolute right-3 top-1/2 z-30 flex -translate-y-1/2 flex-col items-center gap-2">
+                    {devushkiImmersive ? (
+                      <>
+                        <ReactionButtons
+                          cardId={data.id}
+                          likesCount={data.likesCount}
+                          dislikesCount={data.dislikesCount}
+                          userReaction={userReaction}
+                          onToggle={toggleReaction}
+                          variant="overlay"
+                          stacked
+                        />
+                        <FavoriteButton
+                          cardId={data.id}
+                          isFavorited={isFavorited}
+                          onToggle={toggleFavorite}
+                          variant="overlay"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleShare}
+                          className={`${CARD_OVERLAY_ACTION_PILL} min-w-[2.75rem] text-white/70 transition-colors hover:text-white active:scale-95`}
+                          title="Поделиться"
+                          aria-label="Поделиться ссылкой на карточку"
+                        >
+                          <ShareIcon className="block shrink-0" size={16} />
+                        </button>
+                        <div className="my-0.5 h-px w-6 bg-white/25" aria-hidden />
+                      </>
+                    ) : null}
                     <StickyListingNavButton
                       slug={listingPrev}
                       direction="prev"
@@ -1121,6 +1170,88 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                       orientation="vertical"
                     />
                   </div>
+                  {devushkiImmersive && hasPrompts ? (
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/55 via-black/15 to-transparent px-3 pb-3 pt-10">
+                      <div className={`${MOBILE_PHOTO_ACTIONS_GRID} pointer-events-auto`}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setMobilePromptOverlay(true);
+                          }}
+                          className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-11 flex-1 items-center justify-center gap-1 px-2 py-2 text-[13px] font-semibold text-white ${MOBILE_FS_ACTION}`}
+                        >
+                          <span className="truncate">Промпт</span>
+                        </button>
+                        <LexyGptGenerateButton
+                          promptText={selectedPrompt}
+                          cardId={data.id}
+                          sourceImageUrl={currentPhoto ?? undefined}
+                          variant="sticky"
+                          className="h-full min-h-11 min-w-0 w-full truncate px-2 text-[13px] shadow-none ring-2 ring-black/35"
+                          idleLabel={generateIdleLabel}
+                          idleAriaLabel={generateIdleAria}
+                          onInternalGenerate={openInlineGenerate}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+                  {devushkiImmersive && hasPrompts && mobilePromptOverlay ? (
+                    <div
+                      role="dialog"
+                      aria-modal="true"
+                      aria-labelledby="desktop-prompt-overlay-title"
+                      className="absolute inset-0 z-40 flex flex-col bg-black/48 backdrop-blur-md"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <header className="flex shrink-0 items-center justify-end px-3 pt-3">
+                        <h2 id="desktop-prompt-overlay-title" className="sr-only">
+                          Промпт
+                        </h2>
+                        <button
+                          type="button"
+                          aria-label="Закрыть промпт"
+                          onClick={() => setMobilePromptOverlay(false)}
+                          className={`${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-black/15 p-2 text-white/90 backdrop-blur-md transition-colors hover:bg-black/25 active:scale-[0.97]`}
+                        >
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+                            <path d="M18 6L6 18M6 6l12 12"/>
+                          </svg>
+                        </button>
+                      </header>
+                      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3">
+                        <p className="select-text whitespace-pre-wrap text-[13px] leading-relaxed text-white/92">
+                          {selectedPrompt}
+                        </p>
+                      </div>
+                      <div className="shrink-0 px-3 pb-3">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            void handleCopy();
+                          }}
+                          className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-11 w-full items-center justify-center gap-2 px-4 py-3 text-[13px] font-semibold text-white ${MOBILE_FS_ACTION}`}
+                        >
+                          {stickyCopy === "ok" ? (
+                            <>
+                              <CheckIcon size={20} />
+                              <span>Готово</span>
+                            </>
+                          ) : stickyCopy === "fail" ? (
+                            <span>Не удалось скопировать</span>
+                          ) : (
+                            <>
+                              <CopyIcon size={20} />
+                              <span>Скопировать промпт</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <div
@@ -1132,7 +1263,8 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
               )}
             </div>
 
-            {/* Right: light editorial details panel */}
+            {/* Right: light editorial details panel. Girls cards keep actions on the photo. */}
+            {!devushkiImmersive ? (
             <aside
               data-card-modal-surface={isModal ? "" : undefined}
               className="flex h-full min-h-0 w-[min(100%,510px)] shrink-0 flex-col overflow-hidden rounded-2xl bg-white text-zinc-900 shadow-[0_18px_55px_-28px_rgba(24,24,27,0.32)] lg:w-[540px]"
@@ -1292,11 +1424,14 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     cardId={data.id}
                     sourceImageUrl={currentPhoto ?? undefined}
                     variant="desktop-panel"
+                    idleLabel={generateIdleLabel}
+                    idleAriaLabel={generateIdleAria}
                     onInternalGenerate={openInlineGenerate}
                   />
                 )}
               </div>
             </aside>
+            ) : null}
           </div>
 
           {/* Mobile: fullscreen-карточка (Chrome скрыт через CardPageLayout при наличии фото).
@@ -1306,7 +1441,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
           {hasPhotos && (
           <div
             data-card-modal-surface={isModal ? "" : undefined}
-            className="ps-mobile-card-stage select-none overscroll-none bg-zinc-950 [-webkit-touch-callout:none] [-webkit-user-drag:none] md:hidden"
+            className="ps-mobile-card-stage select-none overscroll-none bg-zinc-950 [-webkit-touch-callout:none] [-webkit-user-drag:none] lg:hidden"
             onContextMenu={(e) => e.preventDefault()}
             onDragStart={(e) => e.preventDefault()}
           >
@@ -1387,7 +1522,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                         alt={buildCardImageAlt(title, [], photoIndex)}
                         fill
                         sizes="100vw"
-                        quality={CARD_IMAGE_NEXT_QUALITY}
+                        quality={CARD_IMAGE_HERO_NEXT_QUALITY}
                         className="object-cover object-center"
                         priority
                         fetchPriority="high"
@@ -1636,7 +1771,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                   </div>
                 </aside>
                 {/* Низ: промпт + Lexy — стрелки листинга в правом стеке */}
-                <div className={`pointer-events-none absolute inset-x-0 bottom-0 z-[99] pb-[max(14px,env(safe-area-inset-bottom))] pt-6 md:hidden ${mobileChromeClass}`}>
+                <div className={`pointer-events-none absolute inset-x-0 bottom-0 z-[99] pb-[max(14px,env(safe-area-inset-bottom))] pt-6 ${mobileChromeClass}`}>
                   <div
                     data-no-swipe
                     className="pointer-events-auto mx-auto flex w-full max-w-lg flex-col gap-2 px-3"
@@ -1661,6 +1796,8 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                           sourceImageUrl={currentPhoto ?? undefined}
                           variant="sticky"
                           className="h-full min-h-11 min-w-0 w-full truncate px-2 text-[13px] shadow-none ring-2 ring-black/35"
+                          idleLabel={generateIdleLabel}
+                          idleAriaLabel={generateIdleAria}
                           onInternalGenerate={openInlineGenerate}
                         />
                       </div>
@@ -1939,6 +2076,8 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     cardId={data.id}
                     variant="sticky"
                     className="h-full min-h-12 min-w-0 w-full truncate px-2 sm:px-3"
+                    idleLabel={generateIdleLabel}
+                    idleAriaLabel={generateIdleAria}
                     onInternalGenerate={openInlineGenerate}
                   />
                   <StickyListingNavButton

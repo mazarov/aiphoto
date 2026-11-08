@@ -145,7 +145,7 @@ test("generate FAB on the hub and children is photoshoot, not generic photo", ()
       pathname: "/promty-dlya-foto-devushki",
       isAuthed: true,
     }),
-    "Создать фото девушки",
+    "Повторить на своём фото",
   );
   assert.equal(
     listingGenerateIdleCta({

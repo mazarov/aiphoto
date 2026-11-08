@@ -106,6 +106,7 @@ async function findCardPhotoByTitleIncludes(
     limit: ROUTE_SCAN_LIMIT,
     offset: 0,
     min_cards: 0,
+    sort: "new",
   });
 
   const titleMatch = result.cards.find(

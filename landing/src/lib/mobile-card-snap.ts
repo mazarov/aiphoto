@@ -1,7 +1,7 @@
 export type MobileCardSnapDirection = "prev" | "current" | "next";
 
-/** Matches Tailwind `md`. Immersive snap feed is `md:hidden`. */
-export const MOBILE_CARD_SNAP_MAX_WIDTH_MQ = "(max-width: 767px)";
+/** Matches Tailwind `lg`. Immersive snap feed is `lg:hidden`, same as the listing shell. */
+export const MOBILE_CARD_SNAP_MAX_WIDTH_MQ = "(max-width: 1023px)";
 
 /** Ignore scroll/scrollend after a hidden→visible or desktop→mobile recenter. */
 export const MOBILE_CARD_SNAP_LAYOUT_SCROLL_IGNORE_MS = 400;

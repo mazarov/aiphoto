@@ -17,6 +17,10 @@ import {
 } from "@/lib/sticker";
 import { isStickerFromResultUnlocked, isStickerPackUnlocked, isStickerUnlocked } from "@/lib/sticker-access";
 import {
+  EXTENSION_LITE_GENERATE_CONFIG_KEY,
+  isExtensionLiteGenerateUnlocked,
+} from "@/lib/extension-lite-access";
+import {
   STICKER_PACK_CONFIG_COST_KEY,
   STICKER_PACK_CONFIG_ENABLED_KEY,
   STICKER_PACK_CONFIG_MODEL_KEY,
@@ -98,6 +102,7 @@ export async function GET(req: NextRequest) {
         PRESERVE_OUTFIT_CONFIG_KEY,
         COMPOSE_EXAMPLE_MATCH_CONFIG_KEY,
         PHOTOSHOOT_COMPOSE_EXAMPLE_CONFIG_KEY,
+        EXTENSION_LITE_GENERATE_CONFIG_KEY,
       ]);
 
     const config: Record<string, string> = {};
@@ -119,6 +124,10 @@ export async function GET(req: NextRequest) {
     );
     const photoshootComposeExampleEnabled = isPhotoshootComposeExampleUnlocked(
       config[PHOTOSHOOT_COMPOSE_EXAMPLE_CONFIG_KEY],
+      user?.email,
+    );
+    const extensionLiteGenerateEnabled = isExtensionLiteGenerateUnlocked(
+      config[EXTENSION_LITE_GENERATE_CONFIG_KEY],
       user?.email,
     );
 
@@ -150,6 +159,7 @@ export async function GET(req: NextRequest) {
         preserveOutfitEnabled,
         composeExampleMatchEnabled,
         photoshootComposeExampleEnabled,
+        extensionLiteGenerateEnabled,
         publishReward,
       });
     }
@@ -221,6 +231,7 @@ export async function GET(req: NextRequest) {
       preserveOutfitEnabled,
       composeExampleMatchEnabled,
       photoshootComposeExampleEnabled,
+      extensionLiteGenerateEnabled,
       publishReward,
     });
   } catch (err) {

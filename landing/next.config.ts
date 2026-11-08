@@ -128,7 +128,7 @@ const nextConfig: NextConfig = {
     };
   },
   images: {
-    qualities: [45, 60, 75],
+    qualities: [45, 60, 75, 100],
     deviceSizes: [...NEXT_IMAGE_DEVICE_SIZES],
     maximumDiskCacheSize: NEXT_IMAGE_DISK_CACHE_MAX_BYTES,
     // Default 60s made optimized images look "uncached" to PSI on repeat views.

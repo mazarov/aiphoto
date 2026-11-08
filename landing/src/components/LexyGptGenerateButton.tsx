@@ -28,6 +28,8 @@ type Props = {
   metricGoal?: string;
   /** Подпись в idle-состоянии; по умолчанию «Повторить». */
   idleLabel?: string;
+  /** aria-label в idle. Если не задан — стандартная подпись «Повторить». */
+  idleAriaLabel?: string;
   /** When set (card page), opens inline compose instead of STV drawer. */
   onInternalGenerate?: () => void;
 };
@@ -73,6 +75,7 @@ export function LexyGptGenerateButton({
   className = "",
   metricGoal = YM_GOAL_LEXYGPT_GENERATE_PROMPTCARD,
   idleLabel = "Повторить",
+  idleAriaLabel,
   onInternalGenerate,
 }: Props) {
   const generation = useGeneration();
@@ -157,9 +160,7 @@ export function LexyGptGenerateButton({
   );
 
   const ariaLabelDetailed =
-    useInternalGeneration
-      ? "Повторить во внутренней генерации Promptshot"
-      : phase === "opening"
+    phase === "opening"
       ? "Скопировано, новая вкладка LexyGPT открыта"
       : phase === "tab_only"
         ? "Вкладка LexyGPT открыта — скопируйте промпт из страницы"
@@ -167,7 +168,10 @@ export function LexyGptGenerateButton({
           ? "Промпт скопирован — разрешите всплывающие окна для LexyGPT"
           : phase === "blocked"
             ? "Не удалось открыть LexyGPT"
-            : "Повторить в LexyGPT: скопировать промпт и открыть вкладку";
+            : idleAriaLabel ??
+              (useInternalGeneration
+                ? "Повторить во внутренней генерации Promptshot"
+                : "Повторить в LexyGPT: скопировать промпт и открыть вкладку");
 
   const visibleLabel =
     variant === "sticky" ||

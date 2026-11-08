@@ -12,13 +12,13 @@ test("feed follows search, then chip, then «Все»", () => {
   assert.deepEqual(homeFeedQuery("  кот ", chip), { q: "кот" });
   assert.deepEqual(homeFeedQuery("к", chip), {
     occasion_tag: "23-fevralya",
-    sort: "new",
+    sort: "popular",
     strict: "1",
   });
   assert.equal(homeFeedQuery("", null), HOME_ALL_FEED);
   assert.equal(
     homeFeedUrl(HOME_ALL_FEED, 16, 24),
-    "/api/listing?sort=new&limit=24&offset=16",
+    "/api/listing?sort=popular&limit=24&offset=16",
   );
 });
 

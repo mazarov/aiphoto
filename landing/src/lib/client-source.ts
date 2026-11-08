@@ -100,6 +100,19 @@ function refererPath(referer: string): string | null {
   }
 }
 
+/** Chrome extension ids from a comma-separated env value, lowercased. */
+export function chromeExtensionIds(raw: string | undefined | null): string[] {
+  return String(raw ?? "")
+    .split(",")
+    .map((id) => id.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+/** `chrome-extension://<id>` origins for a comma-separated extension-id env. */
+export function chromeExtensionOrigins(raw: string | undefined | null): string[] {
+  return chromeExtensionIds(raw).map((id) => `chrome-extension://${id}`);
+}
+
 function pageSourceFromHeader(req: HeaderReader): PromptshotPageSource | null {
   const explicit = (req.headers.get("x-client") || "").trim().toLowerCase();
   return isPromptshotPageSource(explicit) ? explicit : null;
@@ -118,11 +131,10 @@ export function resolveClientSource(
   options?: { authenticated?: boolean },
 ): ClientSource {
   const origin = (req.headers.get("origin") || "").trim();
-  if (origin.startsWith("chrome-extension://")) {
-    const liteId = (process.env.CHROME_EXTENSION_ID_LITE || "").trim();
-    return liteId && origin.toLowerCase() === `chrome-extension://${liteId}`.toLowerCase()
-      ? "extension_lite"
-      : "extension_stv";
+  if (origin.toLowerCase().startsWith("chrome-extension://")) {
+    const id = origin.slice("chrome-extension://".length).split("/")[0]?.toLowerCase() || "";
+    const liteIds = chromeExtensionIds(process.env.CHROME_EXTENSION_ID_LITE);
+    return liteIds.includes(id) ? "extension_lite" : "extension_stv";
   }
 
   if (origin) {

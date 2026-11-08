@@ -943,7 +943,7 @@ export default async function TagPage({ params, searchParams }: Props) {
             catalogHubCarouselCards.length > 0 ? (
               <GeneraciyaFotoHeroCarousel
                 cards={catalogHubCarouselCards}
-                ctaLabel={null}
+                ctaLabel={catalogHub.heroCarouselCtaLabel ?? null}
                 ariaLabel={catalogHub.heroAriaLabel}
                 headingAltSlots={headingAltSlotsFromSeo(seo)}
               />

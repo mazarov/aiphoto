@@ -106,7 +106,7 @@ export function ClientCardModal() {
       <div
         className={
           immersiveMobile
-            ? "h-full min-h-0 overflow-hidden md:h-auto md:max-h-none md:overflow-visible"
+            ? "h-full min-h-0 overflow-hidden lg:h-auto lg:max-h-none lg:overflow-visible"
             : "max-h-[85vh] overflow-y-auto md:max-h-none md:overflow-visible"
         }
       >
@@ -119,8 +119,8 @@ export function ClientCardModal() {
         {loading && !loaded && hasSeedPhoto && (
           // Dark fullscreen shell using the grid-sized photo — same URL the browser already cached
           // from the listing, so the image appears instantly with no extra network round-trip.
-          // Shown only on mobile (md:hidden) — desktop waits for loaded card (split UI).
-          <div className="fixed inset-0 z-[244] md:hidden" aria-hidden>
+          // Shown below lg — same breakpoint as the mobile listing shell. Desktop waits for the split UI.
+          <div className="fixed inset-0 z-[244] lg:hidden" aria-hidden>
             <div className="absolute inset-0 bg-zinc-950" />
             <div className="absolute inset-0">
               <Image

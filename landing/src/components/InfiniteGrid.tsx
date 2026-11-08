@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type { PromptCardFull } from "@/lib/supabase";
-import type { ListingSort } from "@/lib/listing-sort";
+import { LISTING_DEFAULT_SORT, type ListingSort } from "@/lib/listing-sort";
 import { FilterableGrid } from "./CardFilters";
 import { ListingGridLoadingSkeleton } from "./ListingGridLoadingSkeleton";
 import {
@@ -65,7 +65,7 @@ export function InfiniteGrid({
   initialRankedBatchSize,
   rpcParams,
   strictMode = false,
-  sort = "new",
+  sort = LISTING_DEFAULT_SORT,
   searchQuery = null,
   searchFilters = {},
   searchHasMore = false,
@@ -116,14 +116,13 @@ export function InfiniteGrid({
       const sp = new URLSearchParams();
       sp.set("limit", String(pageSize));
       sp.set("offset", String(oldOffset));
-      // Default sort is `new` (omit param); only non-default `popular` is sent.
       if (listingQuery) {
         sp.set("q", listingQuery);
         for (const [key, value] of Object.entries(searchFiltersRef.current)) {
           if (value) sp.set(key, value);
         }
       } else {
-        if (sortRef.current === "popular") sp.set("sort", "popular");
+        sp.set("sort", sortRef.current);
         for (const [k, v] of Object.entries(rpcParamsRef.current)) {
           if (v) sp.set(k, v);
         }

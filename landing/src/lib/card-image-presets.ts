@@ -6,19 +6,22 @@
 /** Пресет A — сетка и мелкие врезки (листинг, поиск, before, миниатюры). */
 export const CARD_IMAGE_GRID_MAX_WIDTH_PX = 512;
 
-/** Пресет B — герой страницы карточки. Слот 260/300px, в URL та же ширина, что у сетки. */
-export const CARD_IMAGE_HERO_MAX_WIDTH_PX = CARD_IMAGE_GRID_MAX_WIDTH_PX;
+/**
+ * Пресет B — герой открытой карточки. Десктопный кадр до ~690px CSS (2× ≈ 1380),
+ * мобильный — на всю ширину экрана. 1920 покрывает оба без апскейла из 512.
+ */
+export const CARD_IMAGE_HERO_MAX_WIDTH_PX = 1920;
 
 /**
- * Пресет L — только сетки каталога (`enrichCardsWithDetails`: листинги, поиск, избранное).
- * Тот же `width` в `render/image`, что у A; ниже `quality` на imgproxy (58 vs 68) и у `next/image` (45 vs 60).
+ * Пресет L — сетки каталога (`enrichCardsWithDetails`: листинги, поиск, избранное).
+ * Шире пресета A: плитка на ретине запрашивает больше 512.
  */
-export const CARD_IMAGE_LISTING_MAX_WIDTH_PX = CARD_IMAGE_GRID_MAX_WIDTH_PX;
+export const CARD_IMAGE_LISTING_MAX_WIDTH_PX = 1024;
 
 /** JPEG/WebP quality в URL `/render/image/...` (imgproxy). */
 export const CARD_IMAGE_GRID_QUALITY = 68;
-export const CARD_IMAGE_HERO_QUALITY = 70;
-export const CARD_IMAGE_LISTING_QUALITY = 58;
+export const CARD_IMAGE_HERO_QUALITY = 100;
+export const CARD_IMAGE_LISTING_QUALITY = 60;
 
 /**
  * Quality для `next/image` (повторное сжатие после render URL).
@@ -26,17 +29,20 @@ export const CARD_IMAGE_LISTING_QUALITY = 58;
  */
 export const CARD_IMAGE_NEXT_QUALITY = 60;
 
+/** `next/image` quality для героя открытой карточки. Входит в `images.qualities`. */
+export const CARD_IMAGE_HERO_NEXT_QUALITY = 100;
+
 /** `next/image` quality для карточек из пресета L (листинги / поиск / избранное). */
-export const CARD_IMAGE_LISTING_NEXT_QUALITY = 45;
+export const CARD_IMAGE_LISTING_NEXT_QUALITY = 60;
 
 /** Единая подсказка `sizes` для пресета A (все сеточные и мелкие врезки). */
 export const SIZES_CARD_GRID =
   "(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw";
 
 /**
- * Пресет B — узкий герой на /p/[slug] (max-w 260px / 300px sm+).
+ * Пресет B — герой открытой карточки: мобильный кадр на всю ширину, десктоп до ~720px.
  */
-export const SIZES_CARD_HERO = "(max-width: 640px) 260px, 300px";
+export const SIZES_CARD_HERO = "(max-width: 1023px) 100vw, 720px";
 
 /**
  * Пресет B — полноширинный герой (например `PhotoCarousel`); тот же max width в URL (`hero`).

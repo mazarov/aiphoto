@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { resolveListingCatalogHub } from "./listing-catalog-hub";
 import {
   GENERACIYA_FOTO_DEVUSHKI_PATH,
   GIRLS_HUB_AUDIENCE_TAG,
@@ -85,13 +86,38 @@ test("hub filters stay on the hub as query params", () => {
     `${PROMTY_DLYA_FOTO_DEVUSHKI_HUB_PATH}?object=s_cvetami`,
   );
   assert.equal(GIRLS_HUB_LOAD_MORE_LABEL, "Больше промтов для девушки");
-  assert.equal(GIRLS_HUB_GENERATE_CTA, "Создать фото девушки");
+  assert.equal(GIRLS_HUB_GENERATE_CTA, "Повторить на своём фото");
   assert.deepEqual(GIRLS_HUB_COMPOSE_EXAMPLE_FILTER, {
     label: "Девушки",
     dimension: "audience_tag",
     value: GIRLS_HUB_AUDIENCE_TAG,
   });
   assert.equal(GIRLS_HUB_HERO_ARIA_LABEL, "Примеры фото девушки");
+  assert.deepEqual(
+    GIRLS_HUB_FILTER_CHIPS.map((chip) => [chip.label, chip.queryKey, chip.value]),
+    [
+      ["День рождения", "occasion", "den_rozhdeniya"],
+      ["В форме", "object", "v_forme"],
+      ["С машиной", "object", "s_mashinoy"],
+      ["Деловое", "style", "delovoe"],
+      ["На аватарку", "object", "na_avatarku"],
+      ["С цветами", "object", "s_cvetami"],
+      ["Портрет", "style", "portret"],
+      ["Студия", "style", "studiynoe"],
+      ["На море", "object", "na_more"],
+      ["В платье", "object", "v_platye"],
+    ],
+  );
+});
+
+test("only the girls hub turns on the hero generate CTA", () => {
+  const girls = resolveListingCatalogHub("/promty-dlya-foto-devushki");
+  assert.equal(girls?.heroCarouselCtaLabel, "Повторить на своём фото");
+
+  for (const path of ["/promty-dlya-foto-par", "/v-forme"]) {
+    const hub = resolveListingCatalogHub(path);
+    assert.equal(hub?.heroCarouselCtaLabel, undefined);
+  }
 });
 
 test("girls hub hero pins audience and ignores query-filter slices", () => {

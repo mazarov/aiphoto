@@ -48,24 +48,25 @@
 - основное изображение на `/p/[slug]` (`CardPageClient` / карусель **главный** слайд, не strip);
 - при необходимости — полноширинный режим `PhotoCarousel` на десктопе, если он визуально существенно крупнее сетки.
 
-**Требование:** та же ширина, что у пресета A (**512**). Слот героя на `/p/[slug]` — 260px / 300px, отдельный больший файл не нужен. У героя остаётся свой `quality` (70).
+**Требование:** ширина **1920**, quality **100** (imgproxy и `next/image`). Десктопный кадр до ~720px CSS (2×), мобильный — на всю ширину. Сетка остаётся 512. Листинг — 1024 × 60.
 
 ### 3.3 Текущие числа в коде (обновлять при смене пресетов)
 
 | Константа | Значение | Назначение |
 |-----------|----------|------------|
 | `CARD_IMAGE_GRID_MAX_WIDTH_PX` | 512 | `width` в `render/image` для пресета A |
-| `CARD_IMAGE_HERO_MAX_WIDTH_PX` | = `CARD_IMAGE_GRID_MAX_WIDTH_PX` (512) | `width` для пресета B. Слот 260/300px |
+| `CARD_IMAGE_HERO_MAX_WIDTH_PX` | 1920 | `width` для пресета B. Открытая карточка |
 | `CARD_IMAGE_GRID_QUALITY` | 68 | `quality` в URL для A |
-| `CARD_IMAGE_HERO_QUALITY` | 70 | `quality` в URL для B |
-| `CARD_IMAGE_LISTING_MAX_WIDTH_PX` | = `CARD_IMAGE_GRID_MAX_WIDTH_PX` (512) | `width` в `render/image` для L — тот же, что у A |
-| `CARD_IMAGE_LISTING_QUALITY` | 58 | `quality` в URL для L |
+| `CARD_IMAGE_HERO_QUALITY` | 100 | `quality` в URL для B |
+| `CARD_IMAGE_HERO_NEXT_QUALITY` | 100 | `quality` у `next/image` для B |
+| `CARD_IMAGE_LISTING_MAX_WIDTH_PX` | 1024 | `width` в `render/image` для L |
+| `CARD_IMAGE_LISTING_QUALITY` | 60 | `quality` в URL для L |
 | `CARD_IMAGE_NEXT_QUALITY` | 60 | `quality` у `next/image` для A (главная `CategoryCard`, `/p/` врезки) |
-| `CARD_IMAGE_LISTING_NEXT_QUALITY` | 45 | `quality` у `next/image` для L (`PromptCard`, `GroupedCard`, `SearchBar`) |
+| `CARD_IMAGE_LISTING_NEXT_QUALITY` | 60 | `quality` у `next/image` для L (`PromptCard`, `GroupedCard`, `SearchBar`) |
 
 Пресет **L** подставляется в `enrichCardsWithDetails` (`listing` в `getStorageCardMediaUrl`) — листинги `[...slug]`, API listing/search/search-card, избранное. Главная (`fetchHomepageSections`) по-прежнему **A** (`grid`).
 
-Цель снижения веса при том же `width`, что у A: **ниже** `quality` в `render/image` (**58** vs **68**) и у `next/image` (**45** vs **60**); пикселей с источника у L и A одинаково (**512**).
+Пресет L шире A: **1024** против **512**. Quality в `render/image` у L — **60**, у `next/image` — **60**. У A по-прежнему **68** и **60**.
 
 ### 3.4 Соответствие `sizes`
 

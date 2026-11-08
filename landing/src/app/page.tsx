@@ -56,7 +56,7 @@ const getCachedNewCards = cache(async (): Promise<HomeNewCards> => {
       limit: HOME_GALLERY_LIMIT,
       offset: 0,
       min_cards: 2,
-      sort: "new",
+    sort: "popular",
     });
     const enriched = await enrichCardsWithDetails(result.cards);
     const cardsById = new Map(enriched.map((card) => [card.id, card]));

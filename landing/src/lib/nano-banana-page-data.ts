@@ -47,7 +47,7 @@ const getGenerationExamples = cache(async (): Promise<RouteCardsResult> => {
       limit: 50,
       offset: 0,
       min_cards: 1,
-      sort: "new",
+      sort: "popular",
     });
   } catch (error) {
     console.error("[NanoBananaPage] fetch examples failed", error);

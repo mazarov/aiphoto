@@ -2,11 +2,12 @@ import { NextResponse, type NextRequest } from "next/server";
 import { listingCatalogHubChildRedirectPath } from "@/lib/listing-catalog-hub";
 import { generaciyaLegacyRedirectPath } from "@/lib/generaciya-foto-routes";
 import { rewriteGeneraciyaSeoImage } from "@/lib/generaciya-seo-image-proxy";
+import { chromeExtensionOrigins } from "@/lib/client-source";
 
 const OLD_SLUG_RE = /^\/p\/([^/]+)\/?$/;
-const DEFAULT_ALLOWED_METHODS = "GET, POST, OPTIONS";
+const DEFAULT_ALLOWED_METHODS = "GET, POST, DELETE, OPTIONS";
 const DEFAULT_ALLOWED_HEADERS =
-  "Content-Type, Authorization, Idempotency-Key, X-STV-Pipeline-Trace";
+  "Content-Type, Authorization, Idempotency-Key, X-STV-Pipeline-Trace, X-Client, X-Correlation-Id";
 const DEFAULT_SITE_URL = "https://promptshot.ru";
 
 function getSiteOrigin(): string {
@@ -50,10 +51,12 @@ function parseAllowedOrigins(): string[] {
     .split(",")
     .map((v) => v.trim())
     .filter(Boolean);
-  const extensionId = (process.env.CHROME_EXTENSION_ID || "").trim();
-  const extensionOrigin = extensionId ? `chrome-extension://${extensionId}` : "";
+  const extensionOrigins = [
+    ...chromeExtensionOrigins(process.env.CHROME_EXTENSION_ID),
+    ...chromeExtensionOrigins(process.env.CHROME_EXTENSION_ID_LITE),
+  ];
 
-  return [...fromEnv, extensionOrigin].filter(Boolean);
+  return [...fromEnv, ...extensionOrigins].filter(Boolean);
 }
 
 function isApiRequest(request: NextRequest): boolean {

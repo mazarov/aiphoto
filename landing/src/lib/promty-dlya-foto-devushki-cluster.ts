@@ -5,7 +5,7 @@ export const GENERACIYA_FOTO_DEVUSHKI_PATH = "/generaciya/po-foto/devushki";
 
 export const GIRLS_HUB_AUDIENCE_TAG = "devushka";
 export const GIRLS_HUB_LOAD_MORE_LABEL = "Больше промтов для девушки";
-export const GIRLS_HUB_GENERATE_CTA = "Создать фото девушки";
+export const GIRLS_HUB_GENERATE_CTA = "Повторить на своём фото";
 export const GIRLS_HUB_HERO_ARIA_LABEL = "Примеры фото девушки";
 
 /** Newest girl stills for the homepage-style hero marquee. Listing SSR is only 10. */
@@ -32,14 +32,16 @@ export type GirlsHubFilterState = Partial<
 
 /** In-page filters only: stay on the hub via query params, never L2 URLs. */
 export const GIRLS_HUB_FILTER_CHIPS: readonly GirlsHubFilterChip[] = [
+  { label: "День рождения", queryKey: "occasion", value: "den_rozhdeniya" },
+  { label: "В форме", queryKey: "object", value: "v_forme" },
+  { label: "С машиной", queryKey: "object", value: "s_mashinoy" },
+  { label: "Деловое", queryKey: "style", value: "delovoe" },
+  { label: "На аватарку", queryKey: "object", value: "na_avatarku" },
   { label: "С цветами", queryKey: "object", value: "s_cvetami" },
   { label: "Портрет", queryKey: "style", value: "portret" },
   { label: "Студия", queryKey: "style", value: "studiynoe" },
-  { label: "Чёрно-белое", queryKey: "style", value: "cherno_beloe" },
-  { label: "С машиной", queryKey: "object", value: "s_mashinoy" },
   { label: "На море", queryKey: "object", value: "na_more" },
   { label: "В платье", queryKey: "object", value: "v_platye" },
-  { label: "В полный рост", queryKey: "object", value: "v_polnyy_rost" },
 ];
 
 function stripTrailingSlash(path: string): string {

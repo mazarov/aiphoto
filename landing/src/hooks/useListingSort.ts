@@ -3,6 +3,7 @@
 import { useCallback, useLayoutEffect, useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
+  LISTING_DEFAULT_SORT,
   parseListingSort,
   writeListingSortToSession,
   readListingSortFromSession,
@@ -33,10 +34,10 @@ export function useListingSort(options?: { disabled?: boolean }) {
     if (urlRaw !== null && urlRaw !== "") return;
 
     const stored = readListingSortFromSession();
-    // Default is `new` (no query param); only non-default `popular` needs URL sync.
-    if (stored === "popular") {
+    // Default is popular (no query param); only an explicit `new` choice is written into the URL.
+    if (stored && stored !== LISTING_DEFAULT_SORT) {
       const sp = new URLSearchParams(searchParams.toString());
-      sp.set("sort", "popular");
+      sp.set("sort", stored);
       router.replace(`${pathname}?${sp}`, { scroll: false });
     }
   }, [disabled, pathname, router, searchParams]);
@@ -47,7 +48,7 @@ export function useListingSort(options?: { disabled?: boolean }) {
       writeListingSortToSession(next);
       resetListingScroll();
       const sp = new URLSearchParams(searchParams.toString());
-      if (next === "new") sp.delete("sort");
+      if (next === LISTING_DEFAULT_SORT) sp.delete("sort");
       else sp.set("sort", next);
       const q = sp.toString();
       router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });

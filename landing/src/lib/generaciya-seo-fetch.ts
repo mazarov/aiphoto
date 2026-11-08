@@ -25,7 +25,7 @@ export function generaciyaNewestFetchParams(rank: boolean): {
     limit: rank ? GENERACIYA_SEO_POOL_LIMIT : GENERACIYA_SEO_UNRANKED_LIMIT,
     offset: 0,
     min_cards: 1,
-    sort: rank ? "popular" : "new",
+    sort: "popular",
   };
 }
 

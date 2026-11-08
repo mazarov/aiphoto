@@ -1,3 +1,4 @@
+import { LISTING_DEFAULT_SORT } from "@/lib/listing-sort";
 import {
   hasMoreRankedPages,
   hasMoreSearchPages,
@@ -7,8 +8,8 @@ import {
 /** `/api/listing` params of one homepage gallery feed, without limit/offset. */
 export type HomeFeedQuery = Record<string, string>;
 
-/** «Все»: same query the SSR page ran (`resolve_route_cards`, sort new, no tags). */
-export const HOME_ALL_FEED: HomeFeedQuery = { sort: "new" };
+/** «Все»: same query the SSR page ran (`resolve_route_cards`, popular, no tags). */
+export const HOME_ALL_FEED: HomeFeedQuery = { sort: LISTING_DEFAULT_SORT };
 
 export function homeFeedQuery(
   query: string,
@@ -16,7 +17,7 @@ export function homeFeedQuery(
 ): HomeFeedQuery {
   const trimmed = query.trim();
   if (trimmed.length >= 2) return { q: trimmed };
-  if (chip) return { [chip.dimension]: chip.slug, sort: "new", strict: "1" };
+  if (chip) return { [chip.dimension]: chip.slug, sort: LISTING_DEFAULT_SORT, strict: "1" };
   return HOME_ALL_FEED;
 }
 

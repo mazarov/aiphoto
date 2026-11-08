@@ -3,7 +3,7 @@ import {
   catalogUsesStorageRender,
   type CardImagePreset,
 } from "@/lib/card-image-presets";
-import type { ListingSort } from "@/lib/listing-sort";
+import { LISTING_DEFAULT_SORT, type ListingSort } from "@/lib/listing-sort";
 import { usableCatalogPrompt } from "@/lib/photoshoot";
 import { resolveSharedDbUserIdFromAuthId } from "@/lib/resolve-db-user-id";
 import { createSupabaseServer } from "./supabase-server-client";
@@ -27,7 +27,7 @@ export function getIndexableImageUrl(bucket: string, objectPath: string): string
   return `${SITE_URL}/img/${bucket}/${encodeURI(objectPath)}`;
 }
 
-/** Промо-фото карточек: JPEG 512 через imgproxy. `=0` — полный `object/public`. */
+/** Промо-фото карточек через imgproxy. Герой карточки — 1920, листинг — 1024, сетка — 512. `=0` — полный `object/public`. */
 export function getStorageCardMediaUrl(
   bucket: string,
   path: string,
@@ -80,7 +80,7 @@ export async function fetchRouteCards(params: {
     p_limit: params.limit ?? 24,
     p_offset: params.offset ?? 0,
     p_min_cards: params.min_cards ?? 2,
-    p_sort: params.sort ?? "new",
+    p_sort: params.sort ?? LISTING_DEFAULT_SORT,
   });
 
   if (error) throw new Error(`resolve_route_cards: ${error.message}`);
@@ -234,7 +234,7 @@ export async function searchCardsFiltered(params: {
   };
   let { data, error } = await supabase.rpc("search_cards_filtered", {
     ...baseArgs,
-    p_sort: params.sort ?? "new",
+    p_sort: params.sort ?? LISTING_DEFAULT_SORT,
   });
   // Pre-182 DBs have no p_sort — retry without (legacy view_count order).
   if (error && /p_sort|Could not find the function/i.test(error.message)) {

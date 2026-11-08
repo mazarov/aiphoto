@@ -66,6 +66,11 @@ import {
 } from "@/lib/sticker";
 import { isStickerFromResultUnlocked, isStickerPackUnlocked, isStickerUnlocked } from "@/lib/sticker-access";
 import {
+  EXTENSION_LITE_GENERATE_CONFIG_KEY,
+  isExtensionLiteGenerateUnlocked,
+} from "@/lib/extension-lite-access";
+import { resolveClientSource } from "@/lib/client-source";
+import {
   resolveStickerPresetForEnqueue,
   resolveStickerStyleForEnqueue,
 } from "@/lib/sticker-catalog-db";
@@ -130,8 +135,13 @@ import {
 } from "@/lib/listing-video-repeat";
 import { videoI2vUserPrompt } from "@/lib/video-motion-prompt";
 
-/** PromptShot paid generate is site-only for now (inline compose / same-origin). */
-const GENERATION_CLIENT_SOURCE = "site" as const;
+/** Web enqueue stays `site`. Only a real extension origin is relabeled. */
+function generationClientSource(req: NextRequest): "site" | "extension_lite" | "extension_stv" {
+  const resolved = resolveClientSource(req);
+  if (resolved === "extension_lite" || resolved === "extension_stv") return resolved;
+  return "site";
+}
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 /** One select shape — a ternary here becomes a string union and breaks PostgREST types. */
@@ -190,6 +200,7 @@ function serializeRpcError(error: RpcErrorLike) {
 
 export async function POST(req: NextRequest) {
   const acquisition = readAcquisitionRequestIds(req);
+  const clientSource = generationClientSource(req);
   try {
     console.log("[generation.create] incoming request");
     const { user, error: authError } = await getSupabaseUserForApiRoute(req);
@@ -906,11 +917,28 @@ export async function POST(req: NextRequest) {
         STICKER_PACK_CONFIG_MODEL_KEY,
         PRESERVE_OUTFIT_CONFIG_KEY,
         LISTING_VIDEO_REPEAT_CONFIG_KEY,
+        EXTENSION_LITE_GENERATE_CONFIG_KEY,
       ]);
 
     const config: Record<string, string> = {};
     for (const row of configRows || []) {
       config[row.key] = row.value;
+    }
+
+    if (
+      clientSource === "extension_lite" &&
+      !isExtensionLiteGenerateUnlocked(
+        config[EXTENSION_LITE_GENERATE_CONFIG_KEY],
+        user.email,
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error: "extension_lite_generate_disabled",
+          message: "Генерация в расширении пока недоступна",
+        },
+        { status: 503 },
+      );
     }
 
     const configuredMaxPhotos = Number.parseInt(config.max_photos || "10", 10);
@@ -1345,7 +1373,7 @@ export async function POST(req: NextRequest) {
           vibeId: resolvedVibeId,
           wardrobePolicy,
           cardId: cardId || null,
-          clientSource: GENERATION_CLIENT_SOURCE,
+          clientSource,
           modality: requestedModality,
           durationSeconds: videoDuration,
           ...(listingRepeatSpec
@@ -1449,7 +1477,7 @@ export async function POST(req: NextRequest) {
         p_credits_spent: creditsCharged,
         p_input_photo_paths: normalizedPhotoStoragePaths,
         p_vibe_id: isCameraOrbit || isPhotoshoot || isStickerLike ? null : resolvedVibeId,
-        p_client_source: GENERATION_CLIENT_SOURCE,
+        p_client_source: clientSource,
         p_pipeline_trace_id: pipelineTrace,
         p_create_ugc: isVideo || isListingVideoRepeat || isStickerLike ? false : !guestMode,
         p_parent_generation_id: normalizedParentGenerationId || null,
@@ -1646,7 +1674,7 @@ export async function POST(req: NextRequest) {
       pipelineTrace,
       idempotencyKey,
       generationCreated,
-      clientSource: GENERATION_CLIENT_SOURCE,
+      clientSource,
       listingVideoRepeat: Boolean(listingRepeatSpec),
       status: "pending",
     });
@@ -1658,7 +1686,7 @@ export async function POST(req: NextRequest) {
       openDebug,
       generationId,
       vibeId: resolvedVibeId,
-      clientSource: GENERATION_CLIENT_SOURCE,
+      clientSource,
     });
     return NextResponse.json(
       { id: generationId, status: "pending", created: generationCreated },

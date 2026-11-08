@@ -141,7 +141,7 @@ test("idle CTA comes from the hub SSOT", () => {
   );
   assert.equal(
     listingCatalogHubGenerateCta("/promty-dlya-foto-devushki/"),
-    "Создать фото девушки",
+    "Повторить на своём фото",
   );
   assert.equal(
     listingCatalogHubGenerateCta("/promty-dlya-foto-muzhchiny"),

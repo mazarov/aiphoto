@@ -305,6 +305,8 @@ export type ListingCatalogHub = {
   getFilterNavItems: (
     state: ListingCatalogHubFilterState,
   ) => ListingCatalogHubNavItem[];
+  /** Hero carousel CTA. Unset hubs keep `ctaLabel={null}`. */
+  heroCarouselCtaLabel?: string | null;
 };
 
 const PAIRS_HUB: ListingCatalogHub = {
@@ -327,6 +329,7 @@ const GIRLS_HUB: ListingCatalogHub = {
   heroFetchParams: girlsHubHeroFetchParams,
   toHeroCarouselCards: toGirlsHubHeroCarouselCards,
   getFilterNavItems: getGirlsHubFilterNavItems,
+  heroCarouselCtaLabel: GIRLS_HUB_GENERATE_CTA,
 };
 
 const OSEN_HUB: ListingCatalogHub = {

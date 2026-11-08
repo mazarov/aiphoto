@@ -166,7 +166,7 @@ export function composeExamplePickerEndpoint(input: {
     if (offset > 0) params.set("offset", String(offset));
     return `/api/listing?${params}`;
   }
-  const params = new URLSearchParams({ limit, sort: "new" });
+  const params = new URLSearchParams({ limit, sort: "popular" });
   if (offset > 0) params.set("offset", String(offset));
   if (audienceMatch) {
     params.set("audience_tag", audienceMatch);

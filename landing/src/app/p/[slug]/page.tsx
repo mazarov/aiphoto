@@ -200,7 +200,11 @@ export default async function CardPage({ params }: Props) {
         dangerouslySetInnerHTML={{ __html: safeJson(breadcrumbLd) }}
       />
 
-      <main className="flex min-h-0 flex-1 flex-col pb-20 max-md:min-h-0 lg:pb-0">
+      <main
+        className={`flex min-h-0 flex-1 flex-col pb-20 max-lg:min-h-0 lg:pb-0 ${
+          immersiveMobileChrome ? "lg:overflow-hidden" : ""
+        }`}
+      >
         <CardPageClient
           data={data}
           tagEntries={tagEntries}

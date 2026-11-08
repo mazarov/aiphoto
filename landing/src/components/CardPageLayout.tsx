@@ -30,21 +30,29 @@ export function CardPageLayout({
   }
 
   const mobileImmersive = hideMobileChrome
-    ? "max-md:flex max-md:h-[100svh] max-md:min-h-0 max-md:max-h-[100svh] max-md:flex-col max-md:overflow-hidden"
+    ? "max-lg:flex max-lg:h-[100svh] max-lg:min-h-0 max-lg:max-h-[100svh] max-lg:flex-col max-lg:overflow-hidden"
+    : "";
+  // Photo cards: one visible viewport. The card shrinks; the site footer stays inside it.
+  const desktopFit = hideMobileChrome
+    ? "lg:flex lg:h-dvh lg:max-h-dvh lg:flex-col lg:overflow-hidden"
     : "";
 
   return (
-    <div className={mobileImmersive}>
-      <div className="max-md:hidden">
+    <div className={`${mobileImmersive} ${desktopFit}`}>
+      <div className="max-lg:hidden">
         <HeaderClient />
       </div>
-      <div className="flex min-h-0 flex-1 max-md:flex-1 md:min-h-[calc(100vh-var(--ps-header-height,96px))] lg:min-h-screen">
+      <div
+        className={`flex min-h-0 flex-1 max-lg:flex-1 ${
+          hideMobileChrome ? "lg:min-h-0 lg:overflow-hidden" : "lg:min-h-screen"
+        }`}
+      >
         <div className="max-lg:hidden">
           <SidebarNav menu={CARD_MENU} showBrand={false} />
         </div>
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:overflow-hidden">
           {children}
-          <div className="mt-auto max-md:hidden">
+          <div className="mt-auto shrink-0 max-lg:hidden">
             <Footer />
           </div>
         </div>

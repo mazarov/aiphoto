@@ -62,7 +62,7 @@ export const getGeneraciyaPopularPage = cache(
   },
 );
 
-/** Newest published cards — shared by the text and photo hubs. */
+/** Published cards, most popular first. `rank` only widens the pool for the SEO ranker. */
 export const getGeneraciyaNewestExamples = cache(
   async (rank = false): Promise<RouteCardsResult> => {
     try {
@@ -91,7 +91,7 @@ export const KARTINKA_EXAMPLE_STYLE_TAGS = [
 export const getGeneraciyaKartinkaExamples = cache(
   async (rank = false): Promise<RouteCardsResult> => {
     const perTag = generaciyaKartinkaPerTag(rank);
-    const sort = rank ? "popular" : "new";
+    const sort = "popular" as const;
     const results = await Promise.all(
       KARTINKA_EXAMPLE_STYLE_TAGS.map(async (styleTag) => {
         try {
