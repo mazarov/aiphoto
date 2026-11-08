@@ -59,6 +59,7 @@ test("inline heading bodies are normalized and validate", () => {
     "Visual Hook: Маяк на островке перед водопадом.",
     "Scene: Озеро, утро.",
     "**Genre:** Пейзаж.",
+    "Rendering: Живописная цифровая иллюстрация густыми мазками акрила.",
     "Environment: Скалы, остров, водопад.",
     "Lighting: Мягкий рассеянный.",
     "Camera: 50–70 мм.",
@@ -73,8 +74,24 @@ test("inline heading bodies are normalized and validate", () => {
   const body = normalizeAnalyzeLayout(inline);
   assert.match(body, /^Visual Hook:\nМаяк/m);
   assert.match(body, /^Genre:\nПейзаж/m);
+  assert.match(body, /^Rendering:\nЖивописная/m);
   assert.match(body, /^- Text: не менять надписи$/m);
   assert.deepEqual(validateAnalyzeDraft({ pattern: "scene", medium: "illustration", body }), { ok: true });
+});
+
+test("every pattern includes Rendering and forbids photoreal language on non-photo mediums", () => {
+  for (const pattern of ANALYZE_PATTERNS) {
+    assert.ok(
+      sectionOrderFor(pattern).includes("Rendering"),
+      `${pattern} must include Rendering`,
+    );
+  }
+  const prompt = buildRouterExtractPrompt("ru");
+  assert.match(prompt, /Rendering:/);
+  assert.match(prompt, /impasto oil\/acrylic digital painting/);
+  assert.match(prompt, /never call painted or illustrated skin photorealistic/);
+  const personIllusRules = patternCriticalRules("person", "illustration", "ru");
+  assert.match(personIllusRules, /Rendering/);
 });
 
 test("locked prompt lists only its own specs", () => {

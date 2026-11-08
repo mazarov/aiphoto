@@ -16,6 +16,7 @@ const PERSON_SECTIONS = [
   "Visual Hook",
   "Scene",
   "Genre",
+  "Rendering",
   "Appearance",
   "Pose",
   "Lighting",
@@ -33,6 +34,7 @@ const OBJECT_SECTIONS = [
   "Visual Hook",
   "Scene",
   "Genre",
+  "Rendering",
   "Object",
   "Materials",
   "Markings",
@@ -61,6 +63,7 @@ const SCENE_SECTIONS = [
   "Visual Hook",
   "Scene",
   "Genre",
+  "Rendering",
   "Environment",
   "Lighting",
   "Camera",
@@ -90,16 +93,16 @@ export const SECTION_SPECS: Record<string, string> = {
   Genre:
     "Genre label with one qualifier, such as fashion editorial, street photography, product packshot, still life, movie poster, infographic, landscape, or interior. If Medium is illustration, graphic, or 3d, also name the visual style, such as watercolor, anime, cel-shaded, flat vector, or low-poly.",
   Appearance:
-    "What is required to repeat the person without the source photo: hair style, length, and color; approximate age band; build and height impression; skin tone as light, medium, or deep; visible distinguishing features such as glasses, beard, tattoos, or freckles. Do not write “preserve the face” and do not ask for a reference photo.",
+    "What is required to repeat the person without the source photo: hair style, length, and color; approximate age band; build and height impression; skin tone as light, medium, or deep; visible distinguishing features such as glasses, beard, tattoos, or freckles. State whether facial and body proportions are realistic anatomical or stylized, caricatured, or exaggerated (such as an elongated face, oversized brow ridges, or graphic wrinkle furrows). Do not write “preserve the face” and do not ask for a reference photo.",
   Pose:
     "One detailed paragraph. Begin with torso orientation relative to the lens and head turn with gaze direction. Then the shoulder line, torso lean, spine curvature and its magnitude, visible arms and hands with their contact points, hips and legs with weight distribution, and a final posture label. Report the true magnitude of bends without softening. Describe only visible limbs; write not visible for occluded parts. No focal length or framing here.",
   Lighting:
-    "Key-light direction as a clock position and height, and its hardness; fill and rim presence; color temperature as warm, neutral, or cool with an approximate kelvin range; contrast impression; where shadows fall and how soft their edges are; specular highlights and reflections. Name the apparent source, such as a window, softbox, overcast sky, or neon. Be technically specific.",
+    "Key-light direction as a clock position and height, and its hardness; fill and rim presence; color temperature as warm, neutral, or cool with an approximate kelvin range; contrast impression; where shadows fall and how soft their edges are; specular highlights and reflections. Name the apparent source, such as a window, softbox, overcast sky, neon, or painted directional light. Be technically specific.",
   Camera:
-    "Estimated full-frame focal-length range in mm; framing scale from extreme close-up to wide establishing; camera height relative to the subject and tilt; horizontal viewing angle; depth of field with which regions are sharp and which are blurred; lens character such as rectilinear, wide-angle stretch, macro, or tilt-shift. Preserve crop and subject scale.",
+    "Estimated full-frame focal-length range in mm or perspective equivalent; framing scale from extreme close-up to wide establishing; camera height relative to the subject and tilt; horizontal viewing angle; depth of field with which regions are sharp and which are blurred or painterly; lens or perspective character such as rectilinear, wide-angle stretch, macro, or tilt-shift. Preserve crop and subject scale.",
   Mood: "Emotional tone and atmosphere in 1–2 sentences, with a brief note on what creates it.",
   Color:
-    "Dominant and accent colors with where each sits in the frame; color grade and any cinematic treatment such as teal-orange, faded film, or high-key; contrast; saturation; white-balance shift; how skin or key materials are rendered.",
+    "Dominant and accent colors with where each sits in the frame; color grade and any cinematic or artistic treatment such as teal-orange, faded film, warm-cool chiaroscuro, or high-key; contrast; saturation; white-balance shift; how skin or key surfaces are colored (for photo: natural skin tones and surface fidelity; for illustration, graphic, or 3d: painted color planes, flat fills, gradients, or stylized shading — never call painted or illustrated skin photorealistic).",
   Clothing:
     "One detailed paragraph covering visible upper and lower garments: construction, neckline, sleeves, cut, colors and patterns, materials, fit and styling, jewelry, footwear, and worn accessories. Preserve distinctive structural details. Write not visible or none where appropriate.",
   Makeup:
@@ -109,7 +112,7 @@ export const SECTION_SPECS: Record<string, string> = {
   Text:
     "Every readable string that must be reproduced, one per line, in the original language and spelling. Skip illegible scribbles. If there is no readable text, the body is exactly: none",
   Avoid:
-    "A generator-ready list of 6–10 concrete anti-drift constraints for this Pattern and Medium, one per line, each starting with a dash. Name what would break this specific image: wrong placement or scale of the main subject, changed crop or lens, altered lighting direction, changed palette, added or removed elements. Person: add wrong pose or orientation, redesigned clothing, distorted anatomy. Object: add changed shape, material, or markings, extra props. Layout: add changed reading order, misspelled or moved text, altered icon count. Scene: add added people, moved landmarks, lost reflections or weather. If Medium is photo, forbid a cartoon, painterly, or 3D look. If Medium is illustration, graphic, or 3d, forbid turning the image into a photograph. Do not mention spine, plastic skin, or makeup unless Pattern is person and Medium is photo.",
+    "A generator-ready list of 6–10 concrete anti-drift constraints for this Pattern and Medium, one per line, each starting with a dash. Name what would break this specific image: wrong placement or scale of the main subject, changed crop or lens, altered lighting direction, changed palette, added or removed elements. Person: add wrong pose or orientation, redesigned clothing, distorted anatomy. Object: add changed shape, material, or markings, extra props. Layout: add changed reading order, misspelled or moved text, altered icon count. Scene: add added people, moved landmarks, lost reflections or weather. If Medium is photo, forbid a cartoon, painterly, or 3D look. If Medium is illustration, graphic, or 3d, forbid turning the image into a photograph, smoothing visible brushwork or linework into photoreal skin, or normalizing stylized/caricatured proportions. Do not mention spine, plastic skin, or makeup unless Pattern is person and Medium is photo.",
   Object:
     "What the item is, its category, shape, proportions, approximate size, count, and orientation in the frame. A mannequin is a display form, not a body with a spine.",
   Materials:
@@ -119,7 +122,7 @@ export const SECTION_SPECS: Record<string, string> = {
   Staging:
     "The surface the item sits on, the backdrop, neighboring props, spacing between items, how the item stands or is held, and the shadows or reflections it casts.",
   Rendering:
-    "The carrier in 1–2 sentences: flat vector, watercolor, hand-drawn diagram, UI screenshot, newspaper illustration, 3D render, or collage; line weight, shading style, and texture.",
+    "How the image is physically or digitally rendered in 2–3 sentences, matching Medium. If Medium is illustration, graphic, or 3d: name the exact artistic technique and medium (such as thick impasto oil/acrylic digital painting, gouache, watercolor, ink and cel-shading, flat vector, or stylized 3D shader), brushwork or stroke visibility, edge hardness vs planar color blocking, canvas or paper grain, and degree of stylization or caricature vs realism (never describe painted or illustrated surfaces as photorealistic). If Medium is photo: name the photographic capture and surface character (such as crisp digital studio capture, 35mm film grain, natural skin micro-texture with pores vs commercial retouching, halation, and optical micro-contrast).",
   Canvas:
     "Orientation, aspect impression, margins, background color or texture, and any grid or guide lines.",
   Regions:
@@ -441,7 +444,7 @@ export function patternCriticalRules(
           "- Строки из Text, кроме none, выведи дословно.",
           photo
             ? "- Фотореалистичный результат, высокая детализация текстур."
-            : "- Сохрани носитель из Genre и Avoid. Не переводи иллюстрацию или 3D в фотографию.",
+            : "- Сохрани носитель и технику исполнения из Genre, Rendering и Avoid. Не переводи иллюстрацию или 3D в фотографию.",
         ].join("\n")
       : [
           "CRITICAL RULES",
@@ -449,7 +452,7 @@ export function patternCriticalRules(
           "- Render every Text line except none verbatim.",
           photo
             ? "- Photorealistic result with high textural detail."
-            : "- Keep the medium named in Genre and Avoid. Do not turn an illustration or 3D image into a photograph.",
+            : "- Keep the medium and rendering technique named in Genre, Rendering, and Avoid. Do not turn an illustration or 3D image into a photograph.",
         ].join("\n");
   }
   if (pattern === "object") {
@@ -461,7 +464,7 @@ export function patternCriticalRules(
           "- Строки из Text, кроме none, выведи дословно.",
           photo
             ? "- Фотореалистичная предметная съёмка."
-            : "- Сохрани носитель. Не переводи иллюстрацию в фотографию.",
+            : "- Сохрани носитель и технику из Rendering. Не переводи иллюстрацию в фотографию.",
         ].join("\n")
       : [
           "CRITICAL RULES",
@@ -470,7 +473,7 @@ export function patternCriticalRules(
           "- Render every Text line except none verbatim.",
           photo
             ? "- Photorealistic product photograph."
-            : "- Keep the medium. Do not turn an illustration into a photograph.",
+            : "- Keep the medium and technique from Rendering. Do not turn an illustration into a photograph.",
         ].join("\n");
   }
   if (pattern === "layout") {
@@ -495,7 +498,7 @@ export function patternCriticalRules(
         "- Повтори место, свет, объектив и планы из секций выше.",
         photo
           ? "- Фотореалистичный пейзаж или интерьер."
-          : "- Сохрани носитель. Не переводи изображение в фотографию.",
+          : "- Сохрани носитель и технику из Rendering. Не переводи изображение в фотографию.",
         "- Строки из Text, кроме none, выведи дословно.",
       ].join("\n")
     : [
@@ -504,7 +507,7 @@ export function patternCriticalRules(
         "- Repeat the place, light, lens, and depth planes from the sections above.",
         photo
           ? "- Photorealistic landscape or interior."
-          : "- Keep the medium. Do not turn the image into a photograph.",
+          : "- Keep the medium and technique from Rendering. Do not turn the image into a photograph.",
         "- Render every Text line except none verbatim.",
       ].join("\n");
 }
