@@ -64,7 +64,7 @@ import {
 } from "@/lib/auth-return-card-pin";
 import {
   canNavigateFromSecondaryCardViewer,
-  isClientCardOverlayActive,
+  isClientCardOverlayBlocking,
   shouldRenderSecondaryCardViewer,
   subscribeClientCardOverlay,
 } from "@/lib/client-card-overlay";
@@ -135,6 +135,8 @@ type Props = {
   isModal?: boolean;
   /** When provided (client-side modal), neighbor navigation stays inside the same modal instance. */
   onListingNeighborGo?: (slug: string) => void;
+  /** Synchronously sync the parent modal's loaded card on mobile swipe commit to avoid a 1-frame flash of the previous card. */
+  onListingNeighborCommit?: (data: CardPageData) => void;
   /** Optional explicit close handler for the client-side single-instance modal.
    * When present, the mobile photo header "Закрыть" button will use this instead of router.back().
    */
@@ -146,15 +148,15 @@ type InnerProps = Props & {
 };
 
 export function CardPageClient(props: Props) {
-  const clientOverlayActive = useSyncExternalStore(
+  const clientOverlayBlocking = useSyncExternalStore(
     subscribeClientCardOverlay,
-    isClientCardOverlayActive,
+    isClientCardOverlayBlocking,
     () => false
   );
   if (
     !shouldRenderSecondaryCardViewer({
       hasListingNeighborHandler: Boolean(props.onListingNeighborGo),
-      clientOverlayActive,
+      clientOverlayActive: clientOverlayBlocking,
     })
   ) {
     return null;
@@ -162,12 +164,12 @@ export function CardPageClient(props: Props) {
   return <CardPageClientOwned {...props} />;
 }
 
-function CardPageClientOwned({ data, tagEntries, breadcrumbTag, isModal = false, onListingNeighborGo, onCloseModal }: Props) {
+function CardPageClientOwned({ data, tagEntries, breadcrumbTag, isModal = false, onListingNeighborGo, onListingNeighborCommit, onCloseModal }: Props) {
   const router = useRouter();
   const [activeData, setActiveData] = useState(data);
 
   useEffect(() => {
-    setActiveData(data);
+    setActiveData((current) => (current.id === data.id ? current : data));
   }, [data]);
 
   const activePresentation = useMemo(() => {
@@ -188,14 +190,15 @@ function CardPageClientOwned({ data, tagEntries, breadcrumbTag, isModal = false,
     (nextData: CardPageData) => {
       if (!canMutateAuthReturnCardSlug(nextData.slug)) return;
       setActiveData(nextData);
+      onListingNeighborCommit?.(nextData);
       if (onListingNeighborGo) {
         onListingNeighborGo(nextData.slug);
-      } else if (canNavigateFromSecondaryCardViewer(isClientCardOverlayActive())) {
+      } else if (canNavigateFromSecondaryCardViewer(isClientCardOverlayBlocking())) {
         // One viewer = one history entry. push() stacks /p pages so ✕ only pops one card.
         router.replace(`/p/${encodeURIComponent(nextData.slug)}`, { scroll: false });
       }
     },
-    [onListingNeighborGo, router]
+    [onListingNeighborCommit, onListingNeighborGo, router]
   );
 
   const cardIds = useMemo(() => [activeData.id], [activeData.id]);
@@ -383,7 +386,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     revertedAuthPinRef.current = true;
     if (onListingNeighborGo) {
       onListingNeighborGo(pin);
-    } else if (canNavigateFromSecondaryCardViewer(isClientCardOverlayActive())) {
+    } else if (canNavigateFromSecondaryCardViewer(isClientCardOverlayBlocking())) {
       openCardModal(pin);
     }
   }, [authCardPinned, data.slug, onListingNeighborGo, openCardModal]);
@@ -494,7 +497,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     (slug: string) => {
       if (onListingNeighborGo) {
         onListingNeighborGo(slug);
-      } else if (canNavigateFromSecondaryCardViewer(isClientCardOverlayActive())) {
+      } else if (canNavigateFromSecondaryCardViewer(isClientCardOverlayBlocking())) {
         router.replace(`/p/${encodeURIComponent(slug)}`, { scroll: false });
       }
     },
@@ -587,7 +590,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
       onListingNeighborGo(slug);
       return;
     }
-    if (!canNavigateFromSecondaryCardViewer(isClientCardOverlayActive())) {
+    if (!canNavigateFromSecondaryCardViewer(isClientCardOverlayBlocking())) {
       e.preventDefault();
       e.stopPropagation();
     }

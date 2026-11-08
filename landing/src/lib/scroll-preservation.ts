@@ -175,6 +175,49 @@ let pinGeneration = 0;
 const pinTimeouts = new Set<number>();
 let pinUnlockInstant: (() => void) | null = null;
 let pinScrollBound = false;
+let listingUserScrollActive = false;
+let listingInteractionBound = false;
+
+function onListingUserScrollStart(): void {
+  listingUserScrollActive = true;
+  if (restoreInProgress) {
+    restoreGeneration += 1;
+    restoreInProgress = false;
+    for (const id of pendingRestoreTimeouts) {
+      window.clearTimeout(id);
+    }
+    pendingRestoreTimeouts.clear();
+    unlockListingScrollStyles();
+  }
+  if (pinY !== null) {
+    cancelListingScrollPin();
+  }
+}
+
+function onListingUserScrollEnd(): void {
+  listingUserScrollActive = false;
+}
+
+function bindListingUserScrollGuard(): void {
+  if (listingInteractionBound || typeof window === "undefined") return;
+  listingInteractionBound = true;
+  window.addEventListener("touchstart", onListingUserScrollStart, {
+    capture: true,
+    passive: true,
+  });
+  window.addEventListener("wheel", onListingUserScrollStart, {
+    capture: true,
+    passive: true,
+  });
+  window.addEventListener("touchend", onListingUserScrollEnd, {
+    capture: true,
+    passive: true,
+  });
+  window.addEventListener("touchcancel", onListingUserScrollEnd, {
+    capture: true,
+    passive: true,
+  });
+}
 
 export function shouldApplyListingScrollY(input: {
   targetY: number;
@@ -320,7 +363,7 @@ export function shouldReapplyPinnedListingScroll(input: {
 }
 
 function onPinnedListingScroll(): void {
-  if (pinY === null) return;
+  if (pinY === null || listingUserScrollActive) return;
   if (
     shouldReapplyPinnedListingScroll({
       pinnedY: pinY,
@@ -373,15 +416,20 @@ export function pinListingScrollAgainstTop(
   const target = sanitizeListingScrollY(y);
   if (target === null || target <= 0 || typeof window === "undefined") return;
   cancelListingScrollPin();
+  bindListingUserScrollGuard();
   pinY = target;
   writeSavedListingScrollY(target);
   window.history.scrollRestoration = "manual";
   pinUnlockInstant = pinInstantDocumentScroll(document.documentElement.style);
-  writeAllListingScrollTops(target);
+  if (!listingUserScrollActive) {
+    writeAllListingScrollTops(target);
+  }
   bindPinScrollListener();
   const generation = pinGeneration;
   const reapply = () => {
-    if (generation !== pinGeneration || pinY === null) return;
+    if (generation !== pinGeneration || pinY === null || listingUserScrollActive) {
+      return;
+    }
     if (
       shouldReapplyPinnedListingScroll({
         pinnedY: pinY,
@@ -624,6 +672,7 @@ export function scheduleListingScrollRestore(opts?: { clear?: boolean }): void {
   }
 
   cancelListingScrollRestore();
+  bindListingUserScrollGuard();
   unlockListingScrollStyles();
   window.history.scrollRestoration = "manual";
 
@@ -640,16 +689,20 @@ export function scheduleListingScrollRestore(opts?: { clear?: boolean }): void {
   restoreInProgress = true;
 
   const apply = () => {
-    if (generation !== restoreGeneration) return;
+    if (generation !== restoreGeneration || listingUserScrollActive) return;
     unlockListingScrollStyles();
     writeScrollTop(getListingScrollRoot(), y);
   };
 
   const finish = () => {
     if (generation !== restoreGeneration) return;
-    apply();
+    if (!listingUserScrollActive) {
+      apply();
+    }
     restoreInProgress = false;
-    pinListingScrollAgainstTop(y);
+    if (!listingUserScrollActive) {
+      pinListingScrollAgainstTop(y);
+    }
     bumpListingShellViewportHeight();
   };
 

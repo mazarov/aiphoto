@@ -4,9 +4,12 @@ import {
   beginClientCardOverlay,
   canNavigateFromSecondaryCardViewer,
   endClientCardOverlay,
+  isCardPathname,
   isClientCardOverlayActive,
+  isClientCardOverlayBlocking,
   peekClientCardOverlaySlug,
   resetClientCardOverlayForTests,
+  settleClientCardOverlayClose,
   shouldRenderInterceptedCardModal,
   shouldRenderSecondaryCardViewer,
 } from "./client-card-overlay";
@@ -17,6 +20,7 @@ test.afterEach(() => {
 
 test("client overlay is set before App Router can rematch /p/slug", () => {
   assert.equal(isClientCardOverlayActive(), false);
+  assert.equal(isClientCardOverlayBlocking(), false);
   assert.equal(shouldRenderInterceptedCardModal(), true);
   assert.equal(
     beginClientCardOverlay("visual-hook-yarkiy-igrivyy"),
@@ -39,9 +43,21 @@ test("client overlay is set before App Router can rematch /p/slug", () => {
     true
   );
   assert.equal(canNavigateFromSecondaryCardViewer(true), false);
-  endClientCardOverlay();
+  endClientCardOverlay(1000);
   assert.equal(isClientCardOverlayActive(), false);
+  assert.equal(isClientCardOverlayBlocking(1200), true);
+  assert.equal(shouldRenderInterceptedCardModal(isClientCardOverlayBlocking(1200)), false);
+  settleClientCardOverlayClose();
+  assert.equal(isClientCardOverlayBlocking(1200), false);
   assert.equal(shouldRenderInterceptedCardModal(), true);
+});
+
+test("intercepted modal never renders once pathname is back on a listing route", () => {
+  assert.equal(isCardPathname("/p/foo"), true);
+  assert.equal(isCardPathname("/search"), false);
+  assert.equal(shouldRenderInterceptedCardModal(false, "/p/foo"), true);
+  assert.equal(shouldRenderInterceptedCardModal(false, "/search"), false);
+  assert.equal(shouldRenderInterceptedCardModal(false, "/promty-dlya-foto-devushki"), false);
 });
 
 test("unsafe overlay slug is ignored", () => {

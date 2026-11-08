@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   canCommitMobileCardSnap,
+  freezeMobileCardSnapOnUnmount,
   isMobileCardSnapCentered,
   isMobileCardSnapViewportUsable,
   mobileCardScrollBehavior,
@@ -320,4 +321,21 @@ test("multi-slide settle commits the actual stopped card directly", () => {
     }),
     "p7"
   );
+});
+
+test("unmount freeze kills momentum scroll and clamps to the nearest slide", () => {
+  const style = {
+    overflowY: "auto",
+    scrollSnapType: "y mandatory",
+    scrollBehavior: "smooth",
+  };
+  const targetTop = freezeMobileCardSnapOnUnmount({
+    scrollTop: 1580,
+    slideHeight: 800,
+    style,
+  });
+  assert.equal(targetTop, 1600);
+  assert.equal(style.overflowY, "hidden");
+  assert.equal(style.scrollSnapType, "none");
+  assert.equal(style.scrollBehavior, "auto");
 });

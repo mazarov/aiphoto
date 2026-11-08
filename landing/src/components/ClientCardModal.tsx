@@ -32,6 +32,24 @@ export function ClientCardModal() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
+  const loadedSlugRef = useRef<string | null>(null);
+  loadedSlugRef.current = loaded?.data.slug ?? null;
+
+  const commitNeighborCard = useCallback((nextData: CardPageData) => {
+    requestIdRef.current += 1;
+    loadedSlugRef.current = nextData.slug;
+    const tagEntries = getSeoSlugsWithTags(nextData.seo_tags);
+    const firstTag = getFirstTagFromSeoTags(nextData.seo_tags);
+    setLoaded({
+      data: nextData,
+      tagEntries,
+      breadcrumbTag: firstTag
+        ? { labelRu: firstTag.labelRu, urlPath: firstTag.urlPath }
+        : null,
+    });
+    setError(null);
+    setLoading(false);
+  }, []);
 
   const fetchCard = useCallback(async (slug: string) => {
     // Fast path: use cache for instant neighbor switches inside the modal (no network, no loading flash).
@@ -82,8 +100,12 @@ export function ClientCardModal() {
   // When the slug in context changes, load the corresponding card
   useEffect(() => {
     if (!currentSlug) {
+      loadedSlugRef.current = null;
       setLoaded(null);
       setError(null);
+      return;
+    }
+    if (loadedSlugRef.current === currentSlug) {
       return;
     }
     fetchCard(currentSlug);
@@ -159,6 +181,7 @@ export function ClientCardModal() {
               // Pass the neighbor navigation that stays inside the *same* modal instance.
               // This makes left/right arrows work without full navigation or multiple modals.
               onListingNeighborGo={goToNeighbor}
+              onListingNeighborCommit={commitNeighborCard}
               // Make the mobile photo header "Закрыть" крестик actually close this client modal
               // (same visual position and style as on direct /p/[slug] pages).
               onCloseModal={handleClose}

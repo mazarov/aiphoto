@@ -26,6 +26,8 @@ import {
 import {
   beginClientCardOverlay,
   endClientCardOverlay,
+  isCardPathname,
+  settleClientCardOverlayClose,
 } from "@/lib/client-card-overlay";
 import { markPromptCardOverlayOpened } from "@/lib/prompt-card-overlay-open";
 import { lockListingScrollForModal } from "@/lib/scroll-preservation";
@@ -242,9 +244,15 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     function onPopState() {
+      if (!isCardPathname(window.location.pathname)) {
+        settleClientCardOverlayClose();
+      }
       if (!currentSlugRef.current) return;
       releaseAuthReturnCardPin();
       endClientCardOverlay();
+      if (!isCardPathname(window.location.pathname)) {
+        settleClientCardOverlayClose();
+      }
       setLiveAuthReturnOverlay(null);
       setCurrentSlug(null);
     }

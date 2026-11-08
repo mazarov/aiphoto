@@ -186,7 +186,7 @@ export function ListingPhotoTile({
             photoshootUrls && !photoshootGridFailed ? " pointer-events-none" : ""
           }`}
           aria-label={linkLabel}
-          prefetch
+          prefetch={false}
           onPointerEnter={() => prefetchCard(card.slug)}
           onTouchStart={() => prefetchCard(card.slug)}
           onClick={(event) => {

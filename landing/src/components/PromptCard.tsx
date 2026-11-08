@@ -210,7 +210,7 @@ function PromptCardBase({
             href={`/p/${card.slug}`}
             className={`absolute inset-0 z-10${photoshootGrid ? " pointer-events-none" : ""}`}
             aria-label={title}
-            prefetch
+            prefetch={false}
             onPointerEnter={() => prefetchCard(card.slug)}
             onTouchStart={() => prefetchCard(card.slug)}
             onClick={(e) => {

@@ -1,8 +1,9 @@
 "use client";
 
 import { useSyncExternalStore, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import {
-  isClientCardOverlayActive,
+  isClientCardOverlayBlocking,
   shouldRenderInterceptedCardModal,
   subscribeClientCardOverlay,
 } from "@/lib/client-card-overlay";
@@ -12,11 +13,12 @@ import {
  * That second viewer has no listing-neighbor handler and must not render.
  */
 export function InterceptedCardModalGate({ children }: { children: ReactNode }) {
-  const clientOverlayActive = useSyncExternalStore(
+  const pathname = usePathname();
+  const clientOverlayBlocking = useSyncExternalStore(
     subscribeClientCardOverlay,
-    isClientCardOverlayActive,
+    isClientCardOverlayBlocking,
     () => false
   );
-  if (!shouldRenderInterceptedCardModal(clientOverlayActive)) return null;
+  if (!shouldRenderInterceptedCardModal(clientOverlayBlocking, pathname)) return null;
   return children;
 }

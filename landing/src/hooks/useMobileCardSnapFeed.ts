@@ -16,6 +16,7 @@ import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import { resolveListingNavNeighbors } from "@/lib/listing-card-navigation-context";
 import {
   canCommitMobileCardSnap,
+  freezeMobileCardSnapOnUnmount,
   isMobileCardSnapCentered,
   isMobileCardSnapViewportUsable,
   mobileCardScrollBehavior,
@@ -847,6 +848,15 @@ export function useMobileCardSnapFeed({
 
   useEffect(
     () => () => {
+      const viewport = viewportRef.current;
+      if (viewport) {
+        const targetTop = freezeMobileCardSnapOnUnmount({
+          scrollTop: viewport.scrollTop,
+          slideHeight: viewport.clientHeight || lastHeightPxRef.current,
+          style: viewport.style,
+        });
+        viewport.scrollTop = targetTop;
+      }
       settleTokenRef.current += 1;
       cancelPendingTargetLoad();
       clearSettleWork();

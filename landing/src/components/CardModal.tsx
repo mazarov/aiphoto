@@ -50,6 +50,15 @@ export function CardModal({ children, onClose, immersiveMobile = false }: Props)
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [handleClose]);
 
+  useEffect(() => {
+    return () => {
+      if (deferredCleanupRef.current !== null) {
+        window.clearTimeout(deferredCleanupRef.current);
+        deferredCleanupRef.current = null;
+      }
+    };
+  }, []);
+
   // Lock scroll while open; restore listing position only after unlock (critical on desktop).
   useEffect(() => {
     // React StrictMode (dev) intentionally does mount->cleanup->mount once.

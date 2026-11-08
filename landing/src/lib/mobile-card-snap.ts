@@ -212,6 +212,40 @@ export function resolveMobileCardSnapTargetSlug({
 export const MOBILE_CARD_SNAP_INTERACTIVE_SELECTOR =
   "button, a, input, textarea, select, [role='button'], [data-no-swipe]";
 
+export type MobileCardSnapStopStyle = {
+  overflowY: string;
+  scrollSnapType: string;
+  scrollBehavior: string;
+  scrollTop: number;
+};
+
+/**
+ * Freeze the snap scroller on the slide currently on screen before unmount.
+ * Closing ✕ while a swipe is still decelerating otherwise destroys a live
+ * WebKit momentum scroll container mid-gesture and leaves the underlying
+ * listing ignoring subsequent taps.
+ */
+export function freezeMobileCardSnapOnUnmount({
+  scrollTop,
+  slideHeight,
+  style,
+}: {
+  scrollTop: number;
+  slideHeight: number;
+  style: Pick<
+    MobileCardSnapStopStyle,
+    "overflowY" | "scrollSnapType" | "scrollBehavior"
+  >;
+}): number {
+  const height = Number.isFinite(slideHeight) && slideHeight > 0 ? slideHeight : 0;
+  const safeTop = Number.isFinite(scrollTop) && scrollTop > 0 ? scrollTop : 0;
+  const targetTop = height > 0 ? Math.round(safeTop / height) * height : safeTop;
+  style.scrollSnapType = "none";
+  style.scrollBehavior = "auto";
+  style.overflowY = "hidden";
+  return targetTop;
+}
+
 export function resolveMobileCardSnapGestureTarget(
   target: EventTarget | null
 ): Element | null {
