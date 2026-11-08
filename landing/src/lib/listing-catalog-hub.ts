@@ -645,3 +645,8 @@ export function listingCatalogHubGenerateCta(pathname: string): string | null {
 export function isListingCatalogHubGenerateCta(label: string): boolean {
   return LISTING_CATALOG_HUBS.some((hub) => hub.generateCta === label);
 }
+
+/** Hub paths whose hero used to be filled from `heroFetchParams`. */
+export function listingCatalogHubPaths(): readonly string[] {
+  return LISTING_CATALOG_HUBS.map((hub) => hub.path);
+}

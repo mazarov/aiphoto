@@ -1,6 +1,7 @@
 import { cache } from "react";
 import type { Metadata } from "next";
 import { PageLayout } from "@/components/PageLayout";
+import { HeroCurationBar, HeroCurationScope } from "@/components/admin/HeroCuration";
 import { GeneraciyaFotoExamplesExplorer } from "@/components/generate/GeneraciyaFotoExamplesExplorer";
 import {
   GeneraciyaFotoHowTo,
@@ -22,6 +23,7 @@ import {
   SITE_URL,
 } from "@/lib/generaciya-hub-data";
 import { readGeneraciyaSeoImageFlags } from "@/lib/generaciya-seo-image-config";
+import { loadPageHeroCarousel } from "@/lib/page-hero-data";
 import {
   KARTINKA_PO_OPISANIYU_FAQ,
   KARTINKA_PO_OPISANIYU_HOW_IT_WORKS,
@@ -30,7 +32,6 @@ import {
   KARTINKA_PO_OPISANIYU_SEO,
   KARTINKA_PO_OPISANIYU_STYLE_CHIPS,
 } from "@/lib/kartinka-po-opisaniyu-seo-copy";
-import { takeHeroMarqueeCards } from "@/lib/hero-marquee";
 
 export const revalidate = 3600;
 
@@ -103,13 +104,13 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function KartinkaPoOpisaniyuPage() {
-  const [{ cards, exampleCards, ogImage, imageCaption, flags }, completedImageCount] =
+  const [{ cards, exampleCards, ogImage, imageCaption, flags }, carouselCards, completedImageCount] =
     await Promise.all([
       getPageCards(),
+      loadPageHeroCarousel(GENERACIYA_KARTINKA_PO_OPISANIYU_PATH),
       getGeneraciyaCompletedImageCount(),
     ]);
   const socialProof = formatSocialProof(completedImageCount);
-  const carouselCards = takeHeroMarqueeCards(exampleCards.filter((card) => card.photoUrl));
   const galleryCards = exampleCards.slice(0, 16);
   const schemas = buildGeneraciyaHubJsonLd({
     pageUrl: PAGE_URL,
@@ -147,6 +148,7 @@ export default async function KartinkaPoOpisaniyuPage() {
         />
       ))}
 
+      <HeroCurationScope path={GENERACIYA_KARTINKA_PO_OPISANIYU_PATH}>
       <main className={GF_PAGE_MAIN}>
         <GeneraciyaHubHero
           breadcrumbs={[
@@ -158,6 +160,7 @@ export default async function KartinkaPoOpisaniyuPage() {
           intro={KARTINKA_PO_OPISANIYU_SEO.intro}
           carouselCards={carouselCards}
           carouselAriaLabel={KARTINKA_PO_OPISANIYU_SEO.carouselAriaLabel}
+          afterCarousel={<HeroCurationBar />}
           socialProof={socialProof}
           generatorTitle={KARTINKA_PO_OPISANIYU_SEO.generatorTitle}
           generatorLead={KARTINKA_PO_OPISANIYU_SEO.generatorLead}
@@ -177,9 +180,7 @@ export default async function KartinkaPoOpisaniyuPage() {
                 initialCards={galleryCards}
                 eyebrow={KARTINKA_PO_OPISANIYU_SEO.examplesEyebrow}
                 title={KARTINKA_PO_OPISANIYU_SEO.examplesTitle}
-                intro={KARTINKA_PO_OPISANIYU_SEO.examplesIntro}
-                allPromptsLabel={KARTINKA_PO_OPISANIYU_SEO.examplesCta}
-                defaultAllPromptsHref="#primery"
+                intro={KARTINKA_PO_OPISANIYU_SEO.examplesIntro}                defaultAllPromptsHref="#primery"
                 scenarioNavigation={STYLE_NAVIGATION}
                 navigationAriaLabel="Стили картинок"
                 filterChipsInPlace
@@ -220,6 +221,7 @@ export default async function KartinkaPoOpisaniyuPage() {
           />
         </div>
       </main>
+      </HeroCurationScope>
     </PageLayout>
   );
 }

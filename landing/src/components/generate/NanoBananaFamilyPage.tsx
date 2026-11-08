@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { PageLayout } from "@/components/PageLayout";
 import { GeneraciyaFotoExamplesExplorer } from "@/components/generate/GeneraciyaFotoExamplesExplorer";
 import {
@@ -16,7 +17,7 @@ import { NanoBananaPreferModel } from "@/components/generate/NanoBananaPreferMod
 import { getGeneraciyaFotoChipNavigation } from "@/lib/generaciya-foto-chip-nav";
 import { headingAltSlotsFromSeo } from "@/lib/hero-carousel-alt";
 import type { GeneraciyaFotoFaqPart } from "@/lib/generaciya-foto-seo-copy";
-import { toGenerationExampleCard } from "@/lib/generation/example-card";
+import { toGenerationExampleCard, type GenerationExampleCard } from "@/lib/generation/example-card";
 import type { GenerationModelOption } from "@/lib/generation-model-labels";
 import { takeHeroMarqueeCards } from "@/lib/hero-marquee";
 import {
@@ -59,9 +60,11 @@ export type NanoBananaFamilyPageProps = {
     items: readonly { title: string; text: string }[];
   };
   cards: PromptCardFull[];
+  heroCards?: GenerationExampleCard[];
   models: GenerationModelOption[];
   completedImageCount: number;
   ogImage: string | null;
+  afterCarousel?: ReactNode;
 };
 
 function BreadcrumbSeparator() {
@@ -164,9 +167,9 @@ export function NanoBananaFamilyPage(props: NanoBananaFamilyPageProps) {
   );
   const schemas = buildJsonLd(props, siteUrl, props.cards.slice(0, 16));
   const exampleCards = props.cards.map(toGenerationExampleCard);
-  const carouselCards = takeHeroMarqueeCards(
-    exampleCards.filter((card) => card.photoUrl)
-  );
+  const carouselCards =
+    props.heroCards ??
+    takeHeroMarqueeCards(exampleCards.filter((card) => card.photoUrl));
   const galleryCards = exampleCards.slice(0, 16);
 
   return (
@@ -233,6 +236,7 @@ export function NanoBananaFamilyPage(props: NanoBananaFamilyPageProps) {
                 explorerTitle: props.seo.examplesTitle,
               })}
             />
+            {props.afterCarousel}
             {socialProof ? (
               <p className="mx-auto mt-3 text-sm font-medium text-indigo-700 sm:text-base">
                 {socialProof}
@@ -272,9 +276,7 @@ export function NanoBananaFamilyPage(props: NanoBananaFamilyPageProps) {
                 initialCards={galleryCards}
                 eyebrow=""
                 title={props.seo.examplesTitle}
-                intro={props.seo.examplesIntro}
-                allPromptsLabel={props.seo.examplesCta}
-                defaultAllPromptsHref={props.seo.examplesMoreHref}
+                intro={props.seo.examplesIntro}                defaultAllPromptsHref={props.seo.examplesMoreHref}
                 scenarioNavigation={getGeneraciyaFotoChipNavigation()}
                 filterChipsInPlace
               />

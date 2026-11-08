@@ -24,6 +24,7 @@ import { omitCardFromPages, omitHiddenCardIds } from "@/lib/debug-hide-card";
 import { useDebugCardHidden } from "@/hooks/useDebugCardHidden";
 import {
   LISTING_INFINITE_PAGE_SIZE,
+  LISTING_LOAD_MORE_LABEL,
   LISTING_SEARCH_PAGE_SIZE,
   hasMoreListingFromOffset,
   hasMoreRankedPages,
@@ -157,7 +158,6 @@ export function GeneraciyaFotoExamplesExplorer({
   title = GENERACIYA_FOTO_SEO.examplesTitle,
   intro = GENERACIYA_FOTO_SEO.examplesIntro,
   eyebrow = "Библиотека образов",
-  allPromptsLabel = GENERACIYA_FOTO_SEO.examplesCta,
   defaultAllPromptsHref = GENERACIYA_FOTO_SEO.examplesMoreHref,
   scenarioNavigation,
   navigationAriaLabel,
@@ -170,7 +170,6 @@ export function GeneraciyaFotoExamplesExplorer({
   title?: string;
   intro?: string;
   eyebrow?: string;
-  allPromptsLabel?: string;
   defaultAllPromptsHref?: string;
   scenarioNavigation?: GeneraciyaFotoChipNavItem[];
   navigationAriaLabel?: string;
@@ -696,7 +695,7 @@ export function GeneraciyaFotoExamplesExplorer({
                 onClick={() => void loadMoreCards()}
                 className={`pointer-events-auto ${LOAD_MORE_BUTTON}`}
               >
-                {loadMoreBusy ? "Загружаем…" : allPromptsLabel}
+                {loadMoreBusy ? "Загружаем…" : LISTING_LOAD_MORE_LABEL}
                 <LoadMoreChevron direction="down" />
               </button>
             </div>
@@ -719,7 +718,7 @@ export function GeneraciyaFotoExamplesExplorer({
                 scroll={LISTING_SHELL_LINK_SCROLL}
                 className={`pointer-events-auto ${LOAD_MORE_BUTTON}`}
               >
-                {allPromptsLabel}
+                {LISTING_LOAD_MORE_LABEL}
                 <LoadMoreChevron direction="left" />
               </Link>
             </div>
@@ -735,7 +734,7 @@ export function GeneraciyaFotoExamplesExplorer({
             onClick={() => void loadMoreCards()}
             className={LOAD_MORE_BUTTON}
           >
-            {loadMoreBusy ? "Загружаем…" : "Показать ещё"}
+            {loadMoreBusy ? "Загружаем…" : LISTING_LOAD_MORE_LABEL}
             <LoadMoreChevron direction="down" />
           </button>
           {loadMoreError ? (

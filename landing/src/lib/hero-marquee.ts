@@ -10,3 +10,11 @@ export const SIZES_HERO_MARQUEE = "(max-width: 639px) 116px, 148px";
 export function takeHeroMarqueeCards<T>(cards: readonly T[]): T[] {
   return cards.slice(0, HERO_MARQUEE_MAX_CARDS);
 }
+
+/** globals.css loops 12 tiles in 110s; longer curated strips keep the same speed. */
+const HERO_MARQUEE_BASE_SECONDS = 110;
+
+export function heroMarqueeDurationSeconds(count: number): number {
+  const tiles = Math.max(count, HERO_MARQUEE_MAX_CARDS);
+  return Math.round((HERO_MARQUEE_BASE_SECONDS * tiles) / HERO_MARQUEE_MAX_CARDS);
+}

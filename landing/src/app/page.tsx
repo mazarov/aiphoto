@@ -12,8 +12,9 @@ import { stripCardTitlePrefix } from "@/lib/card-meta-title";
 import { getHomepageCatalogThemeItems } from "@/lib/homepage-explorer-chips";
 import { fetchNewestThemeCollagePhotos } from "@/lib/homepage-sections";
 import { toGenerationExampleCard } from "@/lib/generation/example-card";
-import { takeHeroMarqueeCards } from "@/lib/hero-marquee";
+import { loadPageHeroCarousel } from "@/lib/page-hero-data";
 import { PageLayout } from "@/components/PageLayout";
+import { HeroCurationBar, HeroCurationScope } from "@/components/admin/HeroCuration";
 import { HomeHeroDestinations } from "@/components/HomeHeroDestinations";
 import { HomeFaq, HomeIntroAndHowTo } from "@/components/HomeSeoBlocks";
 import { HomepageExamplesExplorer } from "@/components/home/HomepageExamplesExplorer";
@@ -35,7 +36,16 @@ const getCachedSections = cache(async () => {
   }
 });
 
-const getCachedNewCards = cache(async (): Promise<PromptCardFull[]> => {
+const HOME_GALLERY_LIMIT = 16;
+
+type HomeNewCards = {
+  cards: PromptCardFull[];
+  /** `cards_count` of this page: `/api/listing` offset for «Ещё». */
+  rankedCount: number;
+  totalCount: number;
+};
+
+const getCachedNewCards = cache(async (): Promise<HomeNewCards> => {
   try {
     const result = await fetchRouteCards({
       audience_tag: null,
@@ -43,19 +53,23 @@ const getCachedNewCards = cache(async (): Promise<PromptCardFull[]> => {
       occasion_tag: null,
       object_tag: null,
       doc_task_tag: null,
-      limit: 50,
+      limit: HOME_GALLERY_LIMIT,
       offset: 0,
-      min_cards: 1,
+      min_cards: 2,
       sort: "new",
     });
     const enriched = await enrichCardsWithDetails(result.cards);
     const cardsById = new Map(enriched.map((card) => [card.id, card]));
-    return result.cards
-      .map((card) => cardsById.get(card.id))
-      .filter((card): card is PromptCardFull => Boolean(card));
+    return {
+      cards: result.cards
+        .map((card) => cardsById.get(card.id))
+        .filter((card): card is PromptCardFull => Boolean(card)),
+      rankedCount: result.cards_count,
+      totalCount: result.total_count ?? result.cards_count,
+    };
   } catch (err) {
     console.error("[HomePage] fetch new cards failed:", err);
-    return [];
+    return { cards: [], rankedCount: 0, totalCount: 0 };
   }
 });
 
@@ -86,23 +100,20 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function HomePage() {
   const catalogThemes = getHomepageCatalogThemeItems();
-  const [sections, newCards, catalogCollage] = await Promise.all([
+  const [sections, newCards, catalogCollage, carouselCards] = await Promise.all([
     getCachedSections(),
     getCachedNewCards(),
     fetchNewestThemeCollagePhotos(catalogThemes),
+    loadPageHeroCarousel("/"),
   ]);
 
   const totalPrompts = sections.reduce((sum, s) => sum + s.total_count, 0);
   const totalCategories = sections.filter((s) => s.total_count > 0).length;
   const homeOgImage =
-    newCards[0]?.photoUrls[0] ??
+    newCards.cards[0]?.photoUrls[0] ??
     sections.find((s) => s.cards.length > 0)?.cards[0]?.photoUrl ??
     null;
-  const exampleCards = newCards.map(toGenerationExampleCard);
-  const carouselCards = takeHeroMarqueeCards(
-    exampleCards.filter((card) => card.photoUrl)
-  );
-  const galleryCards = exampleCards.slice(0, 16);
+  const galleryCards = newCards.cards.map(toGenerationExampleCard);
   const collectionPageLd = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
@@ -164,6 +175,7 @@ export default async function HomePage() {
   const jsonLd = [collectionPageLd, faqPageLd, ...(itemListLd ? [itemListLd] : [])];
 
   return (
+    <HeroCurationScope path="/">
     <PageLayout showFooterWithGenerateDock>
       <GeneraciyaFotoHeroPage
         title={
@@ -198,7 +210,12 @@ export default async function HomePage() {
             ]}
           />
         }
-        afterCarousel={<HomeHeroDestinations />}
+        afterCarousel={
+          <>
+            <HeroCurationBar />
+            <HomeHeroDestinations />
+          </>
+        }
       >
         <GeneraciyaFotoThemes
           sectionId="katalog"
@@ -215,7 +232,11 @@ export default async function HomePage() {
           ctaLabel={HOMEPAGE_SEO.catalogCta}
         />
 
-        <HomepageExamplesExplorer initialCards={galleryCards} />
+        <HomepageExamplesExplorer
+          initialCards={galleryCards}
+          initialRankedCount={newCards.rankedCount}
+          initialTotalCount={newCards.totalCount}
+        />
 
         <HomeIntroAndHowTo />
         <HomeFaq />
@@ -226,5 +247,6 @@ export default async function HomePage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
       />
     </PageLayout>
+    </HeroCurationScope>
   );
 }

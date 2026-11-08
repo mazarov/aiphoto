@@ -1,6 +1,7 @@
 import { cache } from "react";
 import type { Metadata } from "next";
 import { PageLayout } from "@/components/PageLayout";
+import { HeroCurationBar, HeroCurationScope } from "@/components/admin/HeroCuration";
 import { GeneraciyaFotoExamplesExplorer } from "@/components/generate/GeneraciyaFotoExamplesExplorer";
 import {
   GeneraciyaFotoHowTo,
@@ -32,7 +33,7 @@ import {
   SITE_URL,
 } from "@/lib/generaciya-hub-data";
 import { readGeneraciyaSeoImageFlags } from "@/lib/generaciya-seo-image-config";
-import { takeHeroMarqueeCards } from "@/lib/hero-marquee";
+import { loadPageHeroCarousel } from "@/lib/page-hero-data";
 
 export const revalidate = 3600;
 
@@ -101,14 +102,14 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function PoFotoPage() {
-  const [{ result, cards, exampleCards, ogImage, imageCaption, flags }, themeCollage, completedImageCount] =
+  const [{ result, cards, exampleCards, ogImage, imageCaption, flags }, carouselCards, themeCollage, completedImageCount] =
     await Promise.all([
       getPageCards(),
+      loadPageHeroCarousel(GENERACIYA_PO_FOTO_PATH),
       getThemeCollagePhotos(),
       getGeneraciyaCompletedImageCount(),
     ]);
   const socialProof = formatGeneraciyaFotoSocialProof(completedImageCount);
-  const carouselCards = takeHeroMarqueeCards(exampleCards.filter((card) => card.photoUrl));
   const galleryCards = exampleCards;
   const schemas = buildGeneraciyaHubJsonLd({
     pageUrl: PAGE_URL,
@@ -146,6 +147,7 @@ export default async function PoFotoPage() {
         />
       ))}
 
+      <HeroCurationScope path={GENERACIYA_PO_FOTO_PATH}>
       <main className={GF_PAGE_MAIN}>
         <GeneraciyaHubHero
           breadcrumbs={[
@@ -157,6 +159,7 @@ export default async function PoFotoPage() {
           intro={GENERACIYA_PO_FOTO_SEO.intro}
           carouselCards={carouselCards}
           carouselAriaLabel="Популярные фото ИИ по своему фото"
+          afterCarousel={<HeroCurationBar />}
           socialProof={socialProof}
           generatorTitle={GENERACIYA_PO_FOTO_SEO.generatorTitle}
           generatorLead={GENERACIYA_PO_FOTO_SEO.generatorLead}
@@ -180,9 +183,7 @@ export default async function PoFotoPage() {
                 initialCards={galleryCards}
                 eyebrow=""
                 title={GENERACIYA_PO_FOTO_SEO.examplesTitle}
-                intro={GENERACIYA_PO_FOTO_SEO.examplesIntro}
-                allPromptsLabel={GENERACIYA_FOTO_SEO.examplesCta}
-                defaultAllPromptsHref="#primery"
+                intro={GENERACIYA_PO_FOTO_SEO.examplesIntro}                defaultAllPromptsHref="#primery"
                 scenarioNavigation={getGeneraciyaFotoChipNavigation()}
                 loadMoreListing={{
                   rpcParams: GENERACIYA_BASE_RPC_PARAMS,
@@ -215,6 +216,7 @@ export default async function PoFotoPage() {
           />
         </div>
       </main>
+      </HeroCurationScope>
     </PageLayout>
   );
 }

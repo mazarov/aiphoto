@@ -12,6 +12,7 @@ import {
 import { useListingSentinelLoadMore } from "@/hooks/useListingSentinelLoadMore";
 import {
   LISTING_INFINITE_PAGE_SIZE,
+  LISTING_LOAD_MORE_LABEL,
   LISTING_SEARCH_PAGE_SIZE,
   hasMoreRankedPages,
   hasMoreSearchPages,
@@ -53,9 +54,8 @@ type Props = {
   searchQuery?: string | null;
   searchFilters?: Record<string, string | null | undefined>;
   searchHasMore?: boolean;
-  /** First screen like `/generaciya-foto`: fade + button, then explicit «Показать ещё». */
+  /** First screen like `/generaciya-foto`: fade + «Ещё», then the same button below. */
   teaserLoadMore?: boolean;
-  teaserLoadMoreLabel?: string;
   headingAltSlots?: readonly string[];
 };
 
@@ -70,7 +70,6 @@ export function InfiniteGrid({
   searchFilters = {},
   searchHasMore = false,
   teaserLoadMore = false,
-  teaserLoadMoreLabel = "Показать ещё",
   headingAltSlots,
 }: Props) {
   const [cardPages, setCardPages] = useState<PromptCardFull[][]>(() => [
@@ -234,7 +233,7 @@ export function InfiniteGrid({
                 onClick={() => void loadMore()}
                 className={`pointer-events-auto ${TEASER_LOAD_MORE_BUTTON}`}
               >
-                {loading ? "Загружаем…" : teaserLoadMoreLabel}
+                {loading ? "Загружаем…" : LISTING_LOAD_MORE_LABEL}
                 <TeaserLoadMoreChevron />
               </button>
             </div>
@@ -256,7 +255,7 @@ export function InfiniteGrid({
                 : "min-h-11 rounded-full border border-zinc-300 bg-white px-5 text-sm font-semibold text-zinc-800 transition-colors hover:bg-zinc-50"
             }
           >
-            {loading ? "Загружаем…" : "Показать ещё"}
+            {loading ? "Загружаем…" : LISTING_LOAD_MORE_LABEL}
             {showTeaserMoreButton ? <TeaserLoadMoreChevron /> : null}
           </button>
         </div>

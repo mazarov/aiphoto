@@ -3,6 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
+import { DebugHideTileButton } from "@/components/admin/DebugHideTileButton";
+import { HeroTileButton } from "@/components/admin/HeroCuration";
+import { TILE_ACTIONS } from "@/components/admin/tile-action-ui";
 import { ListingCardVideo } from "@/components/ListingCardVideo";
 import { PhotoshootListingBadge } from "@/components/PhotoshootListingBadge";
 import { PhotoshootListingGrid } from "@/components/PhotoshootListingGrid";
@@ -17,6 +20,7 @@ import { generaciyaLiveTileAlt } from "@/lib/generaciya-seo-alt";
 import { buildGeneraciyaSeoImgAttrs } from "@/lib/generaciya-seo-image-url";
 import type { GeneraciyaSeoFrameImage } from "@/lib/generaciya-seo-frame";
 import type { GenerationExampleCard } from "@/lib/generation/example-card";
+import type { HeroTileMode } from "@/lib/page-hero-ui";
 
 type Props = {
   card: GenerationExampleCard;
@@ -24,8 +28,13 @@ type Props = {
   priority?: boolean;
   debugOverlay?: ReactNode;
   /**
+   * Catalog-admin hero control; renders only inside `HeroCurationScope`.
+   * Carousel tiles remove, grid tiles toggle.
+   */
+  heroMode?: HeroTileMode;
+  /**
    * Visual clone (marquee loop). Parent should be aria-hidden.
-   * No link/button descendants — otherwise aria-hidden-focus fails.
+   * No focusable descendants — otherwise aria-hidden-focus fails.
    */
   decorative?: boolean;
   /** Hero strip: still poster only — never autoplay mp4 in the first viewport. */
@@ -40,6 +49,7 @@ export function ListingPhotoTile({
   aspectRatio,
   priority = false,
   debugOverlay,
+  heroMode = "pin",
   decorative = false,
   still = false,
   sizes = SIZES_CARD_GRID,
@@ -189,6 +199,11 @@ export function ListingPhotoTile({
           }}
         />
       )}
+
+      <div className={TILE_ACTIONS}>
+        <HeroTileButton cardId={card.id} mode={heroMode} decorative={decorative} />
+        <DebugHideTileButton cardId={card.id} slug={card.slug} decorative={decorative} />
+      </div>
     </article>
   );
 }

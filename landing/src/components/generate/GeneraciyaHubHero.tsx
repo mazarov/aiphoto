@@ -37,6 +37,7 @@ export function GeneraciyaHubHero({
   intro,
   carouselCards,
   carouselAriaLabel,
+  afterCarousel,
   socialProof,
   generatorTitle,
   generatorLead,
@@ -54,6 +55,7 @@ export function GeneraciyaHubHero({
   intro: string;
   carouselCards: GenerationExampleCard[];
   carouselAriaLabel: string;
+  afterCarousel?: ReactNode;
   socialProof: string | null;
   generatorTitle?: string;
   generatorLead?: string;
@@ -102,6 +104,7 @@ export function GeneraciyaHubHero({
           {intro}
         </p>
         <GeneraciyaFotoHeroCarousel cards={carouselCards} ariaLabel={carouselAriaLabel} />
+        {afterCarousel}
         {socialProof ? (
           <p className="mx-auto mt-3 text-sm font-medium text-indigo-700 sm:text-base">
             {socialProof}

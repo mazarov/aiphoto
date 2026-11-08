@@ -11,6 +11,7 @@ import {
 } from "@/lib/supabase";
 import { parseListingSort } from "@/lib/listing-sort";
 import { AdLandingHeading } from "@/components/AdLandingHeading";
+import { HeroCurationBar, HeroCurationScope } from "@/components/admin/HeroCuration";
 import { CatalogExplorer } from "@/components/CatalogExplorer";
 import { GeneraciyaFotoHeroPage } from "@/components/generate/GeneraciyaFotoHeroPage";
 import { GF_HERO_H1 } from "@/components/generate/generaciya-foto-ui";
@@ -44,7 +45,7 @@ import {
 } from "@/lib/den-rozhdeniya-cluster";
 import { uniqueListingChipsByHref } from "@/lib/listing-cluster-chips";
 import { GeneraciyaFotoHeroCarousel } from "@/components/generate/GeneraciyaFotoHeroCarousel";
-import { toGenerationExampleCard } from "@/lib/generation/example-card";
+import { loadPageHeroCarousel } from "@/lib/page-hero-data";
 import { headingAltSlotsFromSeo } from "@/lib/hero-carousel-alt";
 import {
   isListingCatalogHubClusterPath,
@@ -639,31 +640,16 @@ export default async function TagPage({ params, searchParams }: Props) {
     : {};
   const currentPath = listingPathname(slug);
   const catalogHub = resolveListingCatalogHubL1(currentPath, route.level);
-  const [result, catalogHubHeroResult] = await Promise.all([
+  const [result, catalogHubCarouselCards] = await Promise.all([
     getListingCards(route, qs ?? null),
-    catalogHub
-      ? getCachedRouteCards(catalogHub.heroFetchParams(route.rpcParams))
-      : Promise.resolve(EMPTY_ROUTE_RESULT),
+    catalogHub ? loadPageHeroCarousel(catalogHub.path) : Promise.resolve([]),
   ]);
   const totalCount = result.total_count ?? result.cards_count;
 
-  const [cards, catalogHubHeroCards] = await Promise.all([
-    enrichCardsWithDetails(result.cards).catch((err) => {
-      console.error("[TagPage] enrichCardsWithDetails failed:", err);
-      return [] as PromptCardFull[];
-    }),
-    catalogHub
-      ? enrichCardsWithDetails(catalogHubHeroResult.cards).catch((err) => {
-          console.error("[TagPage] catalog hub hero enrich failed:", err);
-          return [] as PromptCardFull[];
-        })
-      : Promise.resolve([] as PromptCardFull[]),
-  ]);
-  const catalogHubCarouselCards = catalogHub
-    ? catalogHub.toHeroCarouselCards(
-        catalogHubHeroCards.map(toGenerationExampleCard),
-      )
-    : [];
+  const cards = await enrichCardsWithDetails(result.cards).catch((err) => {
+    console.error("[TagPage] enrichCardsWithDetails failed:", err);
+    return [] as PromptCardFull[];
+  });
 
   const seo = applySchoolDayListingCount(
     getSeoForRoute(route),
@@ -821,7 +807,6 @@ export default async function TagPage({ params, searchParams }: Props) {
           Boolean(listingSearchQuery && totalCount > result.cards_count)
         }
         teaserLoadMore={Boolean(catalogHub)}
-        teaserLoadMoreLabel={catalogHub?.loadMoreLabel}
       />
       {seo.popularLinks?.length && !isBirthdayCluster && !isCatalogHubCluster ? (
         <div className="sr-only">
@@ -912,6 +897,7 @@ export default async function TagPage({ params, searchParams }: Props) {
 
   if (catalogHub) {
     return (
+      <HeroCurationScope path={catalogHub.path}>
       <PageLayout showFooterWithGenerateDock>
         <GeneraciyaFotoHeroPage
           titleId="listing-explorer-heading"
@@ -963,12 +949,14 @@ export default async function TagPage({ params, searchParams }: Props) {
               />
             ) : null
           }
+          afterCarousel={<HeroCurationBar />}
         >
           {catalogExplorer}
           {seoSections}
         </GeneraciyaFotoHeroPage>
         {jsonLdScript}
       </PageLayout>
+      </HeroCurationScope>
     );
   }
 

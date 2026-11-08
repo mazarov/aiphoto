@@ -262,9 +262,7 @@ export default async function PromtyDlyaIiFotosessiiPage() {
                 initialCards={galleryCards}
                 title={PROMTY_DLYA_II_FOTOSESSII_SEO.examplesTitle}
                 intro={PROMTY_DLYA_II_FOTOSESSII_SEO.examplesIntro}
-                eyebrow=""
-                allPromptsLabel={PROMTY_DLYA_II_FOTOSESSII_SEO.examplesCta}
-                scenarioNavigation={getPromtyDlyaIiFotosessiiChipNavigation()}
+                eyebrow=""                scenarioNavigation={getPromtyDlyaIiFotosessiiChipNavigation()}
                 navigationAriaLabel="Сценарии ИИ фотосессии"
                 restrictToInitialCards
               />

@@ -4,6 +4,9 @@
  */
 export const LISTING_SSR_INITIAL_LIMIT = 10;
 
+/** Every public listing's load-more button, first teaser and the ones after it. */
+export const LISTING_LOAD_MORE_LABEL = "Ещё";
+
 /** Размер следующих порций (и шаг offset в пространстве ranked RPC). */
 export const LISTING_INFINITE_PAGE_SIZE = 24;
 

@@ -25,6 +25,8 @@
     "seo:sync": "tsx scripts/sync-seo-content.ts --write",
     "backfill:ugc-from-generations": "tsx scripts/backfill-ugc-from-generations.ts",
     "backfill:ugc-from-generations:dry": "tsx scripts/backfill-ugc-from-generations.ts --dry-run",
+    "seed:page-hero": "tsx scripts/seed-page-hero-cards.ts",
+    "seed:page-hero:dry": "tsx scripts/seed-page-hero-cards.ts --dry-run",
     "vendor:extension": "esbuild node_modules/@supabase/supabase-js/dist/index.mjs --bundle --format=esm --outfile=../extension/sidepanel/vendor/supabase.js --platform=browser"
   },
   "dependencies": {

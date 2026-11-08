@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdLandingHeading } from "@/components/AdLandingHeading";
+import { HeroCurationBar, HeroCurationScope } from "@/components/admin/HeroCuration";
 import { PageLayout } from "@/components/PageLayout";
 import { GeneraciyaFotoExamplesExplorer } from "@/components/generate/GeneraciyaFotoExamplesExplorer";
 import { GeneraciyaHubHero } from "@/components/generate/GeneraciyaHubHero";
@@ -29,7 +30,7 @@ import {
   getGeneraciyaFotoScenarioStarterPrompt,
   type GeneraciyaFotoScenarioCopy,
 } from "@/lib/generaciya-foto-scenario-copy";
-import { takeHeroMarqueeCards } from "@/lib/hero-marquee";
+import { loadPageHeroCarousel } from "@/lib/page-hero-data";
 import {
   GENERACIYA_FOTO_SEO,
   GENERACIYA_PO_FOTO_SEO,
@@ -247,8 +248,12 @@ function buildJsonLd(
 export default async function GeneraciyaFotoScenarioPage({ params }: Props) {
   const { scenario: slug } = await params;
   const { route, copy } = resolveScenario(slug);
-  const { result, cards, exampleCards, ogImage, imageCaption, flags } =
-    await getScenarioPage(slug);
+  const scenarioPath = getGeneraciyaFotoScenarioPath(route.slug);
+  const [{ result, cards, exampleCards, ogImage, imageCaption, flags }, carouselCards] =
+    await Promise.all([
+      getScenarioPage(slug),
+      loadPageHeroCarousel(scenarioPath),
+    ]);
   const schemas = buildJsonLd(
     copy,
     ogImage,
@@ -259,9 +264,6 @@ export default async function GeneraciyaFotoScenarioPage({ params }: Props) {
       : undefined,
   );
   const galleryCards = exampleCards;
-  const carouselCards = takeHeroMarqueeCards(
-    exampleCards.filter((card) => card.photoUrl)
-  );
   const starterPrompt = getGeneraciyaFotoScenarioStarterPrompt(copy);
 
   return (
@@ -276,6 +278,7 @@ export default async function GeneraciyaFotoScenarioPage({ params }: Props) {
         />
       ))}
 
+      <HeroCurationScope path={scenarioPath}>
       <main className={GF_PAGE_MAIN}>
         <GeneraciyaHubHero
           breadcrumbs={[
@@ -296,6 +299,7 @@ export default async function GeneraciyaFotoScenarioPage({ params }: Props) {
           intro={copy.intro}
           carouselCards={carouselCards}
           carouselAriaLabel={`Примеры: ${copy.h1}`}
+          afterCarousel={<HeroCurationBar />}
           socialProof={null}
           generatorNote={GENERACIYA_FOTO_SEO.generatorNote}
           starterModes={["text", "photo"]}
@@ -319,9 +323,7 @@ export default async function GeneraciyaFotoScenarioPage({ params }: Props) {
               <GeneraciyaFotoExamplesExplorer
                 initialCards={galleryCards}
                 title={copy.examplesTitle}
-                intro={copy.examplesIntro}
-                allPromptsLabel={GENERACIYA_FOTO_SEO.examplesCta}
-                scenarioNavigation={getGeneraciyaFotoChipNavigation(slug)}
+                intro={copy.examplesIntro}                scenarioNavigation={getGeneraciyaFotoChipNavigation(slug)}
                 lockCardsToScenario
                 loadMoreListing={{
                   rpcParams: {
@@ -466,6 +468,7 @@ export default async function GeneraciyaFotoScenarioPage({ params }: Props) {
 
         </div>
       </main>
+      </HeroCurationScope>
     </PageLayout>
   );
 }

@@ -307,9 +307,7 @@ export default async function PromtyDlyaIiFotosessiiChildPage({
                 initialCards={galleryCards}
                 title={copy.examplesTitle}
                 intro={copy.examplesIntro}
-                eyebrow=""
-                allPromptsLabel={copy.examplesCta}
-                scenarioNavigation={getPromtyDlyaIiFotosessiiChipNavigation(
+                eyebrow=""                scenarioNavigation={getPromtyDlyaIiFotosessiiChipNavigation(
                   copy.slug
                 )}
                 lockCardsToScenario

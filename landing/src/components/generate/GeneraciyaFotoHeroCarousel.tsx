@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDebugCardHidden } from "@/hooks/useDebugCardHidden";
+import { useHeroCarouselCards } from "@/components/admin/HeroCuration";
 import { ListingPhotoTile } from "@/components/ListingPhotoTile";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import { buildHeroCarouselImageAlt } from "@/lib/hero-carousel-alt";
@@ -11,7 +12,7 @@ import {
   writeGenerationExampleNavigation,
 } from "@/lib/generation/example-card";
 import { GENERACIYA_FOTO_SEO } from "@/lib/generaciya-foto-seo-copy";
-import { SIZES_HERO_MARQUEE, takeHeroMarqueeCards } from "@/lib/hero-marquee";
+import { heroMarqueeDurationSeconds, SIZES_HERO_MARQUEE } from "@/lib/hero-marquee";
 
 const TILE_ASPECT = 3 / 4;
 
@@ -45,6 +46,7 @@ function CarouselTile({
         aspectRatio={TILE_ASPECT}
         priority={!decorative && (seoImage ? index === 0 : index < 4)}
         decorative={decorative}
+        heroMode="remove"
         still
         sizes={SIZES_HERO_MARQUEE}
         imageAlt={
@@ -104,6 +106,7 @@ export function GeneraciyaFotoHeroCarousel({
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const { open, prefetchCard } = usePromptCardModal();
+  const sourceCards = useHeroCarouselCards(cards);
   const [hiddenIds, setHiddenIds] = useState<ReadonlySet<string>>(() => new Set());
   useDebugCardHidden(
     useCallback((detail) => {
@@ -116,11 +119,8 @@ export function GeneraciyaFotoHeroCarousel({
     }, []),
   );
   const photos = useMemo(
-    () =>
-      takeHeroMarqueeCards(
-        cards.filter((card) => card.photoUrl && !hiddenIds.has(card.id)),
-      ),
-    [cards, hiddenIds],
+    () => sourceCards.filter((card) => card.photoUrl && !hiddenIds.has(card.id)),
+    [sourceCards, hiddenIds],
   );
   const featured = photos[0];
   const canLoop = photos.length >= 2;
@@ -155,6 +155,11 @@ export function GeneraciyaFotoHeroCarousel({
           className={`flex w-max ${
             canLoop ? "generaciya-foto-marquee-track" : ""
           }`}
+          style={
+            canLoop
+              ? { animationDuration: `${heroMarqueeDurationSeconds(photos.length)}s` }
+              : undefined
+          }
         >
           {photos.map((card, index) => (
             <CarouselTile

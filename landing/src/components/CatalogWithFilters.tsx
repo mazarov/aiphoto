@@ -25,6 +25,7 @@ import {
 } from "@/lib/generation/example-card";
 import { listingHeadingImageAlt } from "@/lib/hero-carousel-alt";
 import { listingPhotoAspectRatio } from "@/lib/listing-masonry";
+import { LISTING_LOAD_MORE_LABEL } from "@/lib/listing-pagination";
 import type { PromptCardFull } from "@/lib/supabase";
 import type { Dimension } from "@/lib/tag-registry";
 import type { ListingSort } from "@/lib/listing-sort";
@@ -81,7 +82,6 @@ export type CatalogWithFiltersProps = {
   explorerTitleId?: string;
   /** Fade + CTA like `/generaciya-foto`, then explicit load-more. */
   teaserLoadMore?: boolean;
-  teaserLoadMoreLabel?: string;
   /** Catalog hub: listing imgs rotate H1 / explorer H2 + card hook. */
   headingAltSlots?: readonly string[];
 };
@@ -109,7 +109,6 @@ export function CatalogWithFilters({
   explorerIntro,
   explorerTitleId = "listing-explorer-gallery-heading",
   teaserLoadMore = false,
-  teaserLoadMoreLabel,
   headingAltSlots,
 }: CatalogWithFiltersProps) {
   const pathname = usePathname();
@@ -327,7 +326,7 @@ export function CatalogWithFilters({
                     href={`/search?q=${encodeURIComponent(trimmedQuery)}`}
                     className="pointer-events-auto inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-indigo-200 bg-white/95 px-5 text-sm font-semibold text-indigo-700 shadow-sm backdrop-blur-sm transition hover:border-indigo-300 hover:bg-white"
                   >
-                    Все результаты
+                    {LISTING_LOAD_MORE_LABEL}
                     <svg
                       className="h-4 w-4"
                       viewBox="0 0 24 24"
@@ -372,7 +371,6 @@ export function CatalogWithFilters({
             searchFilters={listingSearchFilters}
             searchHasMore={listingSearchHasMore}
             teaserLoadMore={teaserLoadMore}
-            teaserLoadMoreLabel={teaserLoadMoreLabel}
             headingAltSlots={headingAltSlots}
           />
         )}

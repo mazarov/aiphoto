@@ -1,6 +1,7 @@
 import { cache } from "react";
 import type { Metadata } from "next";
 import { PageLayout } from "@/components/PageLayout";
+import { HeroCurationBar, HeroCurationScope } from "@/components/admin/HeroCuration";
 import { GeneraciyaFotoExamplesExplorer } from "@/components/generate/GeneraciyaFotoExamplesExplorer";
 import {
   GeneraciyaFotoHowTo,
@@ -33,7 +34,7 @@ import {
   SITE_URL,
 } from "@/lib/generaciya-hub-data";
 import { readGeneraciyaSeoImageFlags } from "@/lib/generaciya-seo-image-config";
-import { takeHeroMarqueeCards } from "@/lib/hero-marquee";
+import { loadPageHeroCarousel } from "@/lib/page-hero-data";
 
 export const revalidate = 3600;
 
@@ -100,14 +101,14 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function FotoPoOpisaniyuPage() {
-  const [{ cards, exampleCards, ogImage, imageCaption, flags }, themeCollage, completedImageCount] =
+  const [{ cards, exampleCards, ogImage, imageCaption, flags }, carouselCards, themeCollage, completedImageCount] =
     await Promise.all([
       getPageCards(),
+      loadPageHeroCarousel(GENERACIYA_FOTO_PO_OPISANIYU_PATH),
       getThemeCollagePhotos(),
       getGeneraciyaCompletedImageCount(),
     ]);
   const socialProof = formatGeneraciyaFotoSocialProof(completedImageCount);
-  const carouselCards = takeHeroMarqueeCards(exampleCards.filter((card) => card.photoUrl));
   const galleryCards = exampleCards.slice(0, 16);
   const schemas = buildGeneraciyaHubJsonLd({
     pageUrl: PAGE_URL,
@@ -142,6 +143,7 @@ export default async function FotoPoOpisaniyuPage() {
         />
       ))}
 
+      <HeroCurationScope path={GENERACIYA_FOTO_PO_OPISANIYU_PATH}>
       <main className={GF_PAGE_MAIN}>
         <GeneraciyaHubHero
           breadcrumbs={[
@@ -153,6 +155,7 @@ export default async function FotoPoOpisaniyuPage() {
           intro={GENERACIYA_FOTO_SEO.intro}
           carouselCards={carouselCards}
           carouselAriaLabel="Новые фото по описанию"
+          afterCarousel={<HeroCurationBar />}
           socialProof={socialProof}
           generatorTitle={GENERACIYA_FOTO_SEO.generatorTitle}
           generatorLead={GENERACIYA_FOTO_SEO.generatorLead}
@@ -167,9 +170,7 @@ export default async function FotoPoOpisaniyuPage() {
                 initialCards={galleryCards}
                 eyebrow=""
                 title={GENERACIYA_FOTO_SEO.examplesTitle}
-                intro={GENERACIYA_FOTO_SEO.examplesIntro}
-                allPromptsLabel={GENERACIYA_FOTO_SEO.examplesCta}
-                defaultAllPromptsHref="#primery"
+                intro={GENERACIYA_FOTO_SEO.examplesIntro}                defaultAllPromptsHref="#primery"
                 scenarioNavigation={getGeneraciyaFotoChipNavigation()}
                 filterChipsInPlace
               />
@@ -203,6 +204,7 @@ export default async function FotoPoOpisaniyuPage() {
           <GeneraciyaFotoFaq />
         </div>
       </main>
+      </HeroCurationScope>
     </PageLayout>
   );
 }
