@@ -96,12 +96,6 @@ import {
   type CardModerationStatus,
 } from "@/lib/publish-reward";
 
-/** Desktop editorial panel chips (tier A = 13px). */
-const DESKTOP_PANEL_CHIP =
-  "shrink-0 text-[13px] font-medium rounded-full border border-indigo-100 bg-indigo-50/70 px-2.5 py-1.5 text-indigo-700 transition-colors hover:border-indigo-200 hover:bg-indigo-100/70";
-const DESKTOP_PANEL_CHIP_MUTED =
-  "shrink-0 text-[13px] font-medium rounded-full border border-zinc-200 bg-zinc-100/80 px-2.5 py-1.5 text-zinc-500";
-
 /** Glass как у «тегов» на этом экране: chip-подложка без отдельной нижней панели (tier A = 13px для mobile SEO). */
 const MOBILE_FS_CHIP =
   "text-[13px] font-medium bg-black/15 text-white/90 backdrop-blur-md shadow-none transition-colors hover:bg-black/25";
@@ -217,7 +211,7 @@ function CardPageClientOwned({ data, tagEntries, breadcrumbTag, isModal = false,
   );
 }
 
-function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListingNeighborGo, onCloseModal, onMobileNeighborCommit }: InnerProps) {
+function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo, onCloseModal, onMobileNeighborCommit }: InnerProps) {
   const router = useRouter();
   const { seedFromCard } = useGenerateDock();
   const {
@@ -504,12 +498,12 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   );
 
   const hasPrompts = data.promptTexts.length > 0;
-  const devushkiImmersive = isDevushkiCopyNudgeEligibleCard({
+  const girlsGenerateCta = isDevushkiCopyNudgeEligibleCard({
     seoTags: data.seo_tags,
     lastListingPath: null,
   });
-  const generateIdleLabel = devushkiImmersive ? DEVUSHKI_TRY_LABEL : "Повторить";
-  const generateIdleAria = devushkiImmersive ? DEVUSHKI_TRY_ARIA : undefined;
+  const generateIdleLabel = girlsGenerateCta ? DEVUSHKI_TRY_LABEL : "Повторить";
+  const generateIdleAria = girlsGenerateCta ? DEVUSHKI_TRY_ARIA : undefined;
   const hasPhotos = photos.length > 0;
   const videoUrl = data.videoUrl;
   const isPhotoshoot = isPhotoshootUgcListing({
@@ -760,7 +754,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
 
   const listingPrev = listingNavNeighbors?.prevSlug ?? null;
   const listingNext = listingNavNeighbors?.nextSlug ?? null;
-  const authorLabel = data.authorDisplayName || "Promptshot";
   const hasListingNeighbors = Boolean(listingPrev || listingNext);
 
   useEffect(() => {
@@ -979,10 +972,10 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
         </div>
       )}
 
-      {/* ── Hero (desktop split / mobile immersive) ── */}
+      {/* ── Hero: one photo frame on desktop, fullscreen on mobile ── */}
       {hasPhotos && (
         <>
-          {/* Desktop split from lg (1024): below that the listing is still the mobile shell, so the card is fullscreen. */}
+          {/* Desktop photo frame from lg (1024). Below that the card stays fullscreen. */}
           <div
             className={`relative mx-auto hidden w-fit max-w-full lg:flex lg:items-stretch lg:gap-5 ${
               isModal
@@ -1085,7 +1078,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     </div>
                   )}
                   {groupCards.length > 1 && (
-                    <div className={`pointer-events-none absolute left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 ${devushkiImmersive ? "bottom-[4.75rem]" : "bottom-2"}`}>
+                    <div className={`pointer-events-none absolute left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 ${hasPrompts ? "bottom-[4.75rem]" : "bottom-2"}`}>
                       <div className="pointer-events-auto flex items-center gap-1">
                         {groupCards.map((card) => {
                           const isActive = card.id === data.id;
@@ -1127,35 +1120,31 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     </div>
                   )}
                   <div className="absolute right-3 top-1/2 z-30 flex -translate-y-1/2 flex-col items-center gap-2">
-                    {devushkiImmersive ? (
-                      <>
-                        <ReactionButtons
-                          cardId={data.id}
-                          likesCount={data.likesCount}
-                          dislikesCount={data.dislikesCount}
-                          userReaction={userReaction}
-                          onToggle={toggleReaction}
-                          variant="overlay"
-                          stacked
-                        />
-                        <FavoriteButton
-                          cardId={data.id}
-                          isFavorited={isFavorited}
-                          onToggle={toggleFavorite}
-                          variant="overlay"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleShare}
-                          className={`${CARD_OVERLAY_ACTION_PILL} min-w-[2.75rem] text-white/70 transition-colors hover:text-white active:scale-95`}
-                          title="Поделиться"
-                          aria-label="Поделиться ссылкой на карточку"
-                        >
-                          <ShareIcon className="block shrink-0" size={16} />
-                        </button>
-                        <div className="my-0.5 h-px w-6 bg-white/25" aria-hidden />
-                      </>
-                    ) : null}
+                    <ReactionButtons
+                      cardId={data.id}
+                      likesCount={data.likesCount}
+                      dislikesCount={data.dislikesCount}
+                      userReaction={userReaction}
+                      onToggle={toggleReaction}
+                      variant="overlay"
+                      stacked
+                    />
+                    <FavoriteButton
+                      cardId={data.id}
+                      isFavorited={isFavorited}
+                      onToggle={toggleFavorite}
+                      variant="overlay"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleShare}
+                      className={`${CARD_OVERLAY_ACTION_PILL} min-w-[2.75rem] text-white/70 transition-colors hover:text-white active:scale-95`}
+                      title="Поделиться"
+                      aria-label="Поделиться ссылкой на карточку"
+                    >
+                      <ShareIcon className="block shrink-0" size={16} />
+                    </button>
+                    <div className="my-0.5 h-px w-6 bg-white/25" aria-hidden />
                     <StickyListingNavButton
                       slug={listingPrev}
                       direction="prev"
@@ -1169,7 +1158,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                       orientation="vertical"
                     />
                   </div>
-                  {devushkiImmersive && hasPrompts ? (
+                  {hasPrompts ? (
                     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black/55 via-black/15 to-transparent px-3 pb-3 pt-10">
                       <div className={`${MOBILE_PHOTO_ACTIONS_GRID} pointer-events-auto`}>
                         <button
@@ -1196,7 +1185,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                       </div>
                     </div>
                   ) : null}
-                  {devushkiImmersive && hasPrompts && mobilePromptOverlay ? (
+                  {hasPrompts && mobilePromptOverlay ? (
                     <div
                       role="dialog"
                       aria-modal="true"
@@ -1262,175 +1251,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
               )}
             </div>
 
-            {/* Right: light editorial details panel. Girls cards keep actions on the photo. */}
-            {!devushkiImmersive ? (
-            <aside
-              data-card-modal-surface={isModal ? "" : undefined}
-              className="flex h-full min-h-0 w-[min(100%,510px)] shrink-0 flex-col overflow-hidden rounded-2xl bg-white text-zinc-900 shadow-[0_18px_55px_-28px_rgba(24,24,27,0.32)] lg:w-[540px]"
-            >
-              <div className="flex items-start gap-3 border-b border-zinc-100 px-4 pb-4 pt-4">
-                <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-indigo-50 ring-1 ring-indigo-100">
-                  {data.authorAvatarUrl ? (
-                    <UserAvatarImage
-                      src={data.authorAvatarUrl}
-                      alt=""
-                      fill
-                      className="object-cover"
-                      sizes="40px"
-                      quality={60}
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-[13px] font-semibold text-indigo-600">
-                      {authorLabel.slice(0, 1).toUpperCase()}
-                    </div>
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13px] font-semibold text-zinc-900">
-                    {authorLabel}
-                  </div>
-                  <div className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-zinc-500">
-                    {title}
-                  </div>
-                  {!publishedLocal && data.viewerIsOwner && (
-                    <div className="mt-1 line-clamp-3 text-[13px] text-amber-700">
-                      {draftCopy}
-                    </div>
-                  )}
-                </div>
-                {showOwnerPublish && (
-                  <button
-                    type="button"
-                    disabled={pubSaving || pendingModeration}
-                    onClick={() => handleVisibilityChange(!publishedLocal)}
-                    className={`${OVERLAY_BUTTON_UA_RESET} inline-flex shrink-0 items-center gap-1 rounded-lg bg-zinc-100 px-2.5 py-1.5 text-[13px] font-semibold text-zinc-700 transition-colors hover:bg-zinc-200 disabled:opacity-50`}
-                  >
-                    {pubSaving ? "…" : publishedLocal ? "Скрыть" : pendingModeration ? "Модерация" : "На модерацию"}
-                    {!publishedLocal && !pendingModeration && repeatOffer ? (
-                      <PublishRewardBadge
-                        label={cardRepeatRewardBadgeLabel(repeatOffer.maxPerCard)}
-                        className="ml-1"
-                      />
-                    ) : null}
-                  </button>
-                )}
-              </div>
-              {pubStatus && (
-                <p className="px-4 pb-2 pt-2 text-[13px] text-red-600">{pubStatus}</p>
-              )}
-
-              {hasPrompts && (
-                <div className="flex min-h-0 flex-1 flex-col px-4 pt-3">
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-[13px] font-semibold text-zinc-700">Промпт</span>
-                    <span className="text-[13px] text-zinc-400">готов к использованию</span>
-                  </div>
-                  <div
-                    id="card-prompt-full"
-                    className="min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-xl border border-zinc-200/80 bg-zinc-50/80 p-3 shadow-inner shadow-zinc-950/[0.02] [-webkit-overflow-scrolling:touch]"
-                  >
-                    {visiblePromptTexts.map((text, i) => (
-                      <div key={`${visiblePromptIndex}-${i}`} className={i > 0 ? "mt-4 border-t border-zinc-200 pt-4" : ""}>
-                        {data.promptTexts.length > 1 && (
-                          <div className="mb-2 text-[13px] font-medium text-zinc-500">
-                            Промпт {visiblePromptIndex + i + 1}
-                          </div>
-                        )}
-                        <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-zinc-700">
-                          {text}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      void handleCopy();
-                    }}
-                    className={`${OVERLAY_BUTTON_UA_RESET} mt-2.5 flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50/90 px-4 py-2.5 text-[13px] font-semibold text-indigo-700 shadow-sm shadow-indigo-500/[0.08] transition-[background,border-color,box-shadow,transform] hover:border-indigo-300 hover:bg-indigo-100/80 hover:shadow-md hover:shadow-indigo-500/[0.12] active:scale-[0.98]`}
-                  >
-                    {stickyCopy === "ok" ? (
-                      <>
-                        <CheckIcon size={16} />
-                        Скопировано
-                      </>
-                    ) : stickyCopy === "fail" ? (
-                      <>
-                        <span className="text-amber-600" aria-hidden>!</span>
-                        Не удалось
-                      </>
-                    ) : (
-                      <>
-                        <CopyIcon size={16} />
-                        Скопировать промпт
-                      </>
-                    )}
-                  </button>
-                </div>
-              )}
-
-              {tagEntries.length > 0 && (
-                <DesktopPanelTags
-                  tags={tagEntries}
-                  resetKey={data.id}
-                  openInNewTab={isModal}
-                />
-              )}
-
-              <div className="mt-3 flex flex-wrap items-center gap-1.5 px-4">
-                <h2 className="sr-only">Отклики и шаринг</h2>
-                <ReactionButtons
-                  cardId={data.id}
-                  likesCount={data.likesCount}
-                  dislikesCount={data.dislikesCount}
-                  userReaction={userReaction}
-                  onToggle={toggleReaction}
-                  variant="surface"
-                />
-                <FavoriteButton
-                  cardId={data.id}
-                  isFavorited={isFavorited}
-                  onToggle={toggleFavorite}
-                  variant="surface"
-                />
-                <button
-                  type="button"
-                  onClick={handleShare}
-                  className={`${OVERLAY_BUTTON_UA_RESET} inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 active:scale-95`}
-                  title="Поделиться"
-                  aria-label="Поделиться ссылкой на карточку"
-                >
-                  <ShareIcon className="block shrink-0" size={16} />
-                </button>
-                <span className="ml-auto inline-flex items-center gap-1.5 text-[13px] text-zinc-500">
-                  <EyeIcon
-                    className={`shrink-0 ${viewCount > 0 ? "text-zinc-500" : "text-zinc-300"}`}
-                    size={16}
-                    aria-hidden
-                  />
-                  <span className={`tabular-nums ${viewCount > 0 ? "text-zinc-600" : "text-zinc-400"}`}>
-                    {formatCompactCount(viewCount)}
-                  </span>
-                </span>
-              </div>
-
-              <div className="mt-auto flex flex-col gap-2 border-t border-zinc-100 px-4 pb-4 pt-3">
-                {hasPrompts && (
-                  <LexyGptGenerateButton
-                    promptText={selectedPrompt}
-                    cardId={data.id}
-                    sourceImageUrl={currentPhoto ?? undefined}
-                    variant="desktop-panel"
-                    idleLabel={generateIdleLabel}
-                    idleAriaLabel={generateIdleAria}
-                    onInternalGenerate={openInlineGenerate}
-                  />
-                )}
-              </div>
-            </aside>
-            ) : null}
           </div>
 
           {/* Mobile: fullscreen-карточка (Chrome скрыт через CardPageLayout при наличии фото).
@@ -2093,96 +1913,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
           )}
 
         </>
-      )}
-    </div>
-  );
-}
-
-/** Desktop dark panel: tags capped to 2 rows, rest behind «Ещё». */
-function DesktopPanelTags({
-  tags,
-  resetKey,
-  openInNewTab = false,
-}: {
-  tags: TagEntry[];
-  resetKey: string;
-  /** Modal over listing: open category pages in a new tab so the overlay stays put. */
-  openInNewTab?: boolean;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const [needsMore, setNeedsMore] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const gapPx = 6; // gap-1.5
-
-  useLayoutEffect(() => {
-    setExpanded(false);
-  }, [resetKey]);
-
-  useLayoutEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-
-    const measure = () => {
-      const chip = el.querySelector<HTMLElement>("[data-tag-chip]");
-      if (!chip) {
-        setNeedsMore(false);
-        el.style.maxHeight = "";
-        return;
-      }
-      const maxH = chip.offsetHeight * 2 + gapPx;
-      if (expanded) {
-        el.style.maxHeight = "";
-        setNeedsMore(el.scrollHeight > maxH + 1);
-        return;
-      }
-      el.style.maxHeight = `${maxH}px`;
-      setNeedsMore(el.scrollHeight > maxH + 1);
-    };
-
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [tags, expanded, gapPx]);
-
-  return (
-    <div className="mt-3 px-4">
-      <h2 className="sr-only">Теги</h2>
-      <div
-        ref={wrapRef}
-        className={`flex flex-wrap gap-1.5 max-lg:scrollbar-none max-lg:flex-nowrap max-lg:overflow-x-auto max-lg:pb-1 ${
-          expanded ? "" : "overflow-hidden"
-        }`}
-      >
-        {tags.map(({ slug, label, href }) =>
-          href ? (
-            <Link
-              key={slug}
-              href={href}
-              data-tag-chip
-              className={DESKTOP_PANEL_CHIP}
-              {...(openInNewTab
-                ? { target: "_blank", rel: "noopener noreferrer" }
-                : {})}
-            >
-              {label}
-            </Link>
-          ) : (
-            <span key={slug} data-tag-chip className={DESKTOP_PANEL_CHIP_MUTED}>
-              {label}
-            </span>
-          )
-        )}
-      </div>
-      {needsMore && (
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className={`${OVERLAY_BUTTON_UA_RESET} mt-1.5 ${DESKTOP_PANEL_CHIP}`}
-          aria-expanded={expanded}
-        >
-          {expanded ? "Свернуть" : "Ещё"}
-        </button>
       )}
     </div>
   );
