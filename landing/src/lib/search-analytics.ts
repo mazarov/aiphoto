@@ -93,6 +93,34 @@ export function sanitizeMatchType(value: unknown): string | null {
   return cleaned ? cleaned.slice(0, 40) : null;
 }
 
+export const SEARCH_OUTCOMES = ["hybrid", "text", "text_fallback"] as const;
+export type SearchOutcomeValue = (typeof SEARCH_OUTCOMES)[number];
+
+export const SEARCH_EMBED_SOURCES = ["l1", "l2_db", "gemini", "none"] as const;
+export type SearchEmbedSourceValue = (typeof SEARCH_EMBED_SOURCES)[number];
+
+export function sanitizeSearchOutcome(value: unknown): SearchOutcomeValue | null {
+  if (typeof value !== "string") return null;
+  const cleaned = value.trim().toLowerCase();
+  return (SEARCH_OUTCOMES as readonly string[]).includes(cleaned)
+    ? (cleaned as SearchOutcomeValue)
+    : null;
+}
+
+export function sanitizeEmbedSource(value: unknown): SearchEmbedSourceValue | null {
+  if (typeof value !== "string") return null;
+  const cleaned = value.trim().toLowerCase();
+  return (SEARCH_EMBED_SOURCES as readonly string[]).includes(cleaned)
+    ? (cleaned as SearchEmbedSourceValue)
+    : null;
+}
+
+export function sanitizeFallbackReason(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const cleaned = value.trim().replace(/[\u0000-\u001f\u007f]/g, "");
+  return cleaned ? cleaned.slice(0, 48) : null;
+}
+
 export function sanitizeCardSlug(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const cleaned = value.trim().replace(/[\u0000-\u001f\u007f]/g, "");

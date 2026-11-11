@@ -5,6 +5,9 @@ import {
   canonicalizeSearchFilters,
   normalizeSearchQuery,
   resolveSearchIdForCommit,
+  sanitizeEmbedSource,
+  sanitizeFallbackReason,
+  sanitizeSearchOutcome,
 } from "./search-analytics";
 import { matchSearchNavClick } from "./search-nav-context";
 import { searchRequestKey, type SearchUrlFilters } from "./search-request";
@@ -24,6 +27,9 @@ export function recordCommittedSearch(input: {
   resultCount: number;
   hasMore: boolean;
   matchType: string | null;
+  searchOutcome?: string | null;
+  embedSource?: string | null;
+  fallbackReason?: string | null;
   limitSize: number;
   filters: SearchUrlFilters;
   existingSearchId?: string | null;
@@ -53,6 +59,9 @@ export function recordCommittedSearch(input: {
       resultCount: input.resultCount,
       hasMore: input.hasMore,
       matchType: input.matchType,
+      searchOutcome: sanitizeSearchOutcome(input.searchOutcome),
+      embedSource: sanitizeEmbedSource(input.embedSource),
+      fallbackReason: sanitizeFallbackReason(input.fallbackReason),
       limitSize: input.limitSize,
       filters,
       pagePath:

@@ -9,6 +9,9 @@ import {
   resolveSearchIdForCommit,
   searchDedupSignature,
   searchFiltersKey,
+  sanitizeEmbedSource,
+  sanitizeFallbackReason,
+  sanitizeSearchOutcome,
   sanitizeSearchPagePath,
 } from "./search-analytics";
 
@@ -101,4 +104,17 @@ test("sanitizeSearchPagePath requires a site path", () => {
   assert.equal(sanitizeSearchPagePath("/search?q=кошка"), "/search?q=кошка");
   assert.equal(sanitizeSearchPagePath("https://promptshot.ru/search"), null);
   assert.equal(sanitizeSearchPagePath(""), null);
+});
+
+test("sanitizes searchOutcome, embedSource, and fallbackReason", () => {
+  assert.equal(sanitizeSearchOutcome("hybrid"), "hybrid");
+  assert.equal(sanitizeSearchOutcome("text_fallback"), "text_fallback");
+  assert.equal(sanitizeSearchOutcome("unknown"), null);
+
+  assert.equal(sanitizeEmbedSource("l2_db"), "l2_db");
+  assert.equal(sanitizeEmbedSource("gemini"), "gemini");
+  assert.equal(sanitizeEmbedSource("bad"), null);
+
+  assert.equal(sanitizeFallbackReason("timeout"), "timeout");
+  assert.equal(sanitizeFallbackReason(""), null);
 });

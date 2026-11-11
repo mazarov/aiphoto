@@ -6,9 +6,12 @@ import {
   parseSearchFilters,
   sanitizeCardSlug,
   sanitizeClickPosition,
+  sanitizeEmbedSource,
+  sanitizeFallbackReason,
   sanitizeLimitSize,
   sanitizeMatchType,
   sanitizeResultCount,
+  sanitizeSearchOutcome,
   sanitizeSearchPagePath,
 } from "@/lib/search-analytics";
 import { sanitizeUuid } from "@/lib/visitor-id";
@@ -24,6 +27,9 @@ type SearchBody = {
   resultCount?: unknown;
   hasMore?: unknown;
   matchType?: unknown;
+  searchOutcome?: unknown;
+  embedSource?: unknown;
+  fallbackReason?: unknown;
   limitSize?: unknown;
   filters?: unknown;
   pagePath?: unknown;
@@ -31,6 +37,10 @@ type SearchBody = {
   position?: unknown;
   entry?: unknown;
 };
+
+function isMissingEventColumn(message: string): boolean {
+  return /column .* does not exist|PGRST204/i.test(message);
+}
 
 export async function POST(request: NextRequest) {
   const length = Number(request.headers.get("content-length") || 0);
@@ -57,7 +67,7 @@ export async function POST(request: NextRequest) {
     if (!query || resultCount == null || limitSize == null) {
       return NextResponse.json({ error: "invalid_event" }, { status: 400 });
     }
-    const { error } = await supabase.from("landing_search_events").insert({
+    const baseRow = {
       id: searchId,
       visitor_id: visitorId,
       session_id: sessionId,
@@ -69,7 +79,16 @@ export async function POST(request: NextRequest) {
       limit_size: limitSize,
       filters: parseSearchFilters(body?.filters),
       page_path: sanitizeSearchPagePath(body?.pagePath),
+    };
+    let { error } = await supabase.from("landing_search_events").insert({
+      ...baseRow,
+      search_outcome: sanitizeSearchOutcome(body?.searchOutcome),
+      embed_source: sanitizeEmbedSource(body?.embedSource),
+      fallback_reason: sanitizeFallbackReason(body?.fallbackReason),
     });
+    if (error && isMissingEventColumn(error.message)) {
+      ({ error } = await supabase.from("landing_search_events").insert(baseRow));
+    }
     if (error) {
       if (error.code === "23505") {
         return NextResponse.json({ ok: true, duplicate: true });

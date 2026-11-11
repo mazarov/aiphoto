@@ -49,6 +49,229 @@ function formatAvg(value: number): string {
   return value.toLocaleString("ru-RU", { maximumFractionDigits: 1 });
 }
 
+function ObservabilitySection({
+  obs,
+}: {
+  obs: SearchAnalyticsDashboardData["observability"];
+}) {
+  const { modeSplit, cardCoverage, queryVectors, visualEnabled } = obs;
+  const hybridWidth = Math.round(modeSplit.hybridShare * 100);
+  const readyVecWidth = Math.round(queryVectors.readyVectorShare * 100);
+  const geminiVecWidth = Math.round(queryVectors.sentToGeminiShare * 100);
+  const inQueue = cardCoverage.pending + cardCoverage.processing;
+
+  return (
+    <section className="grid gap-4 lg:grid-cols-3">
+      {/* 1. Эмбеддинги vs Текст */}
+      <div className={card}>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            Эмбеддинги vs Текст
+          </p>
+          <span
+            className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+              visualEnabled
+                ? "bg-emerald-50 text-emerald-700"
+                : "bg-zinc-100 text-zinc-600"
+            }`}
+          >
+            {visualEnabled ? "Hybrid ON" : "Visual OFF"}
+          </span>
+        </div>
+
+        <div className="mt-2 flex items-baseline justify-between gap-3">
+          <div>
+            <p className="text-3xl font-bold tabular-nums text-indigo-600">
+              {formatRate(modeSplit.hybridShare)}
+            </p>
+            <p className="text-xs text-zinc-500">
+              по эмбеддингам ({formatCount(modeSplit.hybridRequests)})
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-bold tabular-nums text-zinc-700">
+              {formatRate(modeSplit.textShare)}
+            </p>
+            <p className="text-xs text-zinc-500">
+              только текст ({formatCount(modeSplit.textOnlyRequests)})
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-3 flex h-2.5 w-full overflow-hidden rounded-full bg-zinc-100">
+          {modeSplit.totalRequests > 0 ? (
+            <>
+              <div
+                className="bg-indigo-600 transition-all"
+                style={{ width: `${hybridWidth}%` }}
+                title={`По эмбеддингам: ${formatCount(modeSplit.hybridRequests)}`}
+              />
+              <div
+                className="bg-zinc-300 transition-all"
+                style={{ width: `${Math.max(0, 100 - hybridWidth)}%` }}
+                title={`Только текст: ${formatCount(modeSplit.textOnlyRequests)}`}
+              />
+            </>
+          ) : null}
+        </div>
+
+        <p className="mt-3 text-xs text-zinc-500">
+          Всего запросов к движку:{" "}
+          <span className="font-semibold text-zinc-700">
+            {formatCount(modeSplit.totalRequests)}
+          </span>
+          {modeSplit.fallbackRequests > 0 ? (
+            <>
+              {" · "}fallback на текст:{" "}
+              <span className="font-semibold text-amber-600">
+                {formatCount(modeSplit.fallbackRequests)}
+              </span>
+            </>
+          ) : null}
+        </p>
+      </div>
+
+      {/* 2. Карточки без эмбеддинга */}
+      <div className={card}>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            Карточки без эмбеддинга
+          </p>
+          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-600">
+            gen {cardCoverage.generation}
+          </span>
+        </div>
+
+        <div className="mt-2 flex items-baseline justify-between gap-3">
+          <div>
+            <p
+              className={`text-3xl font-bold tabular-nums ${
+                cardCoverage.withoutEmbedding === 0
+                  ? "text-emerald-600"
+                  : "text-amber-600"
+              }`}
+            >
+              {formatCount(cardCoverage.withoutEmbedding)}
+            </p>
+            <p className="text-xs text-zinc-500">без эмбеддинга сейчас</p>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-bold tabular-nums text-zinc-900">
+              {formatRate(cardCoverage.coverageRate)}
+            </p>
+            <p className="text-xs text-zinc-500">
+              готово {formatCount(cardCoverage.ready)} из{" "}
+              {formatCount(cardCoverage.publishedWithPhoto)}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-3 flex h-2.5 w-full overflow-hidden rounded-full bg-zinc-100">
+          {cardCoverage.publishedWithPhoto > 0 ? (
+            <div
+              className="bg-emerald-500 transition-all"
+              style={{
+                width: `${Math.min(100, Math.round(cardCoverage.coverageRate * 100))}%`,
+              }}
+            />
+          ) : null}
+        </div>
+
+        <p className="mt-3 text-xs text-zinc-500">
+          В очереди:{" "}
+          <span className="font-semibold text-zinc-700">
+            {formatCount(inQueue)}
+          </span>
+          {" · "}повтор:{" "}
+          <span className="font-semibold text-zinc-700">
+            {formatCount(cardCoverage.retry)}
+          </span>
+          {cardCoverage.dead > 0 ? (
+            <>
+              {" · "}ошибки (dead):{" "}
+              <span className="font-semibold text-red-600">
+                {formatCount(cardCoverage.dead)}
+              </span>
+            </>
+          ) : null}
+        </p>
+      </div>
+
+      {/* 3. Ушло в Gemini за вектором vs Готовый вектор */}
+      <div className={card}>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            Запросы в Gemini за вектором
+          </p>
+          <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
+            в БД: {formatCount(queryVectors.storedVectorsTotal)}
+          </span>
+        </div>
+
+        <div className="mt-2 flex items-baseline justify-between gap-3">
+          <div>
+            <p className="text-3xl font-bold tabular-nums text-amber-600">
+              {formatCount(queryVectors.sentToGemini)}
+            </p>
+            <p className="text-xs text-zinc-500">
+              ушло в Gemini ({formatRate(queryVectors.sentToGeminiShare)})
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-bold tabular-nums text-emerald-600">
+              {formatCount(queryVectors.servedFromReadyVector)}
+            </p>
+            <p className="text-xs text-zinc-500">
+              готовый вектор ({formatRate(queryVectors.readyVectorShare)})
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-3 flex h-2.5 w-full overflow-hidden rounded-full bg-zinc-100">
+          {queryVectors.trackedRequests > 0 ? (
+            <>
+              <div
+                className="bg-emerald-500 transition-all"
+                style={{ width: `${readyVecWidth}%` }}
+                title={`Из готовых векторов (L1+L2): ${formatCount(queryVectors.servedFromReadyVector)}`}
+              />
+              <div
+                className="bg-amber-500 transition-all"
+                style={{ width: `${geminiVecWidth}%` }}
+                title={`Ушло в Gemini (не было вектора): ${formatCount(queryVectors.sentToGemini)}`}
+              />
+            </>
+          ) : null}
+        </div>
+
+        <p className="mt-3 text-xs text-zinc-500">
+          Кэш: БД{" "}
+          <span className="font-semibold text-zinc-700">
+            {formatCount(queryVectors.l2DbHits)}
+          </span>
+          {" / "}RAM{" "}
+          <span className="font-semibold text-zinc-700">
+            {formatCount(queryVectors.l1Hits)}
+          </span>
+          {queryVectors.geminiError > 0 ? (
+            <>
+              {" · "}таймаут Gemini:{" "}
+              <span className="font-semibold text-amber-600">
+                {formatCount(queryVectors.geminiError)}
+              </span>
+            </>
+          ) : null}
+          {" · "}лимит сегодня:{" "}
+          <span className="font-semibold text-zinc-700">
+            {formatCount(queryVectors.todayGeminiGlobalUsed)}/
+            {formatCount(queryVectors.todayGeminiGlobalLimit)}
+          </span>
+        </p>
+      </div>
+    </section>
+  );
+}
+
 function QueryTable({
   rows,
   empty,
@@ -185,8 +408,7 @@ export function SearchAnalyticsDashboard() {
           <p className="text-sm font-medium text-indigo-600">PromptShot Admin</p>
           <h1 className="text-3xl font-bold tracking-tight text-zinc-900">Поиск</h1>
           <p className="mt-1 text-sm text-zinc-500">
-            Зафиксированные запросы с /search: первая страница, размер выдачи и клик в карточку.
-            Инлайн-превью и набор по буквам не пишутся.
+            Состояние гибридного движка, покрытие каталога эмбеддингами и конверсия запросов /search.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -211,9 +433,11 @@ export function SearchAnalyticsDashboard() {
         <div className={`${card} text-red-600`}>{state.error}</div>
       ) : data && summary ? (
         <>
+          <ObservabilitySection obs={data.observability} />
+
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             {[
-              ["Поиски", formatCount(summary.searches)],
+              ["Поиски (/search)", formatCount(summary.searches)],
               ["Уники", formatCount(summary.uniqueVisitors)],
               ["Нулевая выдача", formatRate(summary.zeroResultRate)],
               ["CTR в карточку", formatRate(summary.ctr)],

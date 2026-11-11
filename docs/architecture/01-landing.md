@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-11-11 (**наблюдаемость поиска в `/admin/search` (SQL `281`):** сверху дашборда добавлены 3 карточки состояния движка: 1) доля поиска по эмбеддингам (`hybrid`) vs только текст (`text` + `text_fallback`); 2) число опубликованных карточек без эмбеддинга (`published_with_photo - ready`) + покрытие и очередь (`pending/processing/retry/dead`); 3) число запросов, реально ушедших в Gemini за вектором (когда готового вектора не было) против обслуженных готовыми векторами из `L2 search_query_embeddings` и `L1 RAM` + объём базы готовых векторов и дневной лимит Gemini. Телеметрия первых страниц (`offset=0`) пишется через `after()` в `search_engine_daily_stats` (`record_search_engine_telemetry`), в `landing_search_events` добавлены `search_outcome`/`embed_source`/`fallback_reason`, чтение — RPC `admin_search_observability`. Спека `docs/11-11-admin-search-observability.md`.)
+
 > Последнее обновление: 2026-11-11 (**гибридный поиск V2 (SQL `280`):** 1) Флаги перенесены в `landing_generation_config`: `search_visual_enabled` (default `false`; на проде `true` до деплоя контейнера) и `search_visual_max_distance` (`0.70`, кэш конфига 30 с; `SEARCH_VISUAL_ENABLED` из env удалён). 2) Двухуровневый кэш query-эмбеддингов `/api/search`: `L1 RAM LRU` (2000 ключей, 60 мин) → `L2 Postgres` `search_query_embeddings` (`get_search_query_embedding` до лимитов и Gemini, write-behind `upsert_search_query_embedding` в `after()` для запросов `2..80` симв.). 5-минутный крон догревает чипы подсказок + до 10 популярных запросов из `landing_search_events` (`list_uncached_popular_search_queries`, timeout 8 с, actor `system`), раз в час обновляет `prompt_cards.search_clicks_30d` (`refresh_card_search_clicks_30d`), раз в сутки (03:00 UTC) чистит одноразовый хвост старше 90 дней (`prune_search_query_embeddings`). 3) 10-минутный `searchResultCache` (топ-240 карточек) отдаёт `offset > 0` скролл за `< 1 мс` без повторного SQL/ANN. 4) Порог `p_max_distance` в 9-арг `search_cards_visual` отсекает нерелевантный хвост ANN. 5) `search_cards_text` V2: `ё → е`, `title_en` в `fts` + GIN `idx_cards_title_en_trgm`, двусторонние RU/EN синонимы (`search-query-normalize.ts`), мягкий кворум `(N-1)` из `N` для 3+ слов (`fts_soft`, потолок `< 200`). 6) В Tier 2 ранкера добавлен логарифмический tie-breaker по `search_clicks_30d` и `view_count` (cap `0.0045`). Спека `docs/11-11-search-hybrid-v2.md`.)
 
 > Последнее обновление: 2026-11-09 (**десктоп карточки с фото:** любой `/p/[slug]` с фото, и модалка с листинга, рисует один кадр. Белая колонка справа (промпт, теги, лайки) убрана. Лайк, избранное, шаринг, «Промпт» и генерация лежат на фото, как раньше только у `audience_tag=devushka`. Подпись «Повторить на своём фото» и гостевой старт сразу в загрузку фото остаются только у карточки `devushka`.
@@ -1257,7 +1259,7 @@ SEO-кадры `/generaciya` → Только эти 25 URL (`isGeneraciyaSeoIma
 | `/api/admin/runtime-memory` | GET, admin auth, no-store: RSS, heap, external, cgroup `anon`/`file`, счётчики маршрутов и очередь sharp |
 | `/api/admin/nps` | GET, admin auth, no-store: KPI/daily/ответы NPS за `1\|7\|30\|90` дней; RPC `admin_nps_summary` + `admin_nps_daily` + `admin_nps_responses` |
 | `/api/nps` | POST, публичный HMAC: `{ token, score 1–10, comment? }` → `landing_nps_submit` |
-| `/api/admin/search-analytics` | GET, admin auth: no-store KPI/daily/топ/нулевая выдача поиска за `1…90` дней; RPC `admin_search_summary` + `admin_search_queries` |
+| `/api/admin/search-analytics` | GET, admin auth: no-store KPI/daily/топ/нулевая выдача + наблюдаемость движка (`admin_search_observability`: доля hybrid vs text, карточки без эмбеддинга, запросы в Gemini vs готовые векторы L1/L2) за `1…90` дней |
 | `/api/admin/credits` | GET, admin auth: live остаток + daily flow (`days=1\|7\|30\|90`) + keyset-список (`q`, remaining/granted/spent/share) |
 | `/api/admin/finance` | GET, admin auth: KPI за `from`/`to` (или `month=YYYY-MM`); `csv=1` — uploaded override, иначе live ledger/gens + Direct API |
 | `/api/admin/seo-watchlist` | GET, admin auth: снимок топ-30 URL + запросы/дни из `seo-watchlist-snapshot.json` |
@@ -2042,6 +2044,7 @@ SEO листинга L1/L2/L3:
 | `prompt_card_media` | Фото (storage_bucket, storage_path, is_primary) |
 | `prompt_card_visual_embeddings` | 768-d Gemini image embeddings, versioned by `generation` (SQL `192`) |
 | `search_query_embeddings` | Вечный L2-кэш 768-d Gemini **query** vectors для `/api/search` (`query_hash`, `hit_count`, `last_used_at`). Write-behind в `after()` + cron warm/prune (SQL `280`) |
+| `search_engine_daily_stats` | Суточные счётчики первых страниц `GET /api/search`: `hybrid` vs `text`, походы в Gemini за вектором vs попадания в готовые векторы `L1/L2` (SQL `281`, service_role) |
 | `listing_query_embeddings` | 768-d Gemini **query** vectors только для birthday listing SSOT `q` (SQL `223`) |
 | `prompt_card_visual_embedding_jobs` | Outbox/lease для индексации канонического фото |
 | `prompt_card_visual_search_config` | Active generation / model singleton |
@@ -2099,6 +2102,7 @@ SEO листинга L1/L2/L3:
 | `admin_analytics_top_users` | Service-only топ-50 по allowed-запросам за `p_days` |
 | `admin_search_summary` | Service-only KPI поиска за `p_days` (SQL `254`) |
 | `admin_search_queries` | Service-only топ / нулевая выдача по `query_norm` за `p_days` (SQL `254`) |
+| `admin_search_observability` / `record_search_engine_telemetry` | Service-only сводка `/admin/search` (доля hybrid/text, карточки без эмбеддинга, походы в Gemini vs готовые векторы) и фоновый учёт первых страниц `/api/search` (SQL `281`) |
 | `landing_nps_ensure_survey` / `landing_nps_submit` | Service-only upsert invite и запись оценки 1–10 (SQL `255`) |
 | `admin_nps_summary` / `admin_nps_daily` / `admin_nps_responses` | Service-only KPI, дни Москва, таблица email/score/comment (SQL `255`) |
 | `admin_credit_daily_flow` | Service-only дневные начисления (ЮKassa/Stars/publish rewards), списания и возвраты генераций |

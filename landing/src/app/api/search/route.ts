@@ -79,16 +79,42 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    if (hybrid.liveEmbedToPersist) {
+    if (hybrid.liveEmbedToPersist || offset === 0) {
       const payload = hybrid.liveEmbedToPersist;
+      const shouldRecordTelemetry = offset === 0;
+      const telemetryOutcome = hybrid.outcome;
+      const telemetrySource = hybrid.embedSource;
+      const telemetryReason = hybrid.fallbackReason ?? null;
+
       after(async () => {
-        await persistSearchQueryEmbedding({
-          supabase: createSupabaseServer(),
-          query: payload.query,
-          queryHash: payload.queryHash,
-          vector: payload.vector,
-          config: payload.config,
-        });
+        const bgSupabase = createSupabaseServer();
+        const tasks: Promise<unknown>[] = [];
+
+        if (payload) {
+          tasks.push(
+            persistSearchQueryEmbedding({
+              supabase: bgSupabase,
+              query: payload.query,
+              queryHash: payload.queryHash,
+              vector: payload.vector,
+              config: payload.config,
+            }),
+          );
+        }
+
+        if (shouldRecordTelemetry) {
+          tasks.push(
+            Promise.resolve(
+              bgSupabase.rpc("record_search_engine_telemetry", {
+                p_outcome: telemetryOutcome,
+                p_embed_source: telemetrySource,
+                p_fallback_reason: telemetryReason,
+              }),
+            ).catch(() => {}),
+          );
+        }
+
+        await Promise.allSettled(tasks);
       });
     }
 
@@ -100,6 +126,9 @@ export async function GET(req: NextRequest) {
       cards: enriched,
       query: q,
       matchType: hybrid.matchType,
+      searchOutcome: hybrid.outcome,
+      embedSource: hybrid.embedSource,
+      fallbackReason: hybrid.fallbackReason ?? null,
     });
     res.headers.set("Cache-Control", "public, s-maxage=30, stale-while-revalidate=120");
     res.headers.set(
