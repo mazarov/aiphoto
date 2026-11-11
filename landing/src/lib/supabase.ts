@@ -284,7 +284,12 @@ export async function countCardsFiltered(params: {
   return (data || []).length;
 }
 
-export type SearchTextResult = RouteCard & { match_type: string };
+export type SearchTextResult = RouteCard & {
+  match_type: string;
+  search_clicks_30d?: number;
+  view_count?: number;
+  source_date?: string | null;
+};
 
 export type SearchCardFilters = {
   audience_tag?: string | null;
@@ -311,6 +316,7 @@ export async function searchCardsByText(
   limit = 24,
   offset = 0,
   filters: SearchCardFilters = {},
+  synonymQuery?: string | null,
 ): Promise<SearchTextResult[]> {
   const supabase = createSupabaseServer();
   let { data, error } = await supabase.rpc("search_cards_text", {
@@ -318,9 +324,20 @@ export async function searchCardsByText(
     p_limit: limit,
     p_offset: offset,
     ...searchFilterRpcArgs(filters),
+    p_synonym_query: synonymQuery ?? null,
   });
 
-  // Keep deploy order safe when app code reaches production before migration 194.
+  // Rolling-deploy fallback: 7-arg overload (migration 194/222) before migration 280.
+  if (error && isMissingFilteredSearchRpc(error.message)) {
+    ({ data, error } = await supabase.rpc("search_cards_text", {
+      p_query: query,
+      p_limit: limit,
+      p_offset: offset,
+      ...searchFilterRpcArgs(filters),
+    }));
+  }
+
+  // Rolling-deploy fallback: 3-arg overload before migration 194.
   if (error && isMissingFilteredSearchRpc(error.message)) {
     ({ data, error } = await supabase.rpc("search_cards_text", {
       p_query: query,
@@ -346,20 +363,34 @@ export async function searchCardsByVisualEmbedding(
   offset = 0,
   generation?: number,
   filters: SearchCardFilters = {},
+  maxDistance?: number | null,
 ): Promise<SearchVisualResult[]> {
   const supabase = createSupabaseServer();
+  const rpcEmbedding = `[${embedding.join(",")}]`;
   let { data, error } = await supabase.rpc("search_cards_visual", {
-    p_embedding: `[${embedding.join(",")}]`,
+    p_embedding: rpcEmbedding,
     p_limit: limit,
     p_offset: offset,
     p_generation: generation ?? null,
     ...searchFilterRpcArgs(filters),
+    p_max_distance: maxDistance ?? null,
   });
 
-  // Keep deploy order safe when app code reaches production before migration 194.
+  // Rolling-deploy fallback: 8-arg overload (migration 194) before migration 280.
   if (error && isMissingFilteredSearchRpc(error.message)) {
     ({ data, error } = await supabase.rpc("search_cards_visual", {
-      p_embedding: `[${embedding.join(",")}]`,
+      p_embedding: rpcEmbedding,
+      p_limit: limit,
+      p_offset: offset,
+      p_generation: generation ?? null,
+      ...searchFilterRpcArgs(filters),
+    }));
+  }
+
+  // Rolling-deploy fallback: 4-arg overload before migration 194.
+  if (error && isMissingFilteredSearchRpc(error.message)) {
+    ({ data, error } = await supabase.rpc("search_cards_visual", {
+      p_embedding: rpcEmbedding,
       p_limit: limit,
       p_offset: offset,
       p_generation: generation ?? null,

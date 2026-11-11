@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-11-11 (**гибридный поиск V2 (SQL `280`):** 1) Флаги перенесены в `landing_generation_config`: `search_visual_enabled` (default `false`; на проде `true` до деплоя контейнера) и `search_visual_max_distance` (`0.70`, кэш конфига 30 с; `SEARCH_VISUAL_ENABLED` из env удалён). 2) Двухуровневый кэш query-эмбеддингов `/api/search`: `L1 RAM LRU` (2000 ключей, 60 мин) → `L2 Postgres` `search_query_embeddings` (`get_search_query_embedding` до лимитов и Gemini, write-behind `upsert_search_query_embedding` в `after()` для запросов `2..80` симв.). 5-минутный крон догревает чипы подсказок + до 10 популярных запросов из `landing_search_events` (`list_uncached_popular_search_queries`, timeout 8 с, actor `system`), раз в час обновляет `prompt_cards.search_clicks_30d` (`refresh_card_search_clicks_30d`), раз в сутки (03:00 UTC) чистит одноразовый хвост старше 90 дней (`prune_search_query_embeddings`). 3) 10-минутный `searchResultCache` (топ-240 карточек) отдаёт `offset > 0` скролл за `< 1 мс` без повторного SQL/ANN. 4) Порог `p_max_distance` в 9-арг `search_cards_visual` отсекает нерелевантный хвост ANN. 5) `search_cards_text` V2: `ё → е`, `title_en` в `fts` + GIN `idx_cards_title_en_trgm`, двусторонние RU/EN синонимы (`search-query-normalize.ts`), мягкий кворум `(N-1)` из `N` для 3+ слов (`fts_soft`, потолок `< 200`). 6) В Tier 2 ранкера добавлен логарифмический tie-breaker по `search_clicks_30d` и `view_count` (cap `0.0045`). Спека `docs/11-11-search-hybrid-v2.md`.)
+
 > Последнее обновление: 2026-11-09 (**десктоп карточки с фото:** любой `/p/[slug]` с фото, и модалка с листинга, рисует один кадр. Белая колонка справа (промпт, теги, лайки) убрана. Лайк, избранное, шаринг, «Промпт» и генерация лежат на фото, как раньше только у `audience_tag=devushka`. Подпись «Повторить на своём фото» и гостевой старт сразу в загрузку фото остаются только у карточки `devushka`.
 
 > Последнее обновление: 2026-11-08 (**премодерация публикации и кредит за повтор:** SQL `279` применять до выката кода: `/p/[slug]` читает `prompt_cards.moderation_status`. Пользовательский `POST /api/generations/[id]/publish` и `PATCH /api/my-cards/[slug]/visibility` с `published: true` больше не ставят карточку на витрину: `submitPromptCardForModeration` пишет `moderation_status=pending`, `is_published` остаётся false. Уже живая карточка (и «обновить промпты» фотосессии) по-прежнему идёт через `publishPromptCard`. Мгновенный бонус выключен (`publish_reward_enabled=false`). Админский список «Генерации пользователей» получает фильтр `pending_moderation` и колонку `moderation_status` (RPC `admin_user_generations_queue` пересоздан). Одобрение — прежний `POST /api/admin/user-generations/[id]/publish` (`moderation_status=approved`, триггер на `is_published` false→true тоже ставит `approved`). Отклонение — `POST /api/admin/user-generations/[id]/reject` (`rejected`, `is_published=false`). Награда за повтор — не воркер и не смена `landing_complete_generation`: AFTER UPDATE триггер на `landing_generations.status` → `completed` вызывает `landing_grant_card_repeat_reward`. Платит только чужая платная корневая генерация по `card_id` живой карточки: +1 кредит автору, кэп 50 на карточку (`card_repeat_reward_*` в `landing_generation_config`). Письмо `card_repeat_reward` кладётся в `landing_mail_outbox` из той же функции; сбой почты не откатывает кредит, сбой начисления не валит complete. В финансах грант входит в дневной поток и в 5-арг `admin_credit_liabilities`. Список `/generations` отдаёт `moderationStatus`.
@@ -1237,8 +1239,8 @@ SEO-кадры `/generaciya` → Только эти 25 URL (`isGeneraciyaSeoIma
 | `/api/payments/yookassa/webhook` | POST public callback: принимает `payment.succeeded` / `payment.canceled`, перечитывает объект через YooKassa API и идемпотентно обновляет ledger/баланс |
 | `/api/health` | GET, без авторизации: `select id` из `landing_generations` с таймаутом 2 с. `200 { ok: true }` или `503 { ok: false }`. Тело ошибки наружу не отдаёт |
 | `/api/cron/ops-snapshot` | POST, `Authorization: Bearer $CRON_SECRET`: `ops_product_snapshot` и JSON-лог `event=product_snapshot`. Тот же снимок пишет минутный крон ЮKassa |
-| `/api/cron/yookassa-reconcile` | POST, `Authorization: Bearer $CRON_SECRET`: batch `reconcileStaleYooKassaPayments` для `created|pending` старше 1 мин (limit 20), затем `flushUnsentYandexPurchaseConversions`. В `finally` — `logProductSnapshot`; ошибка снимка не меняет ответ сверки. На минутах UTC, кратных 5, `after()` забирает 8 visual-embedding jobs |
-| `/api/cron/visual-embeddings` | POST, `Authorization: Bearer $CRON_SECRET`: enqueue missing canonical-photo embeddings + claim/lease Gemini Embedding 2 batch (default 8) + warm birthday listing query vectors (`listing_query_embeddings`). При `card_subject_audience_enabled=true` тем же запросом добирает до 8 карточек subject-audience (`claim_subject_audience_batch`); ошибка subject не роняет embeddings. Расписание в проде — тик ЮKassa каждые 5 минут, не отдельный job |
+| `/api/cron/yookassa-reconcile` | POST, `Authorization: Bearer $CRON_SECRET`: batch `reconcileStaleYooKassaPayments` для `created|pending` старше 1 мин (limit 20), затем `flushUnsentYandexPurchaseConversions`. В `finally` — `logProductSnapshot`; ошибка снимка не меняет ответ сверки. На минутах UTC, кратных 5, `after()` забирает 8 visual-embedding jobs + догревает чипы и топ-10 популярных поисковых векторов (`warmPopularSearchQueryEmbeddings`) |
+| `/api/cron/visual-embeddings` | POST, `Authorization: Bearer $CRON_SECRET`: enqueue missing canonical-photo embeddings + claim/lease Gemini Embedding 2 batch (default 8) + warm birthday listing query vectors (`listing_query_embeddings`) + warm search query vectors (`search_query_embeddings`, чипы + `landing_search_events`) + hourly `refresh_card_search_clicks_30d` + daily `prune_search_query_embeddings`. При `card_subject_audience_enabled=true` тем же запросом добирает до 8 карточек subject-audience (`claim_subject_audience_batch`); ошибка subject не роняет embeddings. Расписание в проде — тик ЮKassa каждые 5 минут, не отдельный job |
 | `/api/cron/mail-outbox` | POST, `Authorization: Bearer $CRON_SECRET`: claim/lease `landing_mail_outbox` → Postbox SESv2 (1 To / call, ≥1.1s gap, circuit 3/60s). Claim: transactional → lifecycle marketing → campaign. Без ключей — `{ configured: false }` |
 | `/api/cron/mail-due` | POST, `Authorization: Bearer $CRON_SECRET`: claim `landing_mail_due` (один user / тик) → `evaluateMailDue` → грант при % → `landing_enqueue_mail`. Generate SMTP не ждёт |
 | `/api/cron/analyze-history` | POST, `Authorization: Bearer $CRON_SECRET`: TTL 5 дней для `analyze_history` + объектов `analyze-history`; default limit 1000, max 4000; сначала Storage `remove`, потом DELETE строк |
@@ -1801,21 +1803,25 @@ getFirstTagFromSeoTags(seo_tags)        ← breadcrumb
 ```
 SearchResults (client, infinite scroll)
   → /api/search?q=&audience=&style=&occasion=&object=&limit=48&offset=N
-  → параллельно: filtered search_cards_text + (если SEARCH_VISUAL_ENABLED)
-    Gemini embed → filtered search_cards_visual
-  → lexical guard + weighted RRF (окно ≤ 500)
+  → searchResultCache (RAM 10 мин, топ-240 карточек для offset+limit ≤ 240)
+  → при miss параллельно:
+      • filtered search_cards_text v2 (ё→е, RU+EN FTS, (N-1)/N quorum soft FTS, title_ru/en trgm, RU/EN синонимы)
+      • (если landing_generation_config.search_visual_enabled=true)
+        L1 RAM LRU (2000, 60м) → L2 Postgres search_query_embeddings → Gemini embed (800 мс) + after() persist
+        → filtered search_cards_visual v2 (HNSW + search_visual_max_distance)
+  → lexical guard + weighted RRF + Tier-2 CTR/views boost
   → enrichCardsWithDetails(cards)
   → защитная client-side проверка seo_tags
 ```
 
 - Desktop (`lg+`): тот же explorer-блок, что у `/[...slug]` и `/trends` (`ListingExplorerFrame` + `ListingExplorerSearch`). Компактное поле в шапке не показывается — одно поле ввода. `ListingDesktopFilters` и mobile `FilterFAB` только после выдачи (`searched && cards.length > 0`); до запроса и при пустом результате фильтры скрыты.
 - **Возврат с карточки:** soft `pushState /p/slug` не должен сбрасывать infinite-scroll. URL-sync (`resolveSearchUrlSync`) игнорирует overlay; in-memory snapshot переживает remount `SearchResults`; позиция — как у каталога (`SCROLL_KEY` + `scheduleListingScrollRestore`). Новый ввод в поле по-прежнему debounce 500 мс + `resetListingScroll()`.
-- Пагинация детерминированная: `48` карточек на порцию (как каталог; без расширения групп в поиске). Hybrid собирает окно с offset 0 и режет страницу в приложении.
+- Пагинация детерминированная: `48` карточек на порцию (как каталог; без расширения групп в поиске). Для `offset + limit ≤ 240` первый запрос материализует 240 отранжированных карточек в 10-минутный `searchResultCache` (только при `outcome ≠ text_fallback`); страницы скролла `offset = 48..192` режутся из памяти за `< 1 мс` и зовут только `enrichCardsWithDetails`. Глубже 240 — прямой расчёт до окна 500.
 - Фильтры `audience/style/occasion/object` входят в request identity и применяются в text/visual RPC до ранжирования и пагинации. Изменение только фильтра запускает новый server search; ввод нового query сохраняет фильтры URL.
-- Текстовое ранжирование: морфология (`prompt_cards.fts`, где уже денормализованы `title_ru` и RU-тексты промтов) + typo/substring fallback (`trigram` только по `title_ru`). Полные `prompt_variants.prompt_text_ru` на read path повторно не сканируются.
-- Visual branch: `gemini-embedding-2` 768-d, timeout **800 мс** на `/api/search`, **8000 мс** на birthday listing cache-fill (`LISTING_HYBRID_EMBED_TIMEOUT_MS`), IP/global daily budget, LRU/single-flight, circuit breaker. Listing SSOT сначала читает `listing_query_embeddings`; Gemini только на miss, потом upsert. Любой сбой → текущий FTS без HTTP 429. Fallback листинга не кэшируется.
-- Hybrid rank: exact title и strong FTS выше visual-only; остальные — weighted RRF. `matchType`: `fts` / `trgm` / `visual` / `fts+visual` / `trgm+visual`.
-- Защита нагрузки: максимум 160 символов, `limit ≤ 100`, debounce 500 мс; публичные клиенты отменяют устаревшие запросы. `/api/search` возвращает `Server-Timing: search-text, search-embed, search-vector, search-rank, search-enrich`; медленные и fallback-запросы логируются без текста запроса.
+- Текстовое ранжирование (SQL `280`): морфология `prompt_cards.fts` (`title_ru` A + `title_en` english A / simple B + `prompt_text_ru` B, везде `ё → е`), двусторонние RU/EN синонимы (`search-query-normalize.ts`: `чб`, `олд мани`, `полароид`, `киберпанк`, `аниме`, `авто`, `др`), кворумный `fts_soft` `(N-1)` из `N` для запросов 3+ слов (потолок `relevance_score ≤ 195`) + триграммы по `title_ru` и `title_en`.
+- Visual branch (SQL `192`, `280`): фичефлаги в `landing_generation_config` (`search_visual_enabled`, `search_visual_max_distance`, default `0.70`, кэш чтения 30 с). Двухуровневый кэш векторов запросов: `L1 RAM LRU` (2000 ключей, 60 мин) → `L2 Postgres` `search_query_embeddings` (PK lookup без списания бюджета Gemini) → live `gemini-embedding-2` 768-d (timeout **800 мс** на `/api/search`, **8000 мс** на birthday listing и cron warm) с write-behind записью в `search_query_embeddings` через `after()` для запросов `2..80` симв. Любой сбой Gemini → FTS без HTTP 429; при активном `search_visual_max_distance` пустой ANN означает отсечение нерелевантного хвоста, а не аварийный fallback.
+- Hybrid rank: Tier 0 exact title (включая `ё/е`), Tier 1 strong FTS (`relevance_score ≥ 200`), Tier 2 weighted RRF + ограниченный логарифмический бонус вовлечённости по `search_clicks_30d` и `view_count` (`cap 0.0045`). `matchType`: `fts` / `fts_soft` / `trgm` / `visual` / `fts+visual` / `trgm+visual`.
+- Защита нагрузки: максимум 160 символов, `limit ≤ 100`, debounce 500 мс; публичные клиенты отменяют устаревшие запросы. `/api/search` возвращает `Server-Timing: search-text, search-embed (desc=l1|l2_db|gemini|none), search-vector, search-rank, search-enrich, search-rcache (hit|miss)`; медленные и fallback-запросы логируются с `embedSource` и `resultCacheHit` без текста запроса.
 - **Аналитика поиска:** после успешной первой страницы `SearchResults` шлёт `POST /api/search-events` (`event=search`) с клиентским `search_id`, `query`, `result_count`, `has_more`, `match_type`, фильтрами. Клик по карточке из этой выдачи — `search_click` (модалка и `/p/{slug}`), position из `promptshot_search_nav_v1` (не общий listing-nav). Пагинация тот же `search_id`. Инлайн-превью и `/api/listing?q=` не пишутся. Админка: вкладка `/admin/search` (`SearchAnalyticsDashboard`). SQL `254`.
 
 ### Catalog admin (вместо `/debug`)
@@ -2035,7 +2041,8 @@ SEO листинга L1/L2/L3:
 | `prompt_variants` | Тексты промтов (prompt_text_ru, prompt_text_en) |
 | `prompt_card_media` | Фото (storage_bucket, storage_path, is_primary) |
 | `prompt_card_visual_embeddings` | 768-d Gemini image embeddings, versioned by `generation` (SQL `192`) |
-| `listing_query_embeddings` | 768-d Gemini **query** vectors только для birthday listing SSOT `q` (SQL `223`). Не общий кэш `/api/search` |
+| `search_query_embeddings` | Вечный L2-кэш 768-d Gemini **query** vectors для `/api/search` (`query_hash`, `hit_count`, `last_used_at`). Write-behind в `after()` + cron warm/prune (SQL `280`) |
+| `listing_query_embeddings` | 768-d Gemini **query** vectors только для birthday listing SSOT `q` (SQL `223`) |
 | `prompt_card_visual_embedding_jobs` | Outbox/lease для индексации канонического фото |
 | `prompt_card_visual_search_config` | Active generation / model singleton |
 | `visual_search_rate_limit` | IP + global дневной бюджет query embeddings |
@@ -2069,8 +2076,11 @@ SEO листинга L1/L2/L3:
 | `get_filter_counts` | Счётчики тегов для текущей выборки (`useListingFilterCounts`) |
 | `get_homepage_sections` | Секции главной |
 | `search_cards_filtered` | Фильтрованный поиск |
-| `search_cards_text` | Полнотекстовый поиск; overload с dimension-фильтрами до rank/pagination — миграция `194` |
-| `search_cards_visual` | ANN по active generation image embeddings (миграция `192`; исправление ambiguous config `id` — `193`; overload с dimension-фильтрами — `194`) |
+| `search_cards_text` | Полнотекстовый поиск; V2 8-арг overload с `ё→е`, `title_en`, кворумом `(N-1)/N`, `p_synonym_query` и полями вовлечённости — миграция `280` (совместим с 3/7-арг из `194`/`222`) |
+| `search_cards_visual` | ANN по active generation image embeddings; V2 9-арг overload с `p_max_distance` и полями вовлечённости — миграция `280` (совместим с 4/8-арг из `192`/`194`) |
+| `get_search_query_embedding` / `upsert_search_query_embedding` | Read/write L2 кэша query-эмбеддингов `/api/search` (SQL `280`, service_role) |
+| `list_uncached_popular_search_queries` / `prune_search_query_embeddings` | Подбор популярных запросов из `landing_search_events` для прогрева и суточная очистка одноразового хвоста старше 90 дней (SQL `280`) |
+| `refresh_card_search_clicks_30d` | Часовой пересчёт `prompt_cards.search_clicks_30d` из `landing_search_clicks` (SQL `280`) |
 | `claim_visual_embedding_jobs` / `complete_visual_embedding_job` / `fail_visual_embedding_job` | Lease-outbox для backfill фото |
 | `visual_embedding_coverage` | Coverage published+photo vs ready embeddings |
 | `visual_search_rate_limit_increment` | Атомарный IP + global бюджет Gemini query embeds |
@@ -2343,8 +2353,7 @@ Stdout на Dockhost пропадает вместе с контейнером. 
 | `MAIL_UNSUBSCRIBE_SECRET` | HMAC для `/unsubscribe` и one-click |
 | `POSTBOX_WEBHOOK_SECRET` | Bearer / `X-Postbox-Secret` для bounce webhook |
 | `POSTBOX_TEST_ALLOWLIST` | Пока задан, cron шлёт только эти адреса; остальные claimed → `skipped/allowlist` |
-| `SEARCH_VISUAL_ENABLED` | `1` включает Gemini visual branch в `/api/search` и birthday SSOT `/api/listing?q=` / SSR; default off |
-| `SEARCH_VISUAL_SYSTEM_DAILY_LIMIT` | Дневной IP-лимит actor `system` (listing SSR/cache refresh); default 10000. Не делит user-60 |
+| `SEARCH_VISUAL_SYSTEM_DAILY_LIMIT` | Дневной IP-лимит actor `system` (listing SSR/cache refresh + cron query warm); default 10000. Не делит user-60. Видимость и порог расстояния живут в БД `landing_generation_config` (`search_visual_enabled`, `search_visual_max_distance`), не в env |
 | `GEMINI_EMBEDDING_MODEL` | Default `gemini-embedding-2` |
 | `GEMINI_EMBEDDING_USE_PROXY` | Default on: `embedContent` через `GEMINI_PROXY_BASE_URL`. `0` — напрямую в Google |
 | `SEARCH_VISUAL_GENERATION` | Active embedding generation (default 1) |

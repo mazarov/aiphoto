@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureBirthdayListingQueryEmbeddings } from "@/lib/listing-query-embedding";
-import { createSupabaseServer } from "@/lib/supabase";
 import { noteMemoryRoute } from "@/lib/runtime-memory";
 import { processSubjectAudienceBacklog } from "@/lib/card-subject-audience";
+import {
+  warmPopularSearchQueryEmbeddings,
+  type SearchQueryWarmSummary,
+} from "@/lib/search-query-embedding-cache";
+import { createSupabaseServer } from "@/lib/supabase";
 import { processVisualEmbeddingJobs } from "@/lib/visual-embedding-jobs";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +35,10 @@ export async function POST(request: NextRequest) {
     const claimLimit = Math.min(
       20,
       Math.max(1, Number(request.nextUrl.searchParams.get("limit")) || 8),
+    );
+    const queryWarmLimit = Math.min(
+      50,
+      Math.max(1, Number(request.nextUrl.searchParams.get("queries")) || 10),
     );
 
     const { data: enqueued, error: enqueueError } = await supabase.rpc(
@@ -86,11 +94,31 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    let searchQueries: SearchQueryWarmSummary = {
+      seedsPresent: 0,
+      seedsEmbedded: 0,
+      popularEmbedded: 0,
+      failed: 0,
+      pruned: 0,
+      clicksRefreshed: null,
+    };
+    try {
+      searchQueries = await warmPopularSearchQueryEmbeddings({
+        supabase,
+        limit: queryWarmLimit,
+      });
+    } catch (error) {
+      console.warn("[visual-embeddings] search query warm failed", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+
     const body = {
       enqueued: enqueued ?? 0,
       ...processed,
       coverage,
       queryEmbeddings,
+      searchQueries,
       subjectAudience,
     };
     console.info("[visual-embeddings] cron", {
@@ -98,6 +126,8 @@ export async function POST(request: NextRequest) {
       claimed: processed.claimed,
       completed: processed.completed,
       failed: processed.failed,
+      searchPopularEmbedded: searchQueries.popularEmbedded,
+      searchSeedsEmbedded: searchQueries.seedsEmbedded,
     });
     return NextResponse.json(body, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {

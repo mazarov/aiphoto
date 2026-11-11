@@ -14,7 +14,7 @@ import {
   type VisualEmbedOutcome,
 } from "@/lib/visual-search-guard";
 import {
-  getVisualSearchConfig,
+  resolveVisualSearchConfig,
   type VisualRpcClient,
   type VisualSearchConfig,
 } from "@/lib/visual-search-config";
@@ -46,7 +46,8 @@ export async function loadListingQueryEmbedding(options: {
   config?: VisualSearchConfig;
 }): Promise<number[] | null> {
   if (!isBirthdayListingSearchQuery(options.query)) return null;
-  const config = options.config ?? getVisualSearchConfig();
+  const config =
+    options.config ?? (await resolveVisualSearchConfig(options.supabase));
   const queryHash = visualQueryCacheKey(options.query, config);
   try {
     const { data, error } = await options.supabase.rpc(
@@ -74,7 +75,8 @@ export async function persistListingQueryEmbedding(options: {
   config?: VisualSearchConfig;
 }): Promise<boolean> {
   if (!isBirthdayListingSearchQuery(options.query)) return false;
-  const config = options.config ?? getVisualSearchConfig();
+  const config =
+    options.config ?? (await resolveVisualSearchConfig(options.supabase));
   try {
     const { error } = await options.supabase.rpc("upsert_listing_query_embedding", {
       p_query_hash: visualQueryCacheKey(options.query, config),
@@ -101,7 +103,8 @@ export async function persistListingQueryEmbedding(options: {
 export async function embedListingSearchQuery(
   options: Parameters<typeof embedSearchQueryWithGuards>[0],
 ): Promise<VisualEmbedOutcome> {
-  const config = options.config ?? getVisualSearchConfig();
+  const config =
+    options.config ?? (await resolveVisualSearchConfig(options.supabase));
   if (isBirthdayListingSearchQuery(options.query)) {
     const stored = await loadListingQueryEmbedding({
       supabase: options.supabase,
@@ -113,12 +116,18 @@ export async function embedListingSearchQuery(
         ok: true,
         vector: stored,
         cacheHit: true,
+        embedSource: "l2_db",
+        queryHash: visualQueryCacheKey(options.query, config),
         circuitState: "closed",
       };
     }
   }
 
-  const live = await embedSearchQueryWithGuards(options);
+  const live = await embedSearchQueryWithGuards({
+    ...options,
+    config,
+    skipPersistentLookup: true,
+  });
   if (live.ok && isBirthdayListingSearchQuery(options.query)) {
     await persistListingQueryEmbedding({
       supabase: options.supabase,
@@ -136,8 +145,9 @@ export async function ensureBirthdayListingQueryEmbeddings(options: {
   now?: Date;
   embed?: Parameters<typeof embedSearchQueryWithGuards>[0]["embed"];
 }): Promise<{ present: number; embedded: number; failed: number }> {
+  const baseConfig = await resolveVisualSearchConfig(options.supabase);
   const config = {
-    ...getVisualSearchConfig(),
+    ...baseConfig,
     timeoutMs: LISTING_HYBRID_EMBED_TIMEOUT_MS,
   };
   const stats = { present: 0, embedded: 0, failed: 0 };
@@ -161,6 +171,7 @@ export async function ensureBirthdayListingQueryEmbeddings(options: {
       config,
       now: options.now,
       budgetActor: "system",
+      skipPersistentLookup: true,
       embed: options.embed,
     });
     if (!live.ok) {

@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
+import { persistSearchQueryEmbedding } from "@/lib/search-query-embedding-cache";
 import {
   createSupabaseServer,
   enrichCardsWithDetails,
@@ -45,22 +46,52 @@ export async function GET(req: NextRequest) {
       query: q,
       limit,
       offset,
+      filters,
       headers: req.headers,
       supabase,
+      enableResultCache: true,
       deps: {
-        searchText: (query, searchLimit, searchOffset) =>
-          searchCardsByText(query, searchLimit, searchOffset, filters),
-        searchVisual: (embedding, searchLimit, searchOffset, generation) =>
+        searchText: (query, searchLimit, searchOffset, rpcFilters, synonymQuery) =>
+          searchCardsByText(
+            query,
+            searchLimit,
+            searchOffset,
+            rpcFilters ?? filters,
+            synonymQuery,
+          ),
+        searchVisual: (
+          embedding,
+          searchLimit,
+          searchOffset,
+          generation,
+          rpcFilters,
+          maxDistance,
+        ) =>
           searchCardsByVisualEmbedding(
             embedding,
             searchLimit,
             searchOffset,
             generation,
-            filters,
+            rpcFilters ?? filters,
+            maxDistance,
           ),
         embedQuery: embedSearchQueryWithGuards,
       },
     });
+
+    if (hybrid.liveEmbedToPersist) {
+      const payload = hybrid.liveEmbedToPersist;
+      after(async () => {
+        await persistSearchQueryEmbedding({
+          supabase: createSupabaseServer(),
+          query: payload.query,
+          queryHash: payload.queryHash,
+          vector: payload.vector,
+          config: payload.config,
+        });
+      });
+    }
+
     const searchMs = performance.now() - startedAt;
     const enriched = await enrichCardsWithDetails(hybrid.cards);
     const totalMs = performance.now() - startedAt;
@@ -75,10 +106,11 @@ export async function GET(req: NextRequest) {
       "Server-Timing",
       [
         `search-text;dur=${hybrid.timings.textMs.toFixed(1)}`,
-        `search-embed;dur=${hybrid.timings.embedMs.toFixed(1)}`,
+        `search-embed;dur=${hybrid.timings.embedMs.toFixed(1)};desc="${hybrid.embedSource}"`,
         `search-vector;dur=${hybrid.timings.vectorMs.toFixed(1)}`,
         `search-rank;dur=${hybrid.timings.rankMs.toFixed(1)}`,
         `search-enrich;dur=${enrichMs.toFixed(1)}`,
+        `search-rcache;desc="${hybrid.resultCacheHit ? "hit" : "miss"}"`,
       ].join(", "),
     );
 
@@ -95,6 +127,8 @@ export async function GET(req: NextRequest) {
           outcome: hybrid.outcome,
           fallbackReason: hybrid.fallbackReason ?? null,
           cacheHit: hybrid.cacheHit,
+          resultCacheHit: hybrid.resultCacheHit,
+          embedSource: hybrid.embedSource,
           circuitState: hybrid.circuitState,
           searchMs: Math.round(searchMs),
           enrichMs: Math.round(enrichMs),

@@ -1,25 +1,36 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { extensionRateLimitIpHash } from "./extension-rate-limit-ip";
+import { embeddingToRpcLiteral } from "./gemini-embedding";
 import {
   embedSearchQueryWithGuards,
   reserveVisualSearchBudget,
   resetVisualSearchGuardsForTests,
+  visualQueryCacheKey,
 } from "./visual-search-guard";
-import { VISUAL_BUDGET_SYSTEM_IP, VISUAL_SYSTEM_DAILY_LIMIT_DEFAULT } from "./visual-search-config";
+import {
+  VISUAL_BUDGET_SYSTEM_IP,
+  VISUAL_SYSTEM_DAILY_LIMIT_DEFAULT,
+  getVisualSearchConfig,
+  resetVisualSearchConfigCacheForTests,
+  setVisualSearchFlagsForTests,
+} from "./visual-search-config";
 
 function supabaseAllowed() {
   return {
-    async rpc() {
+    async rpc(fn: string) {
+      if (fn === "get_search_query_embedding") {
+        return { data: null, error: null };
+      }
       return { data: { allowed: true, ip_count: 1, global_count: 1 }, error: null };
     },
   };
 }
 
-test("guard skips Gemini when visual search is disabled", async () => {
+test("guard skips Gemini when visual search is disabled in DB config", async () => {
   resetVisualSearchGuardsForTests();
-  const previous = process.env.SEARCH_VISUAL_ENABLED;
-  process.env.SEARCH_VISUAL_ENABLED = "0";
+  resetVisualSearchConfigCacheForTests();
+  setVisualSearchFlagsForTests({ enabled: false });
   try {
     const result = await embedSearchQueryWithGuards({
       query: "неон",
@@ -29,22 +40,25 @@ test("guard skips Gemini when visual search is disabled", async () => {
     assert.equal(result.ok, false);
     if (!result.ok) assert.equal(result.reason, "disabled");
   } finally {
-    process.env.SEARCH_VISUAL_ENABLED = previous;
+    resetVisualSearchConfigCacheForTests();
   }
 });
 
-test("guard denies visual branch when the budget RPC is unavailable", async () => {
+test("guard denies visual branch when L2 misses and budget RPC is unavailable", async () => {
   resetVisualSearchGuardsForTests();
-  const prevEnabled = process.env.SEARCH_VISUAL_ENABLED;
+  resetVisualSearchConfigCacheForTests();
+  setVisualSearchFlagsForTests({ enabled: true });
   const prevKey = process.env.GEMINI_API_KEY;
-  process.env.SEARCH_VISUAL_ENABLED = "1";
   process.env.GEMINI_API_KEY = "test-key";
   try {
     const result = await embedSearchQueryWithGuards({
       query: "неон",
       headers: new Headers({ "x-forwarded-for": "203.0.113.10" }),
       supabase: {
-        async rpc() {
+        async rpc(fn: string) {
+          if (fn === "get_search_query_embedding") {
+            return { data: null, error: null };
+          }
           return { data: null, error: { message: "down" } };
         },
       },
@@ -55,16 +69,74 @@ test("guard denies visual branch when the budget RPC is unavailable", async () =
     assert.equal(result.ok, false);
     if (!result.ok) assert.equal(result.reason, "guard_unavailable");
   } finally {
-    process.env.SEARCH_VISUAL_ENABLED = prevEnabled;
     process.env.GEMINI_API_KEY = prevKey;
+    resetVisualSearchConfigCacheForTests();
   }
 });
 
-test("guard caches a successful query embedding", async () => {
+test("guard hits L2 Postgres cache without spending budget or requiring GEMINI_API_KEY, then promotes to L1", async () => {
   resetVisualSearchGuardsForTests();
-  const prevEnabled = process.env.SEARCH_VISUAL_ENABLED;
+  resetVisualSearchConfigCacheForTests();
+  setVisualSearchFlagsForTests({ enabled: true });
   const prevKey = process.env.GEMINI_API_KEY;
-  process.env.SEARCH_VISUAL_ENABLED = "1";
+  process.env.GEMINI_API_KEY = "";
+  const storedVector = Array.from({ length: 768 }, () => 0.02);
+  const rpcCalls: string[] = [];
+
+  try {
+    const supabase = {
+      async rpc(fn: string) {
+        rpcCalls.push(fn);
+        if (fn === "get_search_query_embedding") {
+          return { data: embeddingToRpcLiteral(storedVector), error: null };
+        }
+        throw new Error(`unexpected ${fn}`);
+      },
+    };
+
+    const first = await embedSearchQueryWithGuards({
+      query: "Чёрно-белое фото",
+      headers: new Headers({ "x-forwarded-for": "203.0.113.10" }),
+      supabase,
+      embed: async () => {
+        throw new Error("should not call Gemini");
+      },
+    });
+    assert.equal(first.ok, true);
+    if (first.ok) {
+      assert.equal(first.embedSource, "l2_db");
+      assert.equal(first.cacheHit, true);
+      assert.deepEqual(first.vector, storedVector);
+    }
+    assert.deepEqual(rpcCalls, ["get_search_query_embedding"]);
+
+    // Second call with `е` instead of `ё` hits L1 RAM cache directly (0 RPC calls).
+    const second = await embedSearchQueryWithGuards({
+      query: "черно-белое фото",
+      headers: new Headers({ "x-forwarded-for": "203.0.113.10" }),
+      supabase,
+      embed: async () => {
+        throw new Error("should not call Gemini");
+      },
+    });
+    assert.equal(second.ok, true);
+    if (second.ok) {
+      assert.equal(second.embedSource, "l1");
+      assert.equal(second.cacheHit, true);
+    }
+    assert.deepEqual(rpcCalls, ["get_search_query_embedding"]);
+  } finally {
+    process.env.GEMINI_API_KEY = prevKey;
+    resetVisualSearchConfigCacheForTests();
+    resetVisualSearchGuardsForTests();
+  }
+});
+
+test("guard caches a successful live Gemini query embedding in L1", async () => {
+  resetVisualSearchGuardsForTests();
+  resetVisualSearchConfigCacheForTests();
+  setVisualSearchFlagsForTests({ enabled: true });
+  const prevKey = process.env.GEMINI_API_KEY;
   process.env.GEMINI_API_KEY = "test-key";
   let embeds = 0;
   const vector = Array.from({ length: 768 }, () => 0.01);
@@ -88,34 +160,52 @@ test("guard caches a successful query embedding", async () => {
       },
     });
     assert.equal(first.ok, true);
+    if (first.ok) assert.equal(first.embedSource, "gemini");
     assert.equal(second.ok, true);
-    if (second.ok) assert.equal(second.cacheHit, true);
+    if (second.ok) {
+      assert.equal(second.cacheHit, true);
+      assert.equal(second.embedSource, "l1");
+    }
     assert.equal(embeds, 1);
   } finally {
-    process.env.SEARCH_VISUAL_ENABLED = prevEnabled;
     process.env.GEMINI_API_KEY = prevKey;
+    resetVisualSearchConfigCacheForTests();
     resetVisualSearchGuardsForTests();
   }
 });
 
+test("visualQueryCacheKey folds yo-to-e identically", () => {
+  const cfg = getVisualSearchConfig();
+  assert.equal(
+    visualQueryCacheKey("Девушка под ёлкой", cfg),
+    visualQueryCacheKey("девушка под елкой", cfg),
+  );
+});
+
 test("system budget actor does not share the request IP bucket", async () => {
-  const now = new Date("2026-08-20T07:00:00.000Z");
-  let ipHash = "";
-  let ipMax = 0;
-  const result = await reserveVisualSearchBudget({
-    headers: new Headers({ "x-forwarded-for": "203.0.113.10" }),
-    budgetActor: "system",
-    now,
-    supabase: {
-      async rpc(_fn, args) {
-        ipHash = String(args?.p_ip_hash ?? "");
-        ipMax = Number(args?.p_ip_max ?? 0);
-        return { data: { allowed: true }, error: null };
+  resetVisualSearchConfigCacheForTests();
+  setVisualSearchFlagsForTests({ enabled: true });
+  try {
+    const now = new Date("2026-08-20T07:00:00.000Z");
+    let ipHash = "";
+    let ipMax = 0;
+    const result = await reserveVisualSearchBudget({
+      headers: new Headers({ "x-forwarded-for": "203.0.113.10" }),
+      budgetActor: "system",
+      now,
+      supabase: {
+        async rpc(_fn, args) {
+          ipHash = String(args?.p_ip_hash ?? "");
+          ipMax = Number(args?.p_ip_max ?? 0);
+          return { data: { allowed: true }, error: null };
+        },
       },
-    },
-  });
-  assert.equal(result.allowed, true);
-  assert.equal(ipHash, extensionRateLimitIpHash(VISUAL_BUDGET_SYSTEM_IP, now));
-  assert.notEqual(ipHash, extensionRateLimitIpHash("203.0.113.10", now));
-  assert.equal(ipMax, VISUAL_SYSTEM_DAILY_LIMIT_DEFAULT);
+    });
+    assert.equal(result.allowed, true);
+    assert.equal(ipHash, extensionRateLimitIpHash(VISUAL_BUDGET_SYSTEM_IP, now));
+    assert.notEqual(ipHash, extensionRateLimitIpHash("203.0.113.10", now));
+    assert.equal(ipMax, VISUAL_SYSTEM_DAILY_LIMIT_DEFAULT);
+  } finally {
+    resetVisualSearchConfigCacheForTests();
+  }
 });

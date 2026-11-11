@@ -5,6 +5,10 @@ import {
 } from "@/lib/den-rozhdeniya-cluster";
 import { takeSearchPage } from "@/lib/listing-pagination";
 import {
+  expandSearchSynonymQuery,
+  normalizeSearchQueryForCache,
+} from "@/lib/search-query-normalize";
+import {
   createSupabaseServer,
   searchCardsByText,
   searchCardsByVisualEmbedding,
@@ -15,7 +19,10 @@ import {
   createSingleFlight,
   createTtlLruCache,
 } from "@/lib/visual-search-cache";
-import { getVisualSearchConfig } from "@/lib/visual-search-config";
+import {
+  resolveVisualSearchConfig,
+  type VisualSearchConfig,
+} from "@/lib/visual-search-config";
 import {
   runHybridCardSearch,
   type HybridSearchDeps,
@@ -75,8 +82,9 @@ function emptyTimings(): HybridSearchTimings {
 function listingResultCacheKey(
   query: string,
   filters: BirthdayListingSearchFilters,
+  config: VisualSearchConfig,
 ): string {
-  return `${visualQueryCacheKey(query, getVisualSearchConfig())}:${birthdayListingSearchFilterKey(filters)}`;
+  return `${visualQueryCacheKey(query, config)}:${birthdayListingSearchFilterKey(filters)}:${config.maxVisualDistance ?? "none"}`;
 }
 
 function bindListingSearchDeps(
@@ -84,10 +92,17 @@ function bindListingSearchDeps(
   filters: SearchCardFilters,
 ): HybridSearchDeps {
   return {
-    searchText: (query, limit, offset) =>
-      deps.searchText(query, limit, offset, filters),
-    searchVisual: (embedding, limit, offset, generation) =>
-      deps.searchVisual(embedding, limit, offset, generation, filters),
+    searchText: (query, limit, offset, rpcFilters, synonymQuery) =>
+      deps.searchText(query, limit, offset, rpcFilters ?? filters, synonymQuery),
+    searchVisual: (embedding, limit, offset, generation, rpcFilters, maxDistance) =>
+      deps.searchVisual(
+        embedding,
+        limit,
+        offset,
+        generation,
+        rpcFilters ?? filters,
+        maxDistance,
+      ),
     embedQuery: deps.embedQuery,
   };
 }
@@ -104,13 +119,18 @@ async function searchTextPage(options: {
   query: string;
   limit: number;
   offset: number;
+  filters: SearchCardFilters;
   deps: HybridSearchDeps;
 }): Promise<Pick<ListingHybridSearchResult, "cards" | "hasMore" | "matchType" | "timings" | "textCount">> {
   const started = performance.now();
+  const normalizedQuery = normalizeSearchQueryForCache(options.query) || options.query;
+  const synonymQuery = expandSearchSynonymQuery(options.query);
   const hits = await options.deps.searchText(
-    options.query,
+    normalizedQuery,
     options.limit + 1,
     options.offset,
+    options.filters,
+    synonymQuery,
   );
   const page = takeSearchPage(hits, options.limit);
   return {
@@ -140,13 +160,15 @@ export async function searchListingCardsHybrid(options: {
   const rawDeps = options.deps ?? listingHybridSearchDeps;
   const deps = bindListingSearchDeps(rawDeps, filters);
   const allowlisted = isBirthdayListingSearchQuery(options.query);
-  const visualEnabled = getVisualSearchConfig().enabled;
+  const supabase = options.supabase ?? createSupabaseServer();
+  const config = await resolveVisualSearchConfig(supabase);
 
-  if (!allowlisted || !visualEnabled) {
+  if (!allowlisted || !config.enabled) {
     const page = await searchTextPage({
       query: options.query,
       limit: options.limit,
       offset: options.offset,
+      filters,
       deps,
     });
     return {
@@ -160,7 +182,7 @@ export async function searchListingCardsHybrid(options: {
     };
   }
 
-  const cacheKey = listingResultCacheKey(options.query, filters);
+  const cacheKey = listingResultCacheKey(options.query, filters, config);
   const cached = listingResultCache.get(cacheKey);
   if (cached) {
     const page = sliceCachedPage(cached.cards, options.limit, options.offset);
@@ -190,7 +212,10 @@ export async function searchListingCardsHybrid(options: {
         textCount: replay.cards.length,
         visualCount: 0,
         cacheHit: true,
+        resultCacheHit: true,
+        embedSource: "l2_db",
         circuitState: "closed",
+        liveEmbedToPersist: null,
       } satisfies HybridSearchResult;
     }
 
@@ -198,17 +223,19 @@ export async function searchListingCardsHybrid(options: {
       query: options.query,
       limit: LISTING_HYBRID_MATERIALIZE_LIMIT,
       offset: 0,
+      filters,
       headers: options.headers,
-      supabase: options.supabase ?? createSupabaseServer(),
+      supabase,
       deps,
       now: options.now,
       budgetActor: "system",
       textMaxWindow: LISTING_HYBRID_TEXT_WINDOW,
       embedTimeoutMs: LISTING_HYBRID_EMBED_TIMEOUT_MS,
+      enableResultCache: false,
     });
   });
 
-  if (hybrid.outcome === "hybrid") {
+  if (hybrid.outcome === "hybrid" && hybrid.cards.length > 0) {
     listingResultCache.set(cacheKey, {
       cards: hybrid.cards,
       matchType: hybrid.matchType,

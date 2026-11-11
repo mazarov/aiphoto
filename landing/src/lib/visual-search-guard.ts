@@ -8,6 +8,8 @@ import {
   GeminiEmbeddingError,
   embedSearchQuery,
 } from "@/lib/gemini-embedding";
+import { loadSearchQueryEmbedding } from "@/lib/search-query-embedding-cache";
+import { normalizeSearchQueryForCache } from "@/lib/search-query-normalize";
 import {
   createConcurrencyGate,
   createSingleFlight,
@@ -22,11 +24,14 @@ import {
   VISUAL_CIRCUIT_OPEN_MS,
   VISUAL_CIRCUIT_WINDOW_MS,
   getVisualSearchConfig,
+  resolveVisualSearchConfig,
   type VisualRpcClient,
   type VisualSearchConfig,
 } from "@/lib/visual-search-config";
 
 export type VisualBudgetActor = "user" | "system";
+
+export type VisualEmbedSource = "l1" | "l2_db" | "gemini" | "none";
 
 export type VisualGuardReason =
   | "disabled"
@@ -39,8 +44,21 @@ export type VisualGuardReason =
   | "malformed_vector";
 
 export type VisualEmbedOutcome =
-  | { ok: true; vector: number[]; cacheHit: boolean; circuitState: string }
-  | { ok: false; reason: VisualGuardReason; cacheHit: boolean; circuitState: string };
+  | {
+      ok: true;
+      vector: number[];
+      cacheHit: boolean;
+      embedSource: "l1" | "l2_db" | "gemini";
+      queryHash: string;
+      circuitState: string;
+    }
+  | {
+      ok: false;
+      reason: VisualGuardReason;
+      cacheHit: boolean;
+      embedSource: "none";
+      circuitState: string;
+    };
 
 type RateLimitClient = VisualRpcClient;
 
@@ -48,7 +66,10 @@ const queryCache = createTtlLruCache<number[]>(
   VISUAL_CACHE_MAX_ENTRIES,
   VISUAL_CACHE_TTL_MS,
 );
-const queryFlight = createSingleFlight<number[]>();
+const queryFlight = createSingleFlight<{
+  vector: number[];
+  source: "l1" | "l2_db" | "gemini";
+}>();
 const circuit = createCircuitBreaker({
   failureThreshold: VISUAL_CIRCUIT_FAILURES,
   windowMs: VISUAL_CIRCUIT_WINDOW_MS,
@@ -71,7 +92,7 @@ export function visualQueryCacheKey(
   return createHash("sha256")
     .update(
       [
-        query.trim().toLowerCase().replace(/\s+/g, " "),
+        normalizeSearchQueryForCache(query),
         config.model,
         String(config.generation),
         config.useTaskPrefix ? "1" : "0",
@@ -110,7 +131,8 @@ export async function reserveVisualSearchBudget(options: {
   | { allowed: true; ipHash: string }
   | { allowed: false; reason: "rate_limited" | "guard_unavailable"; ipHash: string }
 > {
-  const config = options.config ?? getVisualSearchConfig();
+  const config =
+    options.config ?? (await resolveVisualSearchConfig(options.supabase));
   const actor = options.budgetActor ?? "user";
   const ip =
     actor === "system"
@@ -149,30 +171,66 @@ export async function embedSearchQueryWithGuards(options: {
   config?: VisualSearchConfig;
   now?: Date;
   budgetActor?: VisualBudgetActor;
+  skipPersistentLookup?: boolean;
   embed?: typeof embedSearchQuery;
 }): Promise<VisualEmbedOutcome> {
-  const config = options.config ?? getVisualSearchConfig();
+  const config =
+    options.config ?? (await resolveVisualSearchConfig(options.supabase));
   const circuitState = circuit.state();
   if (!config.enabled) {
-    return { ok: false, reason: "disabled", cacheHit: false, circuitState };
-  }
-  if (!(process.env.GEMINI_API_KEY ?? "").trim()) {
-    return { ok: false, reason: "missing_key", cacheHit: false, circuitState };
-  }
-  if (!circuit.allow()) {
-    return { ok: false, reason: "circuit_open", cacheHit: false, circuitState };
+    return {
+      ok: false,
+      reason: "disabled",
+      cacheHit: false,
+      embedSource: "none",
+      circuitState,
+    };
   }
 
   const cacheKey = visualQueryCacheKey(options.query, config);
   const cached = queryCache.get(cacheKey);
   if (cached) {
-    return { ok: true, vector: cached, cacheHit: true, circuitState };
+    return {
+      ok: true,
+      vector: cached,
+      cacheHit: true,
+      embedSource: "l1",
+      queryHash: cacheKey,
+      circuitState,
+    };
   }
 
   try {
-    const vector = await queryFlight.run(cacheKey, async () => {
+    const resolved = await queryFlight.run(cacheKey, async () => {
       const replay = queryCache.get(cacheKey);
-      if (replay) return replay;
+      if (replay) {
+        return { vector: replay, source: "l1" as const };
+      }
+
+      // L2 Postgres lookup runs BEFORE Gemini API key, circuit breaker, and daily budget checks
+      // so stored queries continue serving hybrid search during Gemini/proxy outages or quota exhaustion.
+      if (!options.skipPersistentLookup) {
+        const stored = await loadSearchQueryEmbedding({
+          supabase: options.supabase,
+          queryHash: cacheKey,
+        });
+        if (stored) {
+          queryCache.set(cacheKey, stored);
+          return { vector: stored, source: "l2_db" as const };
+        }
+      }
+
+      if (!(process.env.GEMINI_API_KEY ?? "").trim()) {
+        const deny = new Error("missing_key");
+        deny.name = "missing_key";
+        throw deny;
+      }
+
+      if (!circuit.allow()) {
+        const deny = new Error("circuit_open");
+        deny.name = "circuit_open";
+        throw deny;
+      }
 
       const budget = await reserveVisualSearchBudget({
         supabase: options.supabase,
@@ -198,26 +256,44 @@ export async function embedSearchQueryWithGuards(options: {
         }),
       );
       queryCache.set(cacheKey, values);
-      return values;
+      circuit.success();
+      return { vector: values, source: "gemini" as const };
     });
-    circuit.success();
+
     return {
       ok: true,
-      vector,
-      cacheHit: false,
+      vector: resolved.vector,
+      cacheHit: resolved.source !== "gemini",
+      embedSource: resolved.source,
+      queryHash: cacheKey,
       circuitState: circuit.state(),
     };
   } catch (error) {
-    const reason =
-      error instanceof Error &&
-      (error.name === "rate_limited" || error.name === "guard_unavailable")
-        ? (error.name as VisualGuardReason)
-        : asReason(error);
-    if (isBudgetFailure(reason)) circuit.failure();
+    if (error instanceof Error) {
+      if (
+        error.name === "rate_limited" ||
+        error.name === "guard_unavailable" ||
+        error.name === "missing_key" ||
+        error.name === "circuit_open"
+      ) {
+        return {
+          ok: false,
+          reason: error.name,
+          cacheHit: false,
+          embedSource: "none",
+          circuitState: circuit.state(),
+        };
+      }
+    }
+    const reason = asReason(error);
+    if (isBudgetFailure(reason)) {
+      circuit.failure();
+    }
     return {
       ok: false,
       reason,
       cacheHit: false,
+      embedSource: "none",
       circuitState: circuit.state(),
     };
   }

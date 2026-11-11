@@ -1,5 +1,7 @@
 # 03 — Пайплайн: парсинг → загрузка → публикация
 
+> Последнее обновление: 2026-11-11 (**гибридный поиск V2 и фоновый прогрев query-векторов:** SQL `280`. `rebuild_card_fts` нормализует `ё → е` и индексирует `title_en` (`english` A + `simple` B). Продуктовые флаги визуального поиска перенесены в `landing_generation_config` (`search_visual_enabled`, `search_visual_max_distance`). Пятиминутный тик `drainVisualEmbeddingBacklog` (из `yookassa-reconcile`) и `POST /api/cron/visual-embeddings` дополнительно догревают `search_query_embeddings` по чипам и популярным запросам из `landing_search_events`, раз в час обновляют `prompt_cards.search_clicks_30d`, раз в сутки чистят одноразовые векторы старше 90 дней.)
+
 > Последнее обновление: 2026-11-08 (**visual embedding backlog:** минутный крон ЮKassa на каждой 5-й минуте UTC забирает 8 `prompt_card_visual_embedding_jobs`. Отдельный cron на `/api/cron/visual-embeddings` не поставлен. Публикация по-прежнему не ждёт Gemini и в `after()` обрабатывает одно самое старое задание.
 
 > Последнее обновление: 2026-10-10 (**regex тегов:** `patterns` больше не в `tag-registry.ts`. Матчинг — `landing/src/lib/tag-patterns.ts` (`patternsForTag`, server-only). Автодописка из `fill-seo-tags.ts` добавляет строку реестра без регулярки и пустой массив `[]` перед `TAG_PATTERNS_END`. `npx tsx src/fill-seo-tags.ts` сам перезапускается с `--conditions=react-server`.)
@@ -461,7 +463,7 @@ node fill-seo-tags-standalone.mjs --dataset <slug>
 □ 9.  npx tsx src/fix-prompt-marker-titles.ts
 □ 10. ⚠️ ПРОВЕРИТЬ НОВЫЕ ТЕГИ (см. ниже)
 □ 11. SQL: UPDATE prompt_cards SET is_published = true WHERE ...
-□ 12. Visual embeddings: cron или standalone backfill (coverage ≥ 95% до SEARCH_VISUAL_ENABLED)
+□ 12. Visual embeddings: cron или standalone backfill (coverage ≥ 95% до включения `landing_generation_config.search_visual_enabled = 'true'`)
 □ 12b. Subject audience: SQL 256, затем backfill-card-subject-audience.mjs (exclusive → visual_hook → all)
 □ 13. Проверить на лендинге
 ```

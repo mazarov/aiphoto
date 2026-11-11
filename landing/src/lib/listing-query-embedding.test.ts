@@ -12,7 +12,11 @@ import {
   resetVisualSearchGuardsForTests,
   visualQueryCacheKey,
 } from "./visual-search-guard";
-import { getVisualSearchConfig } from "./visual-search-config";
+import {
+  getVisualSearchConfig,
+  resetVisualSearchConfigCacheForTests,
+  setVisualSearchFlagsForTests,
+} from "./visual-search-config";
 
 const storedVector = Array.from({ length: 768 }, (_, index) => index * 0.001);
 
@@ -37,32 +41,38 @@ test("parseListingQueryEmbedding accepts Postgres vector text", () => {
 });
 
 test("loadListingQueryEmbedding ignores non-SSOT queries and missing RPC", async () => {
-  const calls: string[] = [];
-  const supabase = rpcClient(async (fn) => {
-    calls.push(fn);
-    return { data: null, error: { message: "Could not find the function" } };
-  });
-  assert.equal(
-    await loadListingQueryEmbedding({
-      supabase,
-      query: "ночной портрет",
-    }),
-    null,
-  );
-  assert.deepEqual(calls, []);
-  assert.equal(
-    await loadListingQueryEmbedding({
-      supabase,
-      query: "мужской день рождения",
-    }),
-    null,
-  );
-  assert.deepEqual(calls, ["get_listing_query_embedding"]);
+  resetVisualSearchConfigCacheForTests();
+  setVisualSearchFlagsForTests({ enabled: true });
+  try {
+    const calls: string[] = [];
+    const supabase = rpcClient(async (fn) => {
+      calls.push(fn);
+      return { data: null, error: { message: "Could not find the function" } };
+    });
+    assert.equal(
+      await loadListingQueryEmbedding({
+        supabase,
+        query: "ночной портрет",
+      }),
+      null,
+    );
+    assert.deepEqual(calls, []);
+    assert.equal(
+      await loadListingQueryEmbedding({
+        supabase,
+        query: "мужской день рождения",
+      }),
+      null,
+    );
+    assert.deepEqual(calls, ["get_listing_query_embedding"]);
+  } finally {
+    resetVisualSearchConfigCacheForTests();
+  }
 });
 
 test("loadListingQueryEmbedding returns a stored SSOT vector", async () => {
-  const previous = process.env.SEARCH_VISUAL_ENABLED;
-  process.env.SEARCH_VISUAL_ENABLED = "1";
+  resetVisualSearchConfigCacheForTests();
+  setVisualSearchFlagsForTests({ enabled: true });
   try {
     const supabase = rpcClient(async (fn, args) => {
       assert.equal(fn, "get_listing_query_embedding");
@@ -80,39 +90,45 @@ test("loadListingQueryEmbedding returns a stored SSOT vector", async () => {
       storedVector,
     );
   } finally {
-    process.env.SEARCH_VISUAL_ENABLED = previous;
+    resetVisualSearchConfigCacheForTests();
   }
 });
 
 test("persistListingQueryEmbedding writes only SSOT queries", async () => {
-  const calls: string[] = [];
-  const supabase = rpcClient(async (fn) => {
-    calls.push(fn);
-    return { data: true, error: null };
-  });
-  assert.equal(
-    await persistListingQueryEmbedding({
-      supabase,
-      query: "ночной портрет",
-      vector: storedVector,
-    }),
-    false,
-  );
-  assert.deepEqual(calls, []);
-  assert.equal(
-    await persistListingQueryEmbedding({
-      supabase,
-      query: "со львом",
-      vector: storedVector,
-    }),
-    true,
-  );
-  assert.deepEqual(calls, ["upsert_listing_query_embedding"]);
+  resetVisualSearchConfigCacheForTests();
+  setVisualSearchFlagsForTests({ enabled: true });
+  try {
+    const calls: string[] = [];
+    const supabase = rpcClient(async (fn) => {
+      calls.push(fn);
+      return { data: true, error: null };
+    });
+    assert.equal(
+      await persistListingQueryEmbedding({
+        supabase,
+        query: "ночной портрет",
+        vector: storedVector,
+      }),
+      false,
+    );
+    assert.deepEqual(calls, []);
+    assert.equal(
+      await persistListingQueryEmbedding({
+        supabase,
+        query: "со львом",
+        vector: storedVector,
+      }),
+      true,
+    );
+    assert.deepEqual(calls, ["upsert_listing_query_embedding"]);
+  } finally {
+    resetVisualSearchConfigCacheForTests();
+  }
 });
 
 test("embedListingSearchQuery skips Gemini when the vector is stored", async () => {
-  const previous = process.env.SEARCH_VISUAL_ENABLED;
-  process.env.SEARCH_VISUAL_ENABLED = "1";
+  resetVisualSearchConfigCacheForTests();
+  setVisualSearchFlagsForTests({ enabled: true });
   const calls: string[] = [];
   try {
     const result = await embedListingSearchQuery({
@@ -130,18 +146,21 @@ test("embedListingSearchQuery skips Gemini when the vector is stored", async () 
       },
     });
     assert.equal(result.ok, true);
-    if (result.ok) assert.deepEqual(result.vector, storedVector);
+    if (result.ok) {
+      assert.deepEqual(result.vector, storedVector);
+      assert.equal(result.embedSource, "l2_db");
+    }
     assert.equal(result.cacheHit, true);
     assert.deepEqual(calls, ["get_listing_query_embedding"]);
   } finally {
-    process.env.SEARCH_VISUAL_ENABLED = previous;
+    resetVisualSearchConfigCacheForTests();
   }
 });
 
 test("embedListingSearchQuery persists a live SSOT embed", async () => {
-  const previous = process.env.SEARCH_VISUAL_ENABLED;
+  resetVisualSearchConfigCacheForTests();
+  setVisualSearchFlagsForTests({ enabled: true });
   const previousKey = process.env.GEMINI_API_KEY;
-  process.env.SEARCH_VISUAL_ENABLED = "1";
   process.env.GEMINI_API_KEY = "test-key";
   resetVisualSearchGuardsForTests();
   const calls: string[] = [];
@@ -171,16 +190,16 @@ test("embedListingSearchQuery persists a live SSOT embed", async () => {
       "upsert_listing_query_embedding",
     ]);
   } finally {
-    process.env.SEARCH_VISUAL_ENABLED = previous;
     process.env.GEMINI_API_KEY = previousKey;
+    resetVisualSearchConfigCacheForTests();
     resetVisualSearchGuardsForTests();
   }
 });
 
 test("ensureBirthdayListingQueryEmbeddings embeds only missing SSOT rows", async () => {
-  const previous = process.env.SEARCH_VISUAL_ENABLED;
+  resetVisualSearchConfigCacheForTests();
+  setVisualSearchFlagsForTests({ enabled: true });
   const previousKey = process.env.GEMINI_API_KEY;
-  process.env.SEARCH_VISUAL_ENABLED = "1";
   process.env.GEMINI_API_KEY = "test-key";
   resetVisualSearchGuardsForTests();
   let embeds = 0;
@@ -217,8 +236,8 @@ test("ensureBirthdayListingQueryEmbeddings embeds only missing SSOT rows", async
     assert.equal(embeds, 4);
     assert.equal(upserts, 4);
   } finally {
-    process.env.SEARCH_VISUAL_ENABLED = previous;
     process.env.GEMINI_API_KEY = previousKey;
+    resetVisualSearchConfigCacheForTests();
     resetVisualSearchGuardsForTests();
   }
 });

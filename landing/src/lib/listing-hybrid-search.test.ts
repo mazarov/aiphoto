@@ -10,6 +10,8 @@ import {
 import {
   TEXT_SEARCH_MAX_WINDOW,
   VISUAL_EMBED_TIMEOUT_MS_DEFAULT,
+  resetVisualSearchConfigCacheForTests,
+  setVisualSearchFlagsForTests,
 } from "./visual-search-config";
 
 const textCard = {
@@ -50,8 +52,8 @@ function card(id: string, matchType: string) {
 
 test("listing hybrid stays on text and peeks one extra row when visual is off", async () => {
   resetListingHybridSearchForTests();
-  const previous = process.env.SEARCH_VISUAL_ENABLED;
-  process.env.SEARCH_VISUAL_ENABLED = "0";
+  resetVisualSearchConfigCacheForTests();
+  setVisualSearchFlagsForTests({ enabled: false });
   try {
     let requestedLimit = 0;
     const result = await searchListingCardsHybrid({
@@ -79,15 +81,15 @@ test("listing hybrid stays on text and peeks one extra row when visual is off", 
     assert.equal(result.hasMore, false);
     assert.deepEqual(result.cards.map((item) => item.id), ["text-1"]);
   } finally {
-    process.env.SEARCH_VISUAL_ENABLED = previous;
+    resetVisualSearchConfigCacheForTests();
     resetListingHybridSearchForTests();
   }
 });
 
 test("non-allowlisted listing q stays on FTS and does not embed", async () => {
   resetListingHybridSearchForTests();
-  const previous = process.env.SEARCH_VISUAL_ENABLED;
-  process.env.SEARCH_VISUAL_ENABLED = "1";
+  resetVisualSearchConfigCacheForTests();
+  setVisualSearchFlagsForTests({ enabled: true });
   try {
     const result = await searchListingCardsHybrid({
       query: "ночной портрет",
@@ -109,15 +111,15 @@ test("non-allowlisted listing q stays on FTS and does not embed", async () => {
     assert.equal(result.outcome, "text");
     assert.equal(result.resultCacheHit, false);
   } finally {
-    process.env.SEARCH_VISUAL_ENABLED = previous;
+    resetVisualSearchConfigCacheForTests();
     resetListingHybridSearchForTests();
   }
 });
 
 test("listing hybrid asks Gemini for 8000ms, not the interactive 800ms", async () => {
   resetListingHybridSearchForTests();
-  const previous = process.env.SEARCH_VISUAL_ENABLED;
-  process.env.SEARCH_VISUAL_ENABLED = "1";
+  resetVisualSearchConfigCacheForTests();
+  setVisualSearchFlagsForTests({ enabled: true });
   let seenTimeout: number | undefined;
   try {
     await searchListingCardsHybrid({
@@ -135,6 +137,8 @@ test("listing hybrid asks Gemini for 8000ms, not the interactive 800ms", async (
             ok: true,
             vector: Array.from({ length: 768 }, () => 0.01),
             cacheHit: false,
+            embedSource: "gemini",
+            queryHash: "hash-bd",
             circuitState: "closed",
           };
         },
@@ -142,15 +146,15 @@ test("listing hybrid asks Gemini for 8000ms, not the interactive 800ms", async (
     });
     assert.equal(seenTimeout, LISTING_HYBRID_EMBED_TIMEOUT_MS);
   } finally {
-    process.env.SEARCH_VISUAL_ENABLED = previous;
+    resetVisualSearchConfigCacheForTests();
     resetListingHybridSearchForTests();
   }
 });
 
 test("listing hybrid peeks past FTS so embeddings can fill the page", async () => {
   resetListingHybridSearchForTests();
-  const previous = process.env.SEARCH_VISUAL_ENABLED;
-  process.env.SEARCH_VISUAL_ENABLED = "1";
+  resetVisualSearchConfigCacheForTests();
+  setVisualSearchFlagsForTests({ enabled: true });
   try {
     const visualCards = Array.from({ length: 20 }, (_, index) =>
       card(`visual-${index}`, "visual"),
@@ -168,6 +172,8 @@ test("listing hybrid peeks past FTS so embeddings can fill the page", async () =
           ok: true,
           vector: Array.from({ length: 768 }, () => 0.01),
           cacheHit: false,
+          embedSource: "gemini",
+          queryHash: "hash-bd-2",
           circuitState: "closed",
         }),
       },
@@ -179,15 +185,15 @@ test("listing hybrid peeks past FTS so embeddings can fill the page", async () =
     assert.equal(result.cards[0]?.id, "text-1");
     assert.equal(result.resultCacheHit, false);
   } finally {
-    process.env.SEARCH_VISUAL_ENABLED = previous;
+    resetVisualSearchConfigCacheForTests();
     resetListingHybridSearchForTests();
   }
 });
 
 test("listing hybrid caches a successful result for later pages", async () => {
   resetListingHybridSearchForTests();
-  const previous = process.env.SEARCH_VISUAL_ENABLED;
-  process.env.SEARCH_VISUAL_ENABLED = "1";
+  resetVisualSearchConfigCacheForTests();
+  setVisualSearchFlagsForTests({ enabled: true });
   let embeds = 0;
   let visualCalls = 0;
   const visualCards = Array.from({ length: 20 }, (_, index) =>
@@ -205,6 +211,8 @@ test("listing hybrid caches a successful result for later pages", async () => {
         ok: true as const,
         vector: Array.from({ length: 768 }, () => 0.01),
         cacheHit: false,
+        embedSource: "gemini" as const,
+        queryHash: "hash-bd-3",
         circuitState: "closed",
       };
     },
@@ -233,15 +241,15 @@ test("listing hybrid caches a successful result for later pages", async () => {
     assert.equal(visualCalls, 1);
     assert.equal(second.cards[0]?.id, "visual-9");
   } finally {
-    process.env.SEARCH_VISUAL_ENABLED = previous;
+    resetVisualSearchConfigCacheForTests();
     resetListingHybridSearchForTests();
   }
 });
 
 test("listing hybrid cache key includes tag filters", async () => {
   resetListingHybridSearchForTests();
-  const previous = process.env.SEARCH_VISUAL_ENABLED;
-  process.env.SEARCH_VISUAL_ENABLED = "1";
+  resetVisualSearchConfigCacheForTests();
+  setVisualSearchFlagsForTests({ enabled: true });
   let embeds = 0;
   const seenFilters: Array<unknown> = [];
   const deps = {
@@ -256,6 +264,8 @@ test("listing hybrid cache key includes tag filters", async () => {
         ok: true as const,
         vector: Array.from({ length: 768 }, () => 0.01),
         cacheHit: false,
+        embedSource: "gemini" as const,
+        queryHash: "hash-bd-4",
         circuitState: "closed",
       };
     },
@@ -285,15 +295,15 @@ test("listing hybrid cache key includes tag filters", async () => {
       { object_tag: "s_tortom" },
     ]);
   } finally {
-    process.env.SEARCH_VISUAL_ENABLED = previous;
+    resetVisualSearchConfigCacheForTests();
     resetListingHybridSearchForTests();
   }
 });
 
 test("listing hybrid does not cache a text fallback", async () => {
   resetListingHybridSearchForTests();
-  const previous = process.env.SEARCH_VISUAL_ENABLED;
-  process.env.SEARCH_VISUAL_ENABLED = "1";
+  resetVisualSearchConfigCacheForTests();
+  setVisualSearchFlagsForTests({ enabled: true });
   let embeds = 0;
   try {
     await searchListingCardsHybrid({
@@ -311,6 +321,7 @@ test("listing hybrid does not cache a text fallback", async () => {
             ok: false,
             reason: "timeout",
             cacheHit: false,
+            embedSource: "none",
             circuitState: "open",
           };
         },
@@ -331,6 +342,7 @@ test("listing hybrid does not cache a text fallback", async () => {
             ok: false,
             reason: "timeout",
             cacheHit: false,
+            embedSource: "none",
             circuitState: "open",
           };
         },
@@ -338,7 +350,7 @@ test("listing hybrid does not cache a text fallback", async () => {
     });
     assert.equal(embeds, 2);
   } finally {
-    process.env.SEARCH_VISUAL_ENABLED = previous;
+    resetVisualSearchConfigCacheForTests();
     resetListingHybridSearchForTests();
   }
 });
