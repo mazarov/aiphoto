@@ -45,7 +45,7 @@ function card(id: string, matchType: string) {
     seo_tags: null,
     relevance_score: matchType === "visual" ? 200 : 400,
     match_type: matchType,
-    visual_distance: matchType === "visual" ? 0.2 : undefined,
+    visual_distance: 0.2,
     source_date: "2026-01-01T00:00:00.000Z",
   };
 }

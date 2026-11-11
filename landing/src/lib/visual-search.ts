@@ -216,15 +216,14 @@ async function executeHybridCardSearchUncached(options: {
       visualCount: 0,
       cacheHit: embed.cacheHit,
       resultCacheHit: false,
-      embedSource: embed.embedSource ?? "none",
+      embedSource: embed.embedSource,
       circuitState: embed.circuitState,
       liveEmbedToPersist: null,
     };
   }
 
-  const embedSource: VisualEmbedSource =
-    embed.embedSource ?? (embed.cacheHit ? "l1" : "gemini");
-  const queryHash = embed.queryHash ?? visualQueryCacheKey(options.query, config);
+  const embedSource: VisualEmbedSource = embed.embedSource;
+  const queryHash = embed.queryHash || visualQueryCacheKey(options.query, config);
   const liveEmbedToPersist: PersistableQueryEmbedPayload | null =
     embedSource === "gemini" && isPersistableSearchQuery(options.query)
       ? {

@@ -5,21 +5,31 @@ export type VisualConfigRow = {
   value?: unknown;
 };
 
-export type VisualConfigSelectChain = {
+type InternalConfigSelectChain = {
   in(
     column: string,
     values: readonly string[],
   ): PromiseLike<{ data: unknown; error: { message: string } | null }>;
 };
 
+type InternalConfigTableReader = {
+  from?: (table: string) => {
+    select(columns: string): InternalConfigSelectChain;
+  };
+};
+
+/**
+ * Keep `VisualRpcClient` restricted to `rpc(...)` only.
+ * Adding `from(table: string)` here forces TypeScript to instantiate
+ * `@supabase/postgrest-js` recursive `ParseSelectQuery<string>` types
+ * (`TS2589: Type instantiation is excessively deep`) wherever `SupabaseClient`
+ * is passed as `VisualRpcClient`.
+ */
 export type VisualRpcClient = {
   rpc(
     fn: string,
     args?: Record<string, unknown>,
   ): PromiseLike<{ data: unknown; error: { message: string } | null }>;
-  from?(table: string): {
-    select(columns: string): VisualConfigSelectChain;
-  };
 };
 
 export const SEARCH_VISUAL_ENABLED_CONFIG_KEY = "search_visual_enabled";
@@ -204,7 +214,8 @@ export async function resolveVisualSearchConfig(
     return buildVisualSearchConfig(cachedDbFlags.value);
   }
 
-  if (!supabase || typeof supabase.from !== "function") {
+  const reader = supabase as unknown as InternalConfigTableReader | null | undefined;
+  if (!reader || typeof reader.from !== "function") {
     return buildVisualSearchConfig(currentSyncDbFlags());
   }
 
@@ -214,7 +225,7 @@ export async function resolveVisualSearchConfig(
     }
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await reader
         .from!("landing_generation_config")
         .select("key,value")
         .in("key", [
