@@ -113,6 +113,7 @@ export function PhotoshootListingGrid({
           <button
             key={`${url}-${index}`}
             type="button"
+            data-swipe-ok
             aria-label={`Открыть ${label}`}
             onClick={(event) => {
               event.preventDefault();

@@ -10,6 +10,7 @@ type CardInteractionsContextType = {
   favorites: Set<string>;
   toggleReaction: (cardId: string, reaction: Reaction) => Promise<void>;
   toggleFavorite: (cardId: string) => Promise<void>;
+  loadForCards: (cardIds: string[]) => void;
 };
 
 const CardInteractionsContext = createContext<CardInteractionsContextType>({
@@ -17,6 +18,7 @@ const CardInteractionsContext = createContext<CardInteractionsContextType>({
   favorites: new Set(),
   toggleReaction: async () => {},
   toggleFavorite: async () => {},
+  loadForCards: () => {},
 });
 
 export function CardInteractionsProvider({
@@ -36,8 +38,14 @@ export function CardInteractionsProvider({
   }, [cardIds, loadForCards]);
 
   const value = useMemo(
-    () => ({ reactions, favorites, toggleReaction, toggleFavorite }),
-    [reactions, favorites, toggleReaction, toggleFavorite]
+    () => ({
+      reactions,
+      favorites,
+      toggleReaction,
+      toggleFavorite,
+      loadForCards,
+    }),
+    [reactions, favorites, toggleReaction, toggleFavorite, loadForCards]
   );
 
   return (

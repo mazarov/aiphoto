@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { browserAcquisitionIds } from "@/lib/acquisition-client-events";
+import { CARD_SNAP_ANALYTICS_DWELL_MS } from "@/lib/mobile-card-snap";
 
 const STORAGE_PREFIX = "promptshot_view_";
 
@@ -10,10 +11,12 @@ type ApiErr = { ok: false; error?: string };
 
 /**
  * One POST /api/card-view per browser tab session per slug (sessionStorage).
- * Returns live view count (updates after successful beacon).
+ * Initial card opened fires immediately; subsequent neighbor swipes inside the
+ * same viewer wait for `CARD_SNAP_ANALYTICS_DWELL_MS` so fast flicks don't spam API/DB.
  */
 export function useCardViewBeacon(slug: string, initialViewCount: number): number {
   const [viewCount, setViewCount] = useState(initialViewCount);
+  const initialMountSlugRef = useRef(slug);
 
   useEffect(() => {
     setViewCount(initialViewCount);
@@ -26,8 +29,10 @@ export function useCardViewBeacon(slug: string, initialViewCount: number): numbe
     if (sessionStorage.getItem(key)) return;
 
     let cancelled = false;
+    const dwellMs =
+      slug === initialMountSlugRef.current ? 0 : CARD_SNAP_ANALYTICS_DWELL_MS;
 
-    (async () => {
+    const sendBeacon = async () => {
       try {
         const { visitorId, sessionId } = browserAcquisitionIds();
         const res = await fetch("/api/card-view", {
@@ -44,10 +49,24 @@ export function useCardViewBeacon(slug: string, initialViewCount: number): numbe
       } catch {
         /* best-effort — page already rendered */
       }
-    })();
+    };
+
+    if (dwellMs <= 0) {
+      void sendBeacon();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const timer = window.setTimeout(() => {
+      if (!cancelled) {
+        void sendBeacon();
+      }
+    }, dwellMs);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, [slug]);
 

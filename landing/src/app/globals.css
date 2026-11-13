@@ -424,15 +424,17 @@ p {
   }
 
   /**
-   * Safari iOS: a tap with 2–10px jitter on snap + pan-y pages the feed.
-   * Interactive chrome (Промпт, close, Lexy, reactions) must not start a pan.
-   * Photo edge hit-zones keep panning via [data-swipe-ok].
+   * V2 architecture: interactive chrome lives in `[data-card-snap-hud]` (a sibling
+   * overlay outside the scroll container), so tap jitter never reaches the snap
+   * scroller. Inside `[data-card-snap-viewport]`, photo tap zones and 2x2 grids
+   * keep `pan-y`; only explicit `[data-no-swipe]` opts out.
    */
-  [data-card-snap-viewport]
-    :is(button, a, input, textarea, select, [role="button"], [data-no-swipe]):not(
-      [data-swipe-ok]
-    ) {
+  [data-card-snap-viewport] [data-no-swipe]:not([data-swipe-ok]) {
     touch-action: none;
+  }
+
+  [data-card-snap-hud] :is(button, a, input, textarea, select, [role="button"]) {
+    touch-action: manipulation;
   }
 
   [data-card-snap-slide] {

@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import Image from "next/image";
 import type { CardPageData } from "@/lib/supabase";
 import { CardModal } from "@/components/CardModal";
 import { CardPageClient } from "@/components/CardPageClient";
-import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import { getSeoSlugsWithTags, getFirstTagFromSeoTags } from "@/lib/tag-registry";
 import {
@@ -18,6 +17,18 @@ type LoadedCard = {
   tagEntries: { slug: string; label: string; href: string | null }[];
   breadcrumbTag: { labelRu: string; urlPath: string } | null;
 };
+
+function buildLoadedCard(data: CardPageData): LoadedCard {
+  const tagEntries = getSeoSlugsWithTags(data.seo_tags);
+  const firstTag = getFirstTagFromSeoTags(data.seo_tags);
+  return {
+    data,
+    tagEntries,
+    breadcrumbTag: firstTag
+      ? { labelRu: firstTag.labelRu, urlPath: firstTag.urlPath }
+      : null,
+  };
+}
 
 export function ClientCardModal() {
   const {
@@ -33,20 +44,20 @@ export function ClientCardModal() {
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
   const loadedSlugRef = useRef<string | null>(null);
-  loadedSlugRef.current = loaded?.data.slug ?? null;
+
+  const effectiveLoaded = useMemo(() => {
+    if (!currentSlug) return null;
+    if (loaded?.data.slug === currentSlug) return loaded;
+    const cached = getCardFromCache(currentSlug);
+    if (cached) return buildLoadedCard(cached);
+    return loaded;
+  }, [currentSlug, getCardFromCache, loaded]);
+  loadedSlugRef.current = effectiveLoaded?.data.slug ?? null;
 
   const commitNeighborCard = useCallback((nextData: CardPageData) => {
     requestIdRef.current += 1;
     loadedSlugRef.current = nextData.slug;
-    const tagEntries = getSeoSlugsWithTags(nextData.seo_tags);
-    const firstTag = getFirstTagFromSeoTags(nextData.seo_tags);
-    setLoaded({
-      data: nextData,
-      tagEntries,
-      breadcrumbTag: firstTag
-        ? { labelRu: firstTag.labelRu, urlPath: firstTag.urlPath }
-        : null,
-    });
+    setLoaded(buildLoadedCard(nextData));
     setError(null);
     setLoading(false);
   }, []);
@@ -56,14 +67,7 @@ export function ClientCardModal() {
     const requestId = ++requestIdRef.current;
     const cached = getCardFromCache(slug);
     if (cached) {
-      const tagEntries = getSeoSlugsWithTags(cached.seo_tags);
-      const firstTag = getFirstTagFromSeoTags(cached.seo_tags);
-      const loadedCard: LoadedCard = {
-        data: cached,
-        tagEntries,
-        breadcrumbTag: firstTag ? { labelRu: firstTag.labelRu, urlPath: firstTag.urlPath } : null,
-      };
-      setLoaded(loadedCard);
+      setLoaded(buildLoadedCard(cached));
       setError(null);
       setLoading(false);
       return;
@@ -77,16 +81,7 @@ export function ClientCardModal() {
       if (requestId !== requestIdRef.current) return;
       if (!data) throw new Error("No card data");
 
-      // Enrich with tags exactly like the server /p/[slug] pages do.
-      // This ensures tags (and breadcrumb) appear on first open from the listing grid.
-      const tagEntries = getSeoSlugsWithTags(data.seo_tags);
-      const firstTag = getFirstTagFromSeoTags(data.seo_tags);
-      const breadcrumbTag = firstTag
-        ? { labelRu: firstTag.labelRu, urlPath: firstTag.urlPath }
-        : null;
-
-      const loadedCard: LoadedCard = { data, tagEntries, breadcrumbTag };
-      setLoaded(loadedCard);
+      setLoaded(buildLoadedCard(data));
     } catch (e) {
       if (requestId !== requestIdRef.current) return;
       console.error("ClientCardModal fetch failed", e);
@@ -121,7 +116,7 @@ export function ClientCardModal() {
   // Switch to immersive immediately if seed already tells us the card has photos —
   // avoids the white-box flash before data arrives.
   const hasSeedPhoto = !!(currentSeed?.photoUrl);
-  const immersiveMobile = !!(loaded?.data?.photoUrls?.length || hasSeedPhoto);
+  const immersiveMobile = !!(effectiveLoaded?.data?.photoUrls?.length || hasSeedPhoto);
 
   return (
     <CardModal onClose={handleClose} immersiveMobile={immersiveMobile}>
@@ -132,13 +127,13 @@ export function ClientCardModal() {
             : "max-h-[85vh] overflow-y-auto md:max-h-none md:overflow-visible"
         }
       >
-        {loading && !loaded && !hasSeedPhoto && (
+        {loading && !effectiveLoaded && !hasSeedPhoto && (
           <div className="flex min-h-[40vh] items-center justify-center p-8 text-sm text-zinc-400 md:text-zinc-300">
             Загрузка…
           </div>
         )}
 
-        {loading && !loaded && hasSeedPhoto && (
+        {loading && !effectiveLoaded && hasSeedPhoto && (
           // Dark fullscreen shell using the grid-sized photo — same URL the browser already cached
           // from the listing, so the image appears instantly with no extra network round-trip.
           // Shown below lg — same breakpoint as the mobile listing shell. Desktop waits for the split UI.
@@ -171,22 +166,20 @@ export function ClientCardModal() {
           </div>
         )}
 
-        {loaded && (
-          <CardInteractionsProvider cardIds={[loaded.data.id]}>
-            <CardPageClient
-              data={loaded.data}
-              tagEntries={loaded.tagEntries}
-              breadcrumbTag={loaded.breadcrumbTag}
-              isModal
-              // Pass the neighbor navigation that stays inside the *same* modal instance.
-              // This makes left/right arrows work without full navigation or multiple modals.
-              onListingNeighborGo={goToNeighbor}
-              onListingNeighborCommit={commitNeighborCard}
-              // Make the mobile photo header "Закрыть" крестик actually close this client modal
-              // (same visual position and style as on direct /p/[slug] pages).
-              onCloseModal={handleClose}
-            />
-          </CardInteractionsProvider>
+        {effectiveLoaded && (
+          <CardPageClient
+            data={effectiveLoaded.data}
+            tagEntries={effectiveLoaded.tagEntries}
+            breadcrumbTag={effectiveLoaded.breadcrumbTag}
+            isModal
+            // Pass the neighbor navigation that stays inside the *same* modal instance.
+            // This makes left/right arrows work without full navigation or multiple modals.
+            onListingNeighborGo={goToNeighbor}
+            onListingNeighborCommit={commitNeighborCard}
+            // Make the mobile photo header "Закрыть" крестик actually close this client modal
+            // (same visual position and style as on direct /p/[slug] pages).
+            onCloseModal={handleClose}
+          />
         )}
       </div>
     </CardModal>

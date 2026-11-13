@@ -29,14 +29,18 @@ import {
   isCardPathname,
   settleClientCardOverlayClose,
 } from "@/lib/client-card-overlay";
+import {
+  CARD_SNAP_ANALYTICS_DWELL_MS,
+  CARD_SNAP_URL_SYNC_DEBOUNCE_MS,
+} from "@/lib/mobile-card-snap";
 import { markPromptCardOverlayOpened } from "@/lib/prompt-card-overlay-open";
 import { lockListingScrollForModal } from "@/lib/scroll-preservation";
 import { trackPromptCardOpen, trackVirtualPageView } from "@/lib/yandex-metrika";
 import { recordSearchCardClick } from "@/lib/search-analytics-client";
 
-const CARD_CACHE_MAX_ENTRIES = 9;
+const CARD_CACHE_MAX_ENTRIES = 64;
 const CARD_PREFETCH_BEHIND = 2;
-const CARD_PREFETCH_AHEAD = 6;
+const CARD_PREFETCH_AHEAD = 5;
 
 /** Lightweight preview data available immediately from the listing grid on click. */
 export type CardModalSeed = {
@@ -54,7 +58,7 @@ type PromptCardModalContextType = {
   open: (slug: string, seed?: CardModalSeed) => void;
   /** Close the modal (user action or browser back). */
   close: () => void;
-  /** Switch to a neighbor slug inside the same modal instance (arrows). */
+  /** Switch to a neighbor slug inside the same modal instance (swipe / arrows). */
   goToNeighbor: (slug: string) => void;
   /** Synchronous cache lookup; successful reads refresh the LRU position. */
   getCardFromCache: (slug: string) => CardPageData | null;
@@ -64,6 +68,8 @@ type PromptCardModalContextType = {
   loadCard: (slug: string) => Promise<CardPageData | null>;
   /** Fire-and-forget prefetch: fetches card data into cache with in-flight dedup. */
   prefetchCard: (slug: string) => void;
+  /** Prefetches the sliding neighbor window [-2 .. +5] around `slug`. */
+  prefetchCardWindow: (slug: string) => void;
 };
 
 const PromptCardModalContext = createContext<PromptCardModalContextType>({
@@ -76,6 +82,7 @@ const PromptCardModalContext = createContext<PromptCardModalContextType>({
   setCardInCache: () => {},
   loadCard: async () => null,
   prefetchCard: () => {},
+  prefetchCardWindow: () => {},
 });
 
 export function PromptCardModalProvider({ children }: { children: ReactNode }) {
@@ -85,14 +92,29 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
   const currentSlugRef = useRef<string | null>(null);
   currentSlugRef.current = currentSlug;
   const closingRef = useRef(false);
+  const urlSyncTimerRef = useRef<number | null>(null);
+  const analyticsDwellTimerRef = useRef<number | null>(null);
   const inflightRef = useRef(
     new Map<string, Promise<CardPageData | null>>()
   );
   const prefetchWindowRef = useRef<(slug: string) => void>(() => {});
 
+  const clearPendingNeighborSideEffects = useCallback(() => {
+    if (typeof window === "undefined") return;
+    if (urlSyncTimerRef.current !== null) {
+      window.clearTimeout(urlSyncTimerRef.current);
+      urlSyncTimerRef.current = null;
+    }
+    if (analyticsDwellTimerRef.current !== null) {
+      window.clearTimeout(analyticsDwellTimerRef.current);
+      analyticsDwellTimerRef.current = null;
+    }
+  }, []);
+
   const open = useCallback((slug: string, seed?: CardModalSeed) => {
     const nextSlug = resolveAuthReturnCardOpenSlug(slug);
     closingRef.current = false;
+    clearPendingNeighborSideEffects();
     prefetchWindowRef.current(nextSlug);
     if (typeof window !== "undefined") {
       beginClientCardOverlay(nextSlug);
@@ -118,37 +140,63 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
       recordSearchCardClick(nextSlug, "modal");
       trackVirtualPageView(`/p/${encodeURIComponent(nextSlug)}`, { referer });
     }
+    currentSlugRef.current = nextSlug;
     setCurrentSeed(nextSlug === slug ? seed ?? null : null);
     setCurrentSlug(nextSlug);
-  }, []);
+  }, [clearPendingNeighborSideEffects]);
 
   const goToNeighbor = useCallback((slug: string) => {
     if (closingRef.current || !currentSlugRef.current) return;
     if (!canMutateAuthReturnCardSlug(slug)) return;
+    if (currentSlugRef.current === slug) return;
+
     beginClientCardOverlay(slug);
+    prefetchWindowRef.current(slug);
+
     if (typeof window !== "undefined") {
       const referer = window.location.pathname + window.location.search;
-
-      window.history.replaceState(null, "", `/p/${encodeURIComponent(slug)}`);
-
       const originPath =
         getLiveAuthReturnOverlay()?.originPath ?? referer;
       setLiveAuthReturnOverlay({
         originPath,
         overlay: { type: "card", slug },
       });
-      trackVirtualPageView(`/p/${encodeURIComponent(slug)}`, { referer });
-      recordSearchCardClick(slug, "modal");
+
+      clearPendingNeighborSideEffects();
+
+      urlSyncTimerRef.current = window.setTimeout(() => {
+        urlSyncTimerRef.current = null;
+        if (closingRef.current || currentSlugRef.current !== slug) return;
+        try {
+          window.history.replaceState(
+            null,
+            "",
+            `/p/${encodeURIComponent(slug)}`
+          );
+        } catch {
+          /* WebKit replaceState rate limit guard */
+        }
+      }, CARD_SNAP_URL_SYNC_DEBOUNCE_MS);
+
+      analyticsDwellTimerRef.current = window.setTimeout(() => {
+        analyticsDwellTimerRef.current = null;
+        if (closingRef.current || currentSlugRef.current !== slug) return;
+        trackVirtualPageView(`/p/${encodeURIComponent(slug)}`, { referer });
+      }, CARD_SNAP_ANALYTICS_DWELL_MS);
     }
+
+    currentSlugRef.current = slug;
     setCurrentSeed(null);
     setCurrentSlug(slug);
-  }, []);
+  }, [clearPendingNeighborSideEffects]);
 
   const close = useCallback(() => {
     closingRef.current = true;
+    clearPendingNeighborSideEffects();
     releaseAuthReturnCardPin();
     endClientCardOverlay();
     setLiveAuthReturnOverlay(null);
+    currentSlugRef.current = null;
     if (typeof window !== "undefined") {
       // Unmount modal first so CardModal cleanup unlocks body (desktop) before history.back().
       window.history.scrollRestoration = "manual";
@@ -161,7 +209,7 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
     }
     setCurrentSlug(null);
     setCurrentSeed(null);
-  }, []);
+  }, [clearPendingNeighborSideEffects]);
 
   const getCardFromCache = useCallback((slug: string) => {
     const cached = cardCache.get(slug);
@@ -215,11 +263,11 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
     void loadCard(slug);
   }, [loadCard]);
 
-  const prefetchCardWindow = useCallback((currentSlug: string) => {
+  const prefetchCardWindow = useCallback((targetSlug: string) => {
     const slugs = readListingNavigationContext();
-    const currentIndex = slugs?.indexOf(currentSlug) ?? -1;
+    const currentIndex = slugs?.indexOf(targetSlug) ?? -1;
     if (!slugs || currentIndex < 0) {
-      void loadCard(currentSlug);
+      void loadCard(targetSlug);
       return;
     }
     const start = Math.max(0, currentIndex - CARD_PREFETCH_BEHIND);
@@ -234,6 +282,12 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
   prefetchWindowRef.current = prefetchCardWindow;
 
   useEffect(() => {
+    return () => {
+      clearPendingNeighborSideEffects();
+    };
+  }, [clearPendingNeighborSideEffects]);
+
+  useEffect(() => {
     if (!currentSlug) return;
     const previous = window.history.scrollRestoration;
     window.history.scrollRestoration = "manual";
@@ -244,6 +298,7 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     function onPopState() {
+      clearPendingNeighborSideEffects();
       if (!isCardPathname(window.location.pathname)) {
         settleClientCardOverlayClose();
       }
@@ -254,11 +309,12 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
         settleClientCardOverlayClose();
       }
       setLiveAuthReturnOverlay(null);
+      currentSlugRef.current = null;
       setCurrentSlug(null);
     }
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
-  }, []);
+  }, [clearPendingNeighborSideEffects]);
 
   return (
     <PromptCardModalContext.Provider
@@ -272,6 +328,7 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
         setCardInCache,
         loadCard,
         prefetchCard,
+        prefetchCardWindow,
       }}
     >
       {children}

@@ -1,16 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildInitialSessionSlugs,
   canCommitMobileCardSnap,
   freezeMobileCardSnapOnUnmount,
   isMobileCardSnapCentered,
   isMobileCardSnapViewportUsable,
+  isVirtualCardScrollNearSnapPoint,
+  mergeSessionListingSlugs,
   mobileCardScrollBehavior,
   rebaseMobileCardScrollTop,
+  replaceSessionSlugInPlace,
   resolveActiveMobileCardPhotos,
+  resolveCardSlideImageUrls,
   resolveMobileCardSnapDirection,
   resolveMobileCardSnapSlideIndex,
   resolveMobileCardSnapTargetSlug,
+  resolveVirtualCardSnapWindow,
+  resolveVirtualCardVisualIndex,
   shouldIgnoreLayoutInducedMobileCardSnapScroll,
   shouldIgnoreLayoutScrollAfterGestureLock,
   shouldLockMobileCardSnapInteractiveMatch,
@@ -378,4 +385,132 @@ test("clean tap on ↑/↓ button does not arm the 400ms scroll-ignore window", 
     }),
     true
   );
+});
+
+test("V2 session track builds initial slug index and deduplicates listing entries", () => {
+  assert.deepEqual(
+    buildInitialSessionSlugs({
+      currentSlug: "card-2",
+      listingSlugs: ["card-1", "card-2", "card-2", "card-3"],
+    }),
+    {
+      slugs: ["card-1", "card-2", "card-3"],
+      initialIndex: 1,
+    }
+  );
+  assert.deepEqual(
+    buildInitialSessionSlugs({
+      currentSlug: "direct-only",
+      listingSlugs: ["card-1", "card-2"],
+    }),
+    {
+      slugs: ["direct-only"],
+      initialIndex: 0,
+    }
+  );
+});
+
+test("V2 infinite scroll merge is strictly append-only even when localStorage caps head items", () => {
+  const existing = ["s1", "s2", "s3", "s4", "s5"];
+  // Simulate capListingSlugList dropping s1..s2 while appending s6..s7.
+  const incomingAfterCap = ["s3", "s4", "s5", "s6", "s7"];
+  const merged = mergeSessionListingSlugs({
+    sessionSlugs: existing,
+    incomingSlugs: incomingAfterCap,
+  });
+  assert.deepEqual(merged, ["s1", "s2", "s3", "s4", "s5", "s6", "s7"]);
+  // Unrelated listing context must not pollute an open direct-card session.
+  assert.deepEqual(
+    mergeSessionListingSlugs({
+      sessionSlugs: ["direct-card"],
+      incomingSlugs: ["other-1", "other-2"],
+    }),
+    ["direct-card"]
+  );
+});
+
+test("V2 split-group variant replaces active slot in place without shifting neighbor indices", () => {
+  const replaced = replaceSessionSlugInPlace({
+    sessionSlugs: ["prev-card", "split-v1", "next-card"],
+    activeIndex: 1,
+    nextSlug: "split-v2",
+  });
+  assert.equal(replaced.mode, "replace-in-place");
+  assert.equal(replaced.index, 1);
+  assert.deepEqual(replaced.slugs, ["prev-card", "split-v2", "next-card"]);
+
+  const jumped = replaceSessionSlugInPlace({
+    sessionSlugs: ["prev-card", "split-v2", "next-card"],
+    activeIndex: 1,
+    nextSlug: "next-card",
+  });
+  assert.equal(jumped.mode, "jump");
+  assert.equal(jumped.index, 2);
+});
+
+test("V2 virtual window bounds mount at most 6 slides [center-2 .. center+3]", () => {
+  const middle = resolveVirtualCardSnapWindow({
+    totalSlides: 20,
+    centerIndex: 10,
+  });
+  assert.deepEqual(middle, {
+    startIndex: 8,
+    endIndex: 13,
+    centerIndex: 10,
+    totalSlides: 20,
+  });
+  assert.equal(middle.endIndex - middle.startIndex + 1, 6);
+
+  const head = resolveVirtualCardSnapWindow({
+    totalSlides: 20,
+    centerIndex: 0,
+  });
+  assert.deepEqual(head, {
+    startIndex: 0,
+    endIndex: 3,
+    centerIndex: 0,
+    totalSlides: 20,
+  });
+});
+
+test("V2 visual index switches at the 50% scroll midpoint and clamps to track bounds", () => {
+  assert.equal(
+    resolveVirtualCardVisualIndex({
+      scrollTop: 800 + 399,
+      slideHeight: 800,
+      totalSlides: 5,
+      fallbackIndex: 1,
+    }),
+    1
+  );
+  assert.equal(
+    resolveVirtualCardVisualIndex({
+      scrollTop: 800 + 401,
+      slideHeight: 800,
+      totalSlides: 5,
+      fallbackIndex: 1,
+    }),
+    2
+  );
+  assert.equal(
+    isVirtualCardScrollNearSnapPoint({
+      scrollTop: 1601.8,
+      slideHeight: 800,
+    }),
+    true
+  );
+});
+
+test("V2 image URL resolver preserves listing base URL and derives 1920w hero upgrade URL", () => {
+  const listingUrl =
+    "https://supa.example.co/storage/v1/render/image/public/cards/p1.jpg?width=1024&quality=60";
+  assert.deepEqual(resolveCardSlideImageUrls(listingUrl), {
+    baseUrl: listingUrl,
+    heroUrl:
+      "https://supa.example.co/storage/v1/render/image/public/cards/p1.jpg?width=1920&quality=100",
+  });
+  assert.deepEqual(resolveCardSlideImageUrls("https://cdn.example/raw.webp"), {
+    baseUrl: "https://cdn.example/raw.webp",
+    heroUrl: "https://cdn.example/raw.webp",
+  });
 });
