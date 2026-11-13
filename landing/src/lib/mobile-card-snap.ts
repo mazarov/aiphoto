@@ -275,3 +275,46 @@ export function shouldLockMobileCardSnapGesture(
     el.closest(MOBILE_CARD_SNAP_INTERACTIVE_SELECTOR)
   );
 }
+
+/**
+ * Hero photo to render on the active mobile card slide.
+ *
+ * `CardPageClient` mirrors `data.photoUrls` into local `photos` state (so admin
+ * "Сделать «Было»" can splice a frame in place) and syncs it via `useEffect`.
+ * On a swipe commit, `data` updates synchronously while `photos` still holds the
+ * previous card's URLs for one render — rendering `photos[0]` flashes the old card.
+ */
+export function resolveActiveMobileCardPhotos({
+  dataId,
+  syncedDataId,
+  localPhotos,
+  dataPhotoUrls,
+}: {
+  dataId: string;
+  syncedDataId: string;
+  localPhotos: readonly string[];
+  dataPhotoUrls: readonly string[];
+}): readonly string[] {
+  return syncedDataId === dataId ? localPhotos : dataPhotoUrls;
+}
+
+/**
+ * Whether a `touchEnd` / `pointerUp` on an interactive control (`data-no-swipe`,
+ * ↑/↓ arrows, Промпт, ✕) should arm the 400ms layout-scroll ignore window.
+ *
+ * Only arm it when the gesture actually drifted the snap scroller and had to be
+ * clamped back. A clean tap (`scrollTop === lockedScrollTop`) must NOT arm the
+ * ignore window, otherwise `scrollToPrev`/`scrollToNext` smooth scroll is
+ * ignored by `onScroll`/`onScrollEnd` and leaves `isInteracting=true`
+ * (`pointer-events-none` on all action buttons) until the user taps again.
+ */
+export function shouldIgnoreLayoutScrollAfterGestureLock({
+  currentScrollTop,
+  lockedScrollTop,
+}: {
+  currentScrollTop: number | null;
+  lockedScrollTop: number | null;
+}): boolean {
+  if (currentScrollTop === null || lockedScrollTop === null) return false;
+  return Math.abs(currentScrollTop - lockedScrollTop) > 0.5;
+}

@@ -7,10 +7,12 @@ import {
   isMobileCardSnapViewportUsable,
   mobileCardScrollBehavior,
   rebaseMobileCardScrollTop,
+  resolveActiveMobileCardPhotos,
   resolveMobileCardSnapDirection,
   resolveMobileCardSnapSlideIndex,
   resolveMobileCardSnapTargetSlug,
   shouldIgnoreLayoutInducedMobileCardSnapScroll,
+  shouldIgnoreLayoutScrollAfterGestureLock,
   shouldLockMobileCardSnapInteractiveMatch,
   shouldRecenterMobileCardSnapOnResize,
   shouldTreatMobileCardResizeAsInteraction,
@@ -338,4 +340,42 @@ test("unmount freeze kills momentum scroll and clamps to the nearest slide", () 
   assert.equal(style.overflowY, "hidden");
   assert.equal(style.scrollSnapType, "none");
   assert.equal(style.scrollBehavior, "auto");
+});
+
+test("swipe commit uses incoming card photos immediately instead of stale local state", () => {
+  assert.deepEqual(
+    resolveActiveMobileCardPhotos({
+      dataId: "card-b",
+      syncedDataId: "card-a",
+      localPhotos: ["https://cdn.example/old-a.jpg"],
+      dataPhotoUrls: ["https://cdn.example/new-b.jpg"],
+    }),
+    ["https://cdn.example/new-b.jpg"]
+  );
+  assert.deepEqual(
+    resolveActiveMobileCardPhotos({
+      dataId: "card-b",
+      syncedDataId: "card-b",
+      localPhotos: ["https://cdn.example/edited-b.jpg"],
+      dataPhotoUrls: ["https://cdn.example/new-b.jpg"],
+    }),
+    ["https://cdn.example/edited-b.jpg"]
+  );
+});
+
+test("clean tap on ↑/↓ button does not arm the 400ms scroll-ignore window", () => {
+  assert.equal(
+    shouldIgnoreLayoutScrollAfterGestureLock({
+      currentScrollTop: 800,
+      lockedScrollTop: 800,
+    }),
+    false
+  );
+  assert.equal(
+    shouldIgnoreLayoutScrollAfterGestureLock({
+      currentScrollTop: 814,
+      lockedScrollTop: 800,
+    }),
+    true
+  );
 });

@@ -28,6 +28,7 @@ import {
   resolveMobileCardSnapSlideIndex,
   resolveMobileCardSnapTargetSlug,
   shouldIgnoreLayoutInducedMobileCardSnapScroll,
+  shouldIgnoreLayoutScrollAfterGestureLock,
   shouldLockMobileCardSnapGesture,
   shouldRecenterMobileCardSnapOnResize,
   shouldTreatMobileCardResizeAsInteraction,
@@ -914,12 +915,19 @@ export function useMobileCardSnapFeed({
     if (gestureLockRef.current) {
       const locked = lockedScrollTopRef.current;
       const viewport = viewportRef.current;
-      if (viewport && locked !== null) {
+      const currentTop = viewport?.scrollTop ?? null;
+      const drifted = shouldIgnoreLayoutScrollAfterGestureLock({
+        currentScrollTop: currentTop,
+        lockedScrollTop: locked,
+      });
+      if (viewport && locked !== null && drifted) {
         viewport.scrollTop = locked;
       }
       gestureLockRef.current = false;
       lockedScrollTopRef.current = null;
-      markLayoutScrollIgnore();
+      if (drifted) {
+        markLayoutScrollIgnore();
+      }
       return;
     }
     const startScrollTop = pointerStartScrollTopRef.current;
@@ -988,12 +996,18 @@ export function useMobileCardSnapFeed({
     const onTouchEndCapture = () => {
       if (!gestureLockRef.current) return;
       const locked = lockedScrollTopRef.current;
-      if (locked !== null && viewport.scrollTop !== locked) {
+      const drifted = shouldIgnoreLayoutScrollAfterGestureLock({
+        currentScrollTop: viewport.scrollTop,
+        lockedScrollTop: locked,
+      });
+      if (locked !== null && drifted) {
         viewport.scrollTop = locked;
       }
       gestureLockRef.current = false;
       lockedScrollTopRef.current = null;
-      markLayoutScrollIgnore();
+      if (drifted) {
+        markLayoutScrollIgnore();
+      }
     };
 
     viewport.addEventListener("touchstart", onTouchStartCapture, {
@@ -1034,7 +1048,10 @@ export function useMobileCardSnapFeed({
       const sourceSlug = currentData.slug;
       const slug = direction === "prev" ? prevSlug : nextSlug;
       if (!slug) return;
-      const cached = direction === "prev" ? neighbors.prev : neighbors.next;
+      const stateCard = direction === "prev" ? neighbors.prev : neighbors.next;
+      const cached =
+        (stateCard?.slug === slug ? stateCard : null) ??
+        getCardFromCache(slug);
       const target = cached ?? (await loadCard(slug));
       if (
         !target ||
@@ -1045,10 +1062,12 @@ export function useMobileCardSnapFeed({
       }
 
       setNeighbors((current) => ({ ...current, [direction]: target }));
+      ignoreLayoutScrollUntilRef.current = 0;
       setPhase("settling");
       window.requestAnimationFrame(() => {
         const viewport = viewportRef.current;
         if (!viewport) return;
+        ignoreLayoutScrollUntilRef.current = 0;
         const height = slideHeightPx();
         const behavior = mobileCardScrollBehavior(
           prefersReducedMotionRef.current
@@ -1068,6 +1087,7 @@ export function useMobileCardSnapFeed({
       snapActive,
       currentData.slug,
       currentSlideIndex,
+      getCardFromCache,
       loadCard,
       neighbors.next,
       neighbors.prev,
@@ -1079,15 +1099,24 @@ export function useMobileCardSnapFeed({
     ]
   );
 
+  const resolveSlotCard = useCallback(
+    (slug: string | null, stateCard: CardPageData | null) => {
+      if (!slug) return null;
+      if (stateCard?.slug === slug) return stateCard;
+      return getCardFromCache(slug);
+    },
+    [getCardFromCache]
+  );
+
   return {
     viewportRef,
     extraPrevSlides,
     prevPrevSlug,
-    prevPrevCard: neighbors.prevPrev,
-    prevCard: neighbors.prev,
-    nextCard: neighbors.next,
+    prevPrevCard: resolveSlotCard(prevPrevSlug, neighbors.prevPrev),
+    prevCard: resolveSlotCard(prevSlug, neighbors.prev),
+    nextCard: resolveSlotCard(nextSlug, neighbors.next),
     nextNextSlug,
-    nextNextCard: neighbors.nextNext,
+    nextNextCard: resolveSlotCard(nextNextSlug, neighbors.nextNext),
     extraNextSlides,
     neighborsAttached,
     snapScrollEnabled: snapActive && snapArmed,

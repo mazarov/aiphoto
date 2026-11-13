@@ -56,6 +56,7 @@ import {
   markCardSwipeOnboardingSeen,
 } from "@/lib/card-swipe-onboarding";
 import { useMobileCardSnapFeed } from "@/hooks/useMobileCardSnapFeed";
+import { resolveActiveMobileCardPhotos } from "@/lib/mobile-card-snap";
 import {
   canMutateAuthReturnCardSlug,
   isAuthReturnCardPinned,
@@ -252,24 +253,49 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
   }, []);
   const debugMode = isAdmin && techInfoEnabled;
 
-  const [photoIndex, setPhotoIndex] = useState(() =>
+  const [rawPhotoIndex, setPhotoIndex] = useState(() =>
     resolvePhotoshootOpenIndex({
       urls: data.photoUrls,
       photoIndex: currentSeed?.photoIndex,
       photoUrl: currentSeed?.photoUrl,
     }),
   );
-  const [photoshootExpanded, setPhotoshootExpanded] = useState(
+  const [rawPhotoshootExpanded, setPhotoshootExpanded] = useState(
     () => typeof currentSeed?.photoIndex === "number",
   );
   const [stickyCopy, setStickyCopy] = useState<"idle" | "ok" | "fail">("idle");
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [copyErrIdx, setCopyErrIdx] = useState<number | null>(null);
 
-  const [photos, setPhotos] = useState(data.photoUrls);
-  const [photoMeta, setPhotoMeta] = useState(data.photoMeta);
-  const [photoDimensions, setPhotoDimensions] = useState(data.photoDimensions);
-  const [beforePhotoUrl, setBeforePhotoUrl] = useState(data.beforePhotoUrl);
+  const [rawPhotos, setPhotos] = useState(data.photoUrls);
+  const [rawPhotoMeta, setPhotoMeta] = useState(data.photoMeta);
+  const [rawPhotoDimensions, setPhotoDimensions] = useState(data.photoDimensions);
+  const [rawBeforePhotoUrl, setBeforePhotoUrl] = useState(data.beforePhotoUrl);
+  const [syncedCardId, setSyncedCardId] = useState(data.id);
+  const isCardMediaSynced = syncedCardId === data.id;
+  const photos = resolveActiveMobileCardPhotos({
+    dataId: data.id,
+    syncedDataId: syncedCardId,
+    localPhotos: rawPhotos,
+    dataPhotoUrls: data.photoUrls,
+  }) as string[];
+  const photoMeta = isCardMediaSynced ? rawPhotoMeta : data.photoMeta;
+  const photoDimensions = isCardMediaSynced
+    ? rawPhotoDimensions
+    : data.photoDimensions;
+  const beforePhotoUrl = isCardMediaSynced
+    ? rawBeforePhotoUrl
+    : data.beforePhotoUrl;
+  const photoIndex = isCardMediaSynced
+    ? rawPhotoIndex
+    : resolvePhotoshootOpenIndex({
+        urls: data.photoUrls,
+        photoIndex: currentSeed?.photoIndex,
+        photoUrl: currentSeed?.photoUrl,
+      });
+  const photoshootExpanded = isCardMediaSynced
+    ? rawPhotoshootExpanded
+    : typeof currentSeed?.photoIndex === "number";
   const [setBeforeSaving, setSetBeforeSaving] = useState(false);
   const [setBeforeStatus, setSetBeforeStatus] = useState<string | null>(null);
   const [deleteSaving, setDeleteSaving] = useState(false);
@@ -280,6 +306,14 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
     useState<ListingCardNavNeighbors | null>(() =>
       resolveListingNavNeighbors(data.slug)
     );
+  const [syncedNavSlug, setSyncedNavSlug] = useState(data.slug);
+  const activeListingNavNeighbors = useMemo(
+    () =>
+      syncedNavSlug === data.slug
+        ? listingNavNeighbors
+        : resolveListingNavNeighbors(data.slug),
+    [data.slug, listingNavNeighbors, syncedNavSlug]
+  );
   const [authCardPinned, setAuthCardPinned] = useState(isAuthReturnCardPinned);
   const revertedAuthPinRef = useRef(false);
   const [mobilePromptOverlay, setMobilePromptOverlay] = useState(false);
@@ -336,6 +370,7 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
 
   // Reset local media only when opening another card (`id`), not on every `data` reference change.
   useEffect(() => {
+    setSyncedCardId(data.id);
     setPhotos(data.photoUrls);
     setPhotoMeta(data.photoMeta);
     setPhotoDimensions(data.photoDimensions);
@@ -362,6 +397,7 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
 
   useEffect(() => {
     const refreshNeighbors = () => {
+      setSyncedNavSlug(data.slug);
       setListingNavNeighbors(resolveListingNavNeighbors(data.slug));
     };
     refreshNeighbors();
@@ -752,12 +788,12 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
     }
   }
 
-  const listingPrev = listingNavNeighbors?.prevSlug ?? null;
-  const listingNext = listingNavNeighbors?.nextSlug ?? null;
+  const listingPrev = activeListingNavNeighbors?.prevSlug ?? null;
+  const listingNext = activeListingNavNeighbors?.nextSlug ?? null;
   const hasListingNeighbors = Boolean(listingPrev || listingNext);
 
   useEffect(() => {
-    if (!hasPhotos || listingNavNeighbors === null) return;
+    if (!hasPhotos || activeListingNavNeighbors === null) return;
     let lookahead = 0;
     let cursor = data.slug;
     while (lookahead < 16) {
@@ -769,7 +805,7 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
     if (lookahead < 16) {
       requestListingNavigationLoadMore();
     }
-  }, [data.slug, hasPhotos, listingNavNeighbors]);
+  }, [activeListingNavNeighbors, data.slug, hasPhotos]);
 
   useEffect(() => {
     if (!hasPhotos || !hasListingNeighbors) {
