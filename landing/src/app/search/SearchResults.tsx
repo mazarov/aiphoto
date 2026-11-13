@@ -44,9 +44,8 @@ import {
 import { useListingSentinelLoadMore } from "@/hooks/useListingSentinelLoadMore";
 import {
   primeListingNavigationCards,
-  subscribeListingNavigationLoadMore,
-  writeListingNavigationContext,
 } from "@/lib/listing-card-navigation-context";
+import { useListingNavigationFeed } from "@/hooks/useListingNavigationFeed";
 import { useListingIsDesktop } from "@/hooks/useListingIsMobile";
 import { SearchEmptyState } from "@/components/SearchEmptyState";
 import { SearchMetrikaTracker } from "@/components/YandexMetrikaRouteTracker";
@@ -365,33 +364,33 @@ export function SearchResults({ initialQuery }: Props) {
     [displayedPages]
   );
 
-  useEffect(() => {
-    if (displayedCards.length > 0) {
-      const slugs = displayedCards.map((c) => c.slug).filter((s): s is string => !!s);
-      if (slugs.length > 0) {
-        primeListingNavigationCards(displayedCards);
-        writeListingNavigationContext(slugs);
-        if (searchIdRef.current) {
-          writeSearchNavContext({
-            searchId: searchIdRef.current,
-            query: queryRef.current,
-            slugs,
-            resultCount: firstPageCountRef.current,
-          });
-        }
-      }
-    }
-  }, [displayedCards]);
-
-  useEffect(
-    () =>
-      subscribeListingNavigationLoadMore(() => {
-        if (!loadingRef.current && hasMoreRef.current) {
-          void doSearch(queryRef.current, true);
-        }
-      }),
-    [doSearch]
+  const displayedSlugs = useMemo(
+    () => displayedCards.map((c) => c.slug).filter((s): s is string => !!s),
+    [displayedCards]
   );
+
+  const { navigationContainerProps } = useListingNavigationFeed({
+    slugs: displayedSlugs,
+    hasMore,
+    onLoadMore: () => {
+      if (!loadingRef.current && hasMoreRef.current) {
+        return doSearch(queryRef.current, true);
+      }
+    },
+    onPrimeCards: () => primeListingNavigationCards(displayedCards),
+    enabled: displayedSlugs.length > 0,
+  });
+
+  useEffect(() => {
+    if (displayedSlugs.length > 0 && searchIdRef.current) {
+      writeSearchNavContext({
+        searchId: searchIdRef.current,
+        query: queryRef.current,
+        slugs: displayedSlugs,
+        resultCount: firstPageCountRef.current,
+      });
+    }
+  }, [displayedSlugs]);
 
   const cardIds = useMemo(() => cards.map((c) => c.id), [cards]);
 
@@ -462,7 +461,7 @@ export function SearchResults({ initialQuery }: Props) {
         />
       ) : null}
 
-      <div className="relative mt-5">
+      <div className="relative mt-5" {...navigationContainerProps}>
         {displayedCards.length > 0 ? (
           <StableListingMasonry
             cardPages={displayedPages}

@@ -14,8 +14,11 @@ import {
 import type { CardPageData } from "@/lib/supabase";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import {
+  canLoadMoreListingNavigation,
+  isListingNavigationLoadingMore,
   readListingNavigationContext,
   requestListingNavigationLoadMore,
+  subscribeListingNavigationLoadMoreSettled,
   subscribeListingNavigationUpdates,
 } from "@/lib/listing-card-navigation-context";
 import {
@@ -95,12 +98,18 @@ export function useMobileCardSnapFeed({
   onVisualChangeRef.current = onVisualChange;
   const onSettledCommitRef = useRef(onSettledCommit);
   onSettledCommitRef.current = onSettledCommit;
+  const currentDataRef = useRef(currentData);
+  currentDataRef.current = currentData;
 
   const pointerActiveRef = useRef(false);
   const pointerStartScrollTopRef = useRef<number | null>(null);
   const suppressClickUntilRef = useRef(0);
   const programmaticTargetIndexRef = useRef<number | null>(null);
   const ignoreProgrammaticJumpRef = useRef(false);
+
+  const pendingAdvanceIndexRef = useRef<number | null>(null);
+  const sittingOnTailLoaderRef = useRef(false);
+  const attachedToListingRef = useRef(false);
 
   const slideHeightRef = useRef(0);
   const lastUsableRef = useRef(false);
@@ -116,6 +125,10 @@ export function useMobileCardSnapFeed({
   const [visualIndex, setVisualIndex] = useState(0);
   const [settledIndex, setSettledIndex] = useState(0);
   const [snapInitialized, setSnapInitialized] = useState(false);
+  const [attachedToListing, setAttachedToListing] = useState(false);
+  const [canLoadMoreNext, setCanLoadMoreNext] = useState(false);
+  const [isLoadingMoreNext, setIsLoadingMoreNext] = useState(false);
+  const [waitingForNextPage, setWaitingForNextPage] = useState(false);
   const [, setCacheRevision] = useState(0);
 
   const sessionSlugsRef = useRef(sessionSlugs);
@@ -126,10 +139,19 @@ export function useMobileCardSnapFeed({
   settledIndexRef.current = settledIndex;
   const lastInternalSlugRef = useRef(currentData.slug);
 
-  const hasNeighbors = sessionSlugs.length > 1;
   const snapActive = enabled && isMobileViewport;
+  const showTailLoader =
+    snapActive &&
+    snapInitialized &&
+    attachedToListing &&
+    (canLoadMoreNext || isLoadingMoreNext);
+  const showTailLoaderRef = useRef(showTailLoader);
+  showTailLoaderRef.current = showTailLoader;
+
+  const hasNeighbors = sessionSlugs.length > 1;
+  const hasScrollableTrack = hasNeighbors || showTailLoader;
   const snapScrollEnabled =
-    snapActive && snapInitialized && hasNeighbors && !promptSheetOpen;
+    snapActive && snapInitialized && hasScrollableTrack && !promptSheetOpen;
 
   const clearSettleWork = useCallback(() => {
     if (settleTimerRef.current !== null) {
@@ -140,6 +162,12 @@ export function useMobileCardSnapFeed({
       window.cancelAnimationFrame(settleRafRef.current);
       settleRafRef.current = null;
     }
+  }, []);
+
+  const syncPaginationFlags = useCallback(() => {
+    const attached = attachedToListingRef.current;
+    setCanLoadMoreNext(attached && canLoadMoreListingNavigation());
+    setIsLoadingMoreNext(attached && isListingNavigationLoadingMore());
   }, []);
 
   const syncViewportHeightPx = useCallback((): number => {
@@ -182,8 +210,6 @@ export function useMobileCardSnapFeed({
       viewport.style.scrollSnapType = "none";
       viewport.style.scrollBehavior = "auto";
       viewport.scrollTop = targetTop;
-      // Target is an exact snap boundary (`index * height`), so restoring snap
-      // immediately after forcing layout keeps native snap armed from frame 0.
       void viewport.offsetHeight;
       viewport.style.scrollSnapType = prevSnap;
       viewport.style.scrollBehavior = prevBehavior;
@@ -192,6 +218,42 @@ export function useMobileCardSnapFeed({
       });
     },
     [syncViewportHeightPx]
+  );
+
+  const activateSlideIndexImmediate = useCallback(
+    (targetIndex: number, slugsSnapshot: readonly string[]) => {
+      const targetSlug = slugsSnapshot[targetIndex];
+      if (!targetSlug || !canMutateAuthReturnCardSlug(targetSlug)) return;
+
+      visualIndexRef.current = targetIndex;
+      settledIndexRef.current = targetIndex;
+      lastInternalSlugRef.current = targetSlug;
+      setVisualIndex(targetIndex);
+      setSettledIndex(targetIndex);
+      prefetchCardWindow(targetSlug);
+
+      const cached =
+        targetSlug === currentDataRef.current.slug
+          ? currentDataRef.current
+          : getCardFromCache(targetSlug);
+      if (cached) {
+        onVisualChangeRef.current(cached);
+        onSettledCommitRef.current(cached);
+        return;
+      }
+
+      void loadCard(targetSlug).then((loaded) => {
+        if (!loaded) return;
+        setCacheRevision((rev) => rev + 1);
+        if (sessionSlugsRef.current[visualIndexRef.current] === targetSlug) {
+          onVisualChangeRef.current(loaded);
+        }
+        if (sessionSlugsRef.current[settledIndexRef.current] === targetSlug) {
+          onSettledCommitRef.current(loaded);
+        }
+      });
+    },
+    [getCardFromCache, loadCard, prefetchCardWindow]
   );
 
   // Prime current card data into the shared LRU cache immediately.
@@ -224,9 +286,14 @@ export function useMobileCardSnapFeed({
     if (hydratedTrackRef.current) return;
     hydratedTrackRef.current = true;
 
+    const listingSlugs = readListingNavigationContext();
+    const attached = Boolean(listingSlugs?.includes(currentData.slug.trim()));
+    attachedToListingRef.current = attached;
+    setAttachedToListing(attached);
+
     const initial = buildInitialSessionSlugs({
       currentSlug: currentData.slug,
-      listingSlugs: readListingNavigationContext(),
+      listingSlugs,
     });
     const height = syncViewportHeightPx();
 
@@ -239,6 +306,7 @@ export function useMobileCardSnapFeed({
     setVisualIndex(initial.initialIndex);
     setSettledIndex(initial.initialIndex);
     setSnapInitialized(true);
+    syncPaginationFlags();
 
     prefetchCardWindow(currentData.slug);
     if (initial.initialIndex > 0) {
@@ -249,6 +317,7 @@ export function useMobileCardSnapFeed({
     enabled,
     jumpToSlideIndexInstant,
     prefetchCardWindow,
+    syncPaginationFlags,
     syncViewportHeightPx,
   ]);
 
@@ -262,86 +331,26 @@ export function useMobileCardSnapFeed({
     if (
       programmaticTargetIndexRef.current === null &&
       !pointerActiveRef.current &&
+      !sittingOnTailLoaderRef.current &&
       Math.abs(viewport.scrollTop - expectedTop) > 2
     ) {
       jumpToSlideIndexInstant(visualIndexRef.current, height);
     }
-    // Only re-verify when initialization or mobile activation flips.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snapActive, snapInitialized]);
 
-  // Append-only updates from infinite scroll on the underlying listing.
+  // Proactive background pagination lookahead (works on initial open AND as the user swipes).
   useEffect(() => {
-    if (!enabled) return;
-    const mergeFromListing = () => {
-      const merged = mergeSessionListingSlugs({
-        sessionSlugs: sessionSlugsRef.current,
-        incomingSlugs: readListingNavigationContext(),
-      });
-      if (merged !== sessionSlugsRef.current && merged.length !== sessionSlugsRef.current.length) {
-        sessionSlugsRef.current = merged;
-        setSessionSlugs(merged);
-      }
-    };
-    mergeFromListing();
-    return subscribeListingNavigationUpdates(mergeFromListing);
-  }, [enabled]);
-
-  // Sync external slug changes (split-group sibling pills `1 / 2 / 3` or OAuth pin revert).
-  useLayoutEffect(() => {
-    if (!hydratedTrackRef.current) return;
-    if (currentData.slug === lastInternalSlugRef.current) return;
-
-    const updated = replaceSessionSlugInPlace({
-      sessionSlugs: sessionSlugsRef.current,
-      activeIndex: visualIndexRef.current,
-      nextSlug: currentData.slug,
-    });
-    lastInternalSlugRef.current = currentData.slug;
-    programmaticTargetIndexRef.current = null;
-
-    if (updated.mode === "replace-in-place") {
-      sessionSlugsRef.current = updated.slugs;
-      setSessionSlugs(updated.slugs);
-      return;
+    if (!snapInitialized || !attachedToListing) return;
+    const remainingAhead = sessionSlugs.length - 1 - visualIndex;
+    if (
+      remainingAhead < INFINITE_SCROLL_LOOKAHEAD &&
+      canLoadMoreListingNavigation() &&
+      !isListingNavigationLoadingMore()
+    ) {
+      void requestListingNavigationLoadMore();
     }
-    if (updated.mode === "jump") {
-      visualIndexRef.current = updated.index;
-      settledIndexRef.current = updated.index;
-      setVisualIndex(updated.index);
-      setSettledIndex(updated.index);
-      jumpToSlideIndexInstant(updated.index);
-    }
-  }, [currentData.slug, jumpToSlideIndexInstant]);
-
-  // Ensure every slide in the virtual + prefetch window is loaded into cache.
-  useEffect(() => {
-    if (!snapInitialized) return;
-    let cancelled = false;
-    const slugs = sessionSlugsRef.current;
-    const start = Math.max(0, visualIndex - INTERACTION_PREFETCH_BEHIND);
-    const end = Math.min(
-      slugs.length - 1,
-      visualIndex + INTERACTION_PREFETCH_AHEAD
-    );
-    for (let idx = start; idx <= end; idx += 1) {
-      const slug = slugs[idx];
-      if (!slug || getCardFromCache(slug)) continue;
-      void loadCard(slug).then((loaded) => {
-        if (cancelled || !loaded) return;
-        setCacheRevision((rev) => rev + 1);
-        if (sessionSlugsRef.current[visualIndexRef.current] === slug) {
-          onVisualChangeRef.current(loaded);
-        }
-        if (sessionSlugsRef.current[settledIndexRef.current] === slug) {
-          onSettledCommitRef.current(loaded);
-        }
-      });
-    }
-    return () => {
-      cancelled = true;
-    };
-  }, [getCardFromCache, loadCard, sessionSlugs, snapInitialized, visualIndex]);
+  }, [attachedToListing, sessionSlugs.length, snapInitialized, visualIndex]);
 
   const commitSettledPosition = useCallback(() => {
     settleTokenRef.current += 1;
@@ -366,12 +375,32 @@ export function useMobileCardSnapFeed({
       return;
     }
 
-    const nextIndex = resolveVirtualCardVisualIndex({
+    const totalVirtualItems =
+      slugs.length + (showTailLoaderRef.current ? 1 : 0);
+    const rawSlot = resolveVirtualCardVisualIndex({
       scrollTop: viewport.scrollTop,
       slideHeight: height,
-      totalSlides: slugs.length,
+      totalSlides: totalVirtualItems,
       fallbackIndex: visualIndexRef.current,
     });
+
+    // User swiped onto the tail pagination loader slide at `index = slugs.length`.
+    if (rawSlot >= slugs.length) {
+      sittingOnTailLoaderRef.current = true;
+      setWaitingForNextPage(true);
+      if (canLoadMoreListingNavigation() && !isListingNavigationLoadingMore()) {
+        void requestListingNavigationLoadMore();
+      }
+      return;
+    }
+
+    if (sittingOnTailLoaderRef.current) {
+      sittingOnTailLoaderRef.current = false;
+      pendingAdvanceIndexRef.current = null;
+      setWaitingForNextPage(false);
+    }
+
+    const nextIndex = rawSlot;
     const nextSlug = slugs[nextIndex];
     if (!nextSlug || !canMutateAuthReturnCardSlug(nextSlug)) {
       return;
@@ -389,14 +418,18 @@ export function useMobileCardSnapFeed({
 
     prefetchCardWindow(nextSlug);
     if (
-      slugs.length > 1 &&
-      slugs.length - 1 - nextIndex < INFINITE_SCROLL_LOOKAHEAD
+      attachedToListingRef.current &&
+      slugs.length - 1 - nextIndex < INFINITE_SCROLL_LOOKAHEAD &&
+      canLoadMoreListingNavigation() &&
+      !isListingNavigationLoadingMore()
     ) {
-      requestListingNavigationLoadMore();
+      void requestListingNavigationLoadMore();
     }
 
     const cached =
-      nextSlug === currentData.slug ? currentData : getCardFromCache(nextSlug);
+      nextSlug === currentDataRef.current.slug
+        ? currentDataRef.current
+        : getCardFromCache(nextSlug);
     if (cached) {
       onVisualChangeRef.current(cached);
       onSettledCommitRef.current(cached);
@@ -415,7 +448,6 @@ export function useMobileCardSnapFeed({
     });
   }, [
     clearSettleWork,
-    currentData,
     getCardFromCache,
     jumpToSlideIndexInstant,
     loadCard,
@@ -463,7 +495,9 @@ export function useMobileCardSnapFeed({
     if (!viewport || !snapActive || ignoreProgrammaticJumpRef.current) return;
 
     const slugs = sessionSlugsRef.current;
-    if (slugs.length <= 1) return;
+    const totalVirtualItems =
+      slugs.length + (showTailLoaderRef.current ? 1 : 0);
+    if (totalVirtualItems <= 1) return;
 
     const height = Math.max(
       1,
@@ -479,27 +513,225 @@ export function useMobileCardSnapFeed({
       return;
     }
 
-    const nextVisual = resolveVirtualCardVisualIndex({
+    const rawVisual = resolveVirtualCardVisualIndex({
       scrollTop: viewport.scrollTop,
       slideHeight: height,
-      totalSlides: slugs.length,
+      totalSlides: totalVirtualItems,
       fallbackIndex: visualIndexRef.current,
     });
 
-    if (nextVisual === visualIndexRef.current) return;
-    const nextSlug = slugs[nextVisual];
+    if (rawVisual >= slugs.length) {
+      if (!sittingOnTailLoaderRef.current) {
+        sittingOnTailLoaderRef.current = true;
+        setWaitingForNextPage(true);
+        if (
+          canLoadMoreListingNavigation() &&
+          !isListingNavigationLoadingMore()
+        ) {
+          void requestListingNavigationLoadMore();
+        }
+      }
+      return;
+    }
+
+    if (sittingOnTailLoaderRef.current) {
+      sittingOnTailLoaderRef.current = false;
+      setWaitingForNextPage(false);
+    }
+
+    if (rawVisual === visualIndexRef.current) return;
+    const nextSlug = slugs[rawVisual];
     if (!nextSlug || !canMutateAuthReturnCardSlug(nextSlug)) return;
 
-    visualIndexRef.current = nextVisual;
+    visualIndexRef.current = rawVisual;
     lastInternalSlugRef.current = nextSlug;
-    setVisualIndex(nextVisual);
+    setVisualIndex(rawVisual);
 
     const cached =
-      nextSlug === currentData.slug ? currentData : getCardFromCache(nextSlug);
+      nextSlug === currentDataRef.current.slug
+        ? currentDataRef.current
+        : getCardFromCache(nextSlug);
     if (cached) {
       onVisualChangeRef.current(cached);
     }
-  }, [currentData, getCardFromCache, jumpToSlideIndexInstant, snapActive]);
+  }, [getCardFromCache, jumpToSlideIndexInstant, snapActive]);
+
+  // Append-only updates from listing pagination + auto-advance when waiting at end of list.
+  useEffect(() => {
+    if (!enabled) return;
+    const mergeFromListing = () => {
+      syncPaginationFlags();
+      const incoming = readListingNavigationContext();
+      if (
+        !attachedToListingRef.current &&
+        incoming?.includes(currentDataRef.current.slug.trim())
+      ) {
+        attachedToListingRef.current = true;
+        setAttachedToListing(true);
+        syncPaginationFlags();
+      }
+
+      const prevSlugs = sessionSlugsRef.current;
+      const merged = mergeSessionListingSlugs({
+        sessionSlugs: prevSlugs,
+        incomingSlugs: incoming,
+      });
+
+      if (merged === prevSlugs || merged.length === prevSlugs.length) {
+        return;
+      }
+
+      const prevLength = prevSlugs.length;
+      sessionSlugsRef.current = merged;
+      setSessionSlugs(merged);
+
+      // Case A: User had swiped onto the tail loader slide at `prevLength * H`.
+      // `merged[prevLength]` now occupies that exact coordinate, so activate in place!
+      if (sittingOnTailLoaderRef.current && prevLength < merged.length) {
+        sittingOnTailLoaderRef.current = false;
+        pendingAdvanceIndexRef.current = null;
+        setWaitingForNextPage(false);
+        activateSlideIndexImmediate(prevLength, merged);
+        return;
+      }
+
+      // Case B: User had tapped `↓` at the end of the list (`pendingAdvanceIndexRef`).
+      // Smooth-scroll onto the newly appended first card once the expanded track commits.
+      const pendingTarget = pendingAdvanceIndexRef.current;
+      if (pendingTarget !== null && pendingTarget < merged.length) {
+        pendingAdvanceIndexRef.current = null;
+        sittingOnTailLoaderRef.current = false;
+        setWaitingForNextPage(false);
+        programmaticTargetIndexRef.current = pendingTarget;
+        const targetSlug = merged[pendingTarget];
+        if (targetSlug) void loadCard(targetSlug);
+
+        window.requestAnimationFrame(() => {
+          const viewport = viewportRef.current;
+          if (!viewport) return;
+          const height = Math.max(
+            1,
+            slideHeightRef.current ||
+              viewport.clientHeight ||
+              readVisibleHeightPx()
+          );
+          const behavior = mobileCardScrollBehavior(
+            prefersReducedMotionRef.current
+          );
+          viewport.scrollTo({
+            top: pendingTarget * height,
+            behavior,
+          });
+          if (behavior === "auto") {
+            activateSlideIndexImmediate(pendingTarget, sessionSlugsRef.current);
+          } else {
+            scheduleSettleCheck();
+          }
+        });
+      }
+    };
+
+    const handleLoadMoreSettled = () => {
+      syncPaginationFlags();
+      const slugs = sessionSlugsRef.current;
+      const pendingTarget = pendingAdvanceIndexRef.current;
+      if (pendingTarget !== null && pendingTarget >= slugs.length) {
+        pendingAdvanceIndexRef.current = null;
+        setWaitingForNextPage(false);
+      }
+      if (sittingOnTailLoaderRef.current) {
+        sittingOnTailLoaderRef.current = false;
+        setWaitingForNextPage(false);
+        const viewport = viewportRef.current;
+        if (viewport && slugs.length > 0) {
+          const lastRealIndex = slugs.length - 1;
+          const height = Math.max(
+            1,
+            slideHeightRef.current ||
+              viewport.clientHeight ||
+              readVisibleHeightPx()
+          );
+          jumpToSlideIndexInstant(lastRealIndex, height);
+        }
+      }
+    };
+
+    mergeFromListing();
+    const unsubUpdates = subscribeListingNavigationUpdates(mergeFromListing);
+    const unsubSettled = subscribeListingNavigationLoadMoreSettled(
+      handleLoadMoreSettled
+    );
+    return () => {
+      unsubUpdates();
+      unsubSettled();
+    };
+  }, [
+    activateSlideIndexImmediate,
+    enabled,
+    jumpToSlideIndexInstant,
+    loadCard,
+    scheduleSettleCheck,
+    syncPaginationFlags,
+  ]);
+
+  // Sync external slug changes (split-group sibling pills `1 / 2 / 3` or OAuth pin revert).
+  useLayoutEffect(() => {
+    if (!hydratedTrackRef.current) return;
+    if (currentData.slug === lastInternalSlugRef.current) return;
+
+    const updated = replaceSessionSlugInPlace({
+      sessionSlugs: sessionSlugsRef.current,
+      activeIndex: visualIndexRef.current,
+      nextSlug: currentData.slug,
+    });
+    lastInternalSlugRef.current = currentData.slug;
+    programmaticTargetIndexRef.current = null;
+    pendingAdvanceIndexRef.current = null;
+    sittingOnTailLoaderRef.current = false;
+    setWaitingForNextPage(false);
+
+    if (updated.mode === "replace-in-place") {
+      sessionSlugsRef.current = updated.slugs;
+      setSessionSlugs(updated.slugs);
+      return;
+    }
+    if (updated.mode === "jump") {
+      visualIndexRef.current = updated.index;
+      settledIndexRef.current = updated.index;
+      setVisualIndex(updated.index);
+      setSettledIndex(updated.index);
+      jumpToSlideIndexInstant(updated.index);
+    }
+  }, [currentData.slug, jumpToSlideIndexInstant]);
+
+  // Ensure every slide in the virtual + prefetch window is loaded into cache.
+  useEffect(() => {
+    if (!snapInitialized) return;
+    let cancelled = false;
+    const slugs = sessionSlugsRef.current;
+    const start = Math.max(0, visualIndex - INTERACTION_PREFETCH_BEHIND);
+    const end = Math.min(
+      slugs.length - 1,
+      visualIndex + INTERACTION_PREFETCH_AHEAD
+    );
+    for (let idx = start; idx <= end; idx += 1) {
+      const slug = slugs[idx];
+      if (!slug || getCardFromCache(slug)) continue;
+      void loadCard(slug).then((loaded) => {
+        if (cancelled || !loaded) return;
+        setCacheRevision((rev) => rev + 1);
+        if (sessionSlugsRef.current[visualIndexRef.current] === slug) {
+          onVisualChangeRef.current(loaded);
+        }
+        if (sessionSlugsRef.current[settledIndexRef.current] === slug) {
+          onSettledCommitRef.current(loaded);
+        }
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [getCardFromCache, loadCard, sessionSlugs, snapInitialized, visualIndex]);
 
   const onScroll = useCallback(
     (_event: UIEvent<HTMLDivElement>) => {
@@ -533,8 +765,6 @@ export function useMobileCardSnapFeed({
     return () => viewport.removeEventListener("scrollend", onScrollEnd);
   }, [commitSettledPosition, scheduleSettleCheck, snapActive]);
 
-  // Passive pointer tracking — only used to know when finger is down and to
-  // suppress accidental clicks on multi-photo / 2x2 grid tap zones after a drag.
   const onPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
       if (!snapActive || event.pointerType === "mouse") return;
@@ -654,7 +884,9 @@ export function useMobileCardSnapFeed({
           scrollTop: previousScrollTop,
           previousHeight,
           nextHeight,
-          currentSlideIndex: visualIndexRef.current,
+          currentSlideIndex: sittingOnTailLoaderRef.current
+            ? sessionSlugsRef.current.length
+            : visualIndexRef.current,
           interacting: pointerActiveRef.current,
         });
       });
@@ -699,19 +931,56 @@ export function useMobileCardSnapFeed({
     [clearSettleWork]
   );
 
-  // Re-entrant arrow & keyboard navigation (`↑ / ↓` can be tapped rapidly without lockout).
+  // Re-entrant arrow & keyboard navigation; tapping `↓` at the end loads the next page and auto-advances.
   const scrollToDirection = useCallback(
     (direction: "prev" | "next") => {
       if (!snapActive || promptSheetOpen) return;
       const viewport = viewportRef.current;
       const slugs = sessionSlugsRef.current;
-      if (!viewport || slugs.length <= 1) return;
+      if (!viewport || slugs.length === 0) return;
+
+      if (direction === "prev") {
+        pendingAdvanceIndexRef.current = null;
+        if (sittingOnTailLoaderRef.current) {
+          sittingOnTailLoaderRef.current = false;
+          setWaitingForNextPage(false);
+          const lastRealIndex = slugs.length - 1;
+          const height = Math.max(
+            1,
+            slideHeightRef.current ||
+              viewport.clientHeight ||
+              readVisibleHeightPx()
+          );
+          const behavior = mobileCardScrollBehavior(
+            prefersReducedMotionRef.current
+          );
+          viewport.scrollTo({ top: lastRealIndex * height, behavior });
+          scheduleSettleCheck();
+          return;
+        }
+        setWaitingForNextPage(false);
+      }
 
       const baseIndex =
         programmaticTargetIndexRef.current ?? visualIndexRef.current;
       const targetIndex =
         direction === "prev" ? baseIndex - 1 : baseIndex + 1;
-      if (targetIndex < 0 || targetIndex >= slugs.length) return;
+
+      if (targetIndex < 0) return;
+
+      // End of currently loaded slugs: trigger pagination and queue auto-advance!
+      if (targetIndex >= slugs.length) {
+        if (
+          direction === "next" &&
+          attachedToListingRef.current &&
+          (canLoadMoreListingNavigation() || isListingNavigationLoadingMore())
+        ) {
+          pendingAdvanceIndexRef.current = slugs.length;
+          setWaitingForNextPage(true);
+          void requestListingNavigationLoadMore();
+        }
+        return;
+      }
 
       const targetSlug = slugs[targetIndex];
       if (!targetSlug || !canMutateAuthReturnCardSlug(targetSlug)) return;
@@ -806,6 +1075,11 @@ export function useMobileCardSnapFeed({
     });
   }
 
+  const tailLoaderIndex =
+    showTailLoader && visualIndex + 3 >= sessionSlugs.length
+      ? sessionSlugs.length
+      : null;
+
   const windowCardIds = useMemo(() => {
     const ids = new Set<string>([currentData.id]);
     const start = Math.max(0, settledIndex - INTERACTION_PREFETCH_BEHIND);
@@ -833,14 +1107,18 @@ export function useMobileCardSnapFeed({
   return {
     viewportRef,
     virtualSlides,
-    totalSlides: sessionSlugs.length,
+    totalSlides: sessionSlugs.length + (showTailLoader ? 1 : 0),
+    tailLoaderIndex,
     slideHeight,
     visualIndex,
     settledIndex,
     prevSlug,
     nextSlug,
-    hasNeighbors,
-    neighborsAttached: snapInitialized && hasNeighbors,
+    canLoadMoreNext:
+      nextSlug === null && attachedToListing && (canLoadMoreNext || isLoadingMoreNext),
+    waitingForNextPage,
+    hasNeighbors: hasScrollableTrack,
+    neighborsAttached: snapInitialized && hasScrollableTrack,
     snapScrollEnabled,
     windowCardIds,
     onScroll,

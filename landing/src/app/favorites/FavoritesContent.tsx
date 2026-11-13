@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { createSupabaseBrowser } from "@/lib/supabase-browser";
@@ -10,21 +10,21 @@ import { ListingPhotoTile } from "@/components/ListingPhotoTile";
 import { toGenerationExampleCard } from "@/lib/generation/example-card";
 import { listingPhotoAspectRatio } from "@/lib/listing-masonry";
 import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
-import {
-  primeListingNavigationCards,
-  writeListingNavigationContext,
-} from "@/lib/listing-card-navigation-context";
+import { primeListingNavigationCards } from "@/lib/listing-card-navigation-context";
+import { useListingNavigationFeed } from "@/hooks/useListingNavigationFeed";
 
 export function FavoritesContent() {
   const { user, loading: authLoading, openAuthModal } = useAuth();
   const [cards, setCards] = useState<PromptCardFull[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useLayoutEffect(() => {
-    if (cards.length === 0) return;
-    primeListingNavigationCards(cards);
-    writeListingNavigationContext(cards.map((card) => card.slug));
-  }, [cards]);
+  const slugs = useMemo(() => cards.map((card) => card.slug), [cards]);
+  const { navigationContainerProps } = useListingNavigationFeed({
+    slugs,
+    hasMore: false,
+    onPrimeCards: () => primeListingNavigationCards(cards),
+    enabled: slugs.length > 0,
+  });
 
   useEffect(() => {
     if (authLoading) return;
@@ -121,21 +121,23 @@ export function FavoritesContent() {
 
   return (
     <CardInteractionsProvider cardIds={cardIds}>
-      <ListingMasonry
-        entries={cards.map((card, index) => {
-          const example = toGenerationExampleCard(card);
-          const aspectRatio = listingPhotoAspectRatio(
-            example.photoWidth,
-            example.photoHeight,
-            index
-          );
-          return {
-            key: card.id,
-            aspectRatio,
-            content: <ListingPhotoTile card={example} aspectRatio={aspectRatio} />,
-          };
-        })}
-      />
+      <div {...navigationContainerProps}>
+        <ListingMasonry
+          entries={cards.map((card, index) => {
+            const example = toGenerationExampleCard(card);
+            const aspectRatio = listingPhotoAspectRatio(
+              example.photoWidth,
+              example.photoHeight,
+              index
+            );
+            return {
+              key: card.id,
+              aspectRatio,
+              content: <ListingPhotoTile card={example} aspectRatio={aspectRatio} />,
+            };
+          })}
+        />
+      </div>
     </CardInteractionsProvider>
   );
 }

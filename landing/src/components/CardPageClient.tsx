@@ -16,13 +16,13 @@ import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import { useAuth } from "@/context/AuthContext";
 import {
   beginGuestCardRepeatAuth,
+  CARD_REPEAT_IDLE_ARIA_LABEL,
+  CARD_REPEAT_IDLE_LABEL,
   cardRepeatComposeIntent,
   listingPathForGenerateLeave,
   resolveCardRepeatAction,
 } from "@/lib/card-repeat-auth";
 import { peekLastListingPath } from "@/lib/scroll-preservation";
-import { isDevushkiCopyNudgeEligibleCard } from "@/lib/devushki-copy-nudge";
-import { GIRLS_HUB_GENERATE_CTA } from "@/lib/promty-dlya-foto-devushki-cluster";
 import { isCatalogAdminEmail } from "@/lib/catalog-admin";
 import {
   ADMIN_TECH_INFO_CHANGED_EVENT,
@@ -46,8 +46,11 @@ import { copyTextSyncFallback, copyTextUniversal } from "@/lib/copy-text-to-clip
 import { recordAcquisitionClientEvent } from "@/lib/acquisition-client-events";
 import { buildCardImageAlt, buildBeforeAlt } from "@/lib/image-alt";
 import {
+  canLoadMoreListingNavigation,
+  isListingNavigationLoadingMore,
   requestListingNavigationLoadMore,
   resolveListingNavNeighbors,
+  subscribeListingNavigationLoadMoreSettled,
   subscribeListingNavigationUpdates,
   type ListingCardNavNeighbors,
 } from "@/lib/listing-card-navigation-context";
@@ -114,11 +117,10 @@ const MOBILE_FS_CHIP_MUTED =
 /** Кнопки поверх фото (промпт / Lexy) — без «полосы», тот же glass. */
 const MOBILE_FS_ACTION = `${MOBILE_FS_CHIP} rounded-xl font-semibold`;
 
-const DEVUSHKI_TRY_LABEL = GIRLS_HUB_GENERATE_CTA;
-const DEVUSHKI_TRY_ARIA = "Повторить этот образ на своём фото";
-/** Full prompt sheet. Opaque: glass (`bg-black/15` + blur) made the text unreadable on light photos. */
+/** Full prompt sheet — same translucent frosted glass (`bg-black/15 backdrop-blur-md`) as the «Промпт» button (`MOBILE_FS_CHIP`). */
+const PROMPT_SHEET_SURFACE = "bg-black/15 backdrop-blur-md";
 const PROMPT_SHEET_TEXT =
-  "select-text whitespace-pre-wrap text-[13px] font-medium leading-relaxed text-white";
+  "select-text whitespace-pre-wrap text-[13px] font-medium leading-relaxed text-white [text-shadow:0_1px_2px_rgb(0_0_0/0.45)]";
 
 /** Mobile has-photos bottom bar: prompt + Lexy only (listing arrows live in the right stack). */
 const MOBILE_PHOTO_ACTIONS_GRID =
@@ -358,6 +360,14 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
         : resolveListingNavNeighbors(data.slug),
     [data.slug, listingNavNeighbors, syncedNavSlug]
   );
+  const [listingCanLoadMore, setListingCanLoadMore] = useState(() =>
+    canLoadMoreListingNavigation()
+  );
+  const [listingLoadingMore, setListingLoadingMore] = useState(() =>
+    isListingNavigationLoadingMore()
+  );
+  const [waitingDesktopNextFromSlug, setWaitingDesktopNextFromSlug] =
+    useState<string | null>(null);
   const [authCardPinned, setAuthCardPinned] = useState(isAuthReturnCardPinned);
   const revertedAuthPinRef = useRef(false);
   const [mobilePromptOverlay, setMobilePromptOverlay] = useState(false);
@@ -443,9 +453,24 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
     const refreshNeighbors = () => {
       setSyncedNavSlug(data.slug);
       setListingNavNeighbors(resolveListingNavNeighbors(data.slug));
+      setListingCanLoadMore(canLoadMoreListingNavigation());
+      setListingLoadingMore(isListingNavigationLoadingMore());
+    };
+    const handleLoadMoreSettled = () => {
+      refreshNeighbors();
+      if (resolveListingNavNeighbors(data.slug)?.nextSlug == null) {
+        setWaitingDesktopNextFromSlug(null);
+      }
     };
     refreshNeighbors();
-    return subscribeListingNavigationUpdates(refreshNeighbors);
+    const unsubUpdates = subscribeListingNavigationUpdates(refreshNeighbors);
+    const unsubSettled = subscribeListingNavigationLoadMoreSettled(
+      handleLoadMoreSettled
+    );
+    return () => {
+      unsubUpdates();
+      unsubSettled();
+    };
   }, [data.slug]);
 
   useLayoutEffect(() => {
@@ -582,12 +607,8 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
   );
 
   const hasPrompts = data.promptTexts.length > 0;
-  const girlsGenerateCta = isDevushkiCopyNudgeEligibleCard({
-    seoTags: data.seo_tags,
-    lastListingPath: null,
-  });
-  const generateIdleLabel = girlsGenerateCta ? DEVUSHKI_TRY_LABEL : "Повторить";
-  const generateIdleAria = girlsGenerateCta ? DEVUSHKI_TRY_ARIA : undefined;
+  const generateIdleLabel = CARD_REPEAT_IDLE_LABEL;
+  const generateIdleAria = CARD_REPEAT_IDLE_ARIA_LABEL;
   const hasPhotos = photos.length > 0;
   const videoUrl = data.videoUrl;
   const isPhotoshoot = isPhotoshootUgcListing({
@@ -841,22 +862,106 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
 
   const listingPrev = activeListingNavNeighbors?.prevSlug ?? null;
   const listingNext = activeListingNavNeighbors?.nextSlug ?? null;
-  const hasListingNeighbors = Boolean(listingPrev || listingNext);
+  const canLoadMoreDesktopNext =
+    listingNext === null &&
+    activeListingNavNeighbors !== null &&
+    (listingCanLoadMore || listingLoadingMore);
+  const desktopNextLoading =
+    waitingDesktopNextFromSlug === data.slug &&
+    listingNext === null &&
+    (listingCanLoadMore || listingLoadingMore);
+
+  const handleDesktopPrev = useCallback(() => {
+    setWaitingDesktopNextFromSlug(null);
+    if (listingPrev) {
+      goListingNeighbor(listingPrev);
+    }
+  }, [goListingNeighbor, listingPrev]);
+
+  const handleDesktopNext = useCallback(() => {
+    if (listingNext) {
+      setWaitingDesktopNextFromSlug(null);
+      goListingNeighbor(listingNext);
+      return;
+    }
+    if (
+      activeListingNavNeighbors !== null &&
+      (canLoadMoreListingNavigation() || isListingNavigationLoadingMore())
+    ) {
+      setWaitingDesktopNextFromSlug(data.slug);
+      void requestListingNavigationLoadMore();
+    }
+  }, [activeListingNavNeighbors, data.slug, goListingNeighbor, listingNext]);
 
   useEffect(() => {
-    if (!hasPhotos || activeListingNavNeighbors === null) return;
+    if (waitingDesktopNextFromSlug !== data.slug) return;
+    if (listingNext) {
+      setWaitingDesktopNextFromSlug(null);
+      goListingNeighbor(listingNext);
+    }
+  }, [data.slug, goListingNeighbor, listingNext, waitingDesktopNextFromSlug]);
+
+  useEffect(() => {
+    if (activeListingNavNeighbors === null) return;
     let lookahead = 0;
     let cursor = data.slug;
-    while (lookahead < 16) {
+    while (lookahead < 14) {
       const nextSlug = resolveListingNavNeighbors(cursor)?.nextSlug;
       if (!nextSlug) break;
       lookahead += 1;
       cursor = nextSlug;
     }
-    if (lookahead < 16) {
-      requestListingNavigationLoadMore();
+    if (
+      lookahead < 14 &&
+      canLoadMoreListingNavigation() &&
+      !isListingNavigationLoadingMore()
+    ) {
+      void requestListingNavigationLoadMore();
     }
-  }, [activeListingNavNeighbors, data.slug, hasPhotos]);
+  }, [activeListingNavNeighbors, data.slug, listingCanLoadMore]);
+
+  useEffect(() => {
+    if (mobilePromptOverlay || typeof window === "undefined") return;
+    const onDesktopKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+      if (hasPhotos && !window.matchMedia("(min-width: 1024px)").matches) {
+        return;
+      }
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT")
+      ) {
+        return;
+      }
+      if (event.key === "ArrowDown") {
+        if (listingNext || canLoadMoreDesktopNext) {
+          event.preventDefault();
+          handleDesktopNext();
+        }
+      } else if (event.key === "ArrowUp") {
+        if (listingPrev) {
+          event.preventDefault();
+          handleDesktopPrev();
+        }
+      }
+    };
+    window.addEventListener("keydown", onDesktopKeyDown);
+    return () => window.removeEventListener("keydown", onDesktopKeyDown);
+  }, [
+    canLoadMoreDesktopNext,
+    handleDesktopNext,
+    handleDesktopPrev,
+    hasPhotos,
+    listingNext,
+    listingPrev,
+    mobilePromptOverlay,
+  ]);
 
   const snapFeed = useMobileCardSnapFeed({
     currentData: data,
@@ -1240,13 +1345,15 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
                     <StickyListingNavButton
                       slug={listingPrev}
                       direction="prev"
-                      onGo={goListingNeighbor}
+                      onGo={handleDesktopPrev}
                       orientation="vertical"
                     />
                     <StickyListingNavButton
                       slug={listingNext}
                       direction="next"
-                      onGo={goListingNeighbor}
+                      canLoadMore={canLoadMoreDesktopNext}
+                      loading={desktopNextLoading}
+                      onGo={handleDesktopNext}
                       orientation="vertical"
                     />
                   </div>
@@ -1282,7 +1389,7 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
                       role="dialog"
                       aria-modal="true"
                       aria-labelledby="desktop-prompt-overlay-title"
-                      className="absolute inset-0 z-40 flex flex-col bg-zinc-950"
+                      className={`absolute inset-0 z-40 flex flex-col ${PROMPT_SHEET_SURFACE}`}
                       onClick={(e) => e.stopPropagation()}
                     >
                       <header className="flex shrink-0 items-center justify-end px-3 pt-3">
@@ -1394,6 +1501,12 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
                   onNextPhoto={nextPhoto}
                 />
               ))}
+              {snapFeed.tailLoaderIndex !== null ? (
+                <MobileSnapTailLoaderSlide
+                  index={snapFeed.tailLoaderIndex}
+                  slideHeight={snapFeed.slideHeight}
+                />
+              ) : null}
             </div>
 
             <div
@@ -1567,6 +1680,8 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
                         <StickyListingNavButton
                           slug={mobileNextSlug}
                           direction="next"
+                          canLoadMore={snapFeed.canLoadMoreNext}
+                          loading={snapFeed.waitingForNextPage}
                           onGo={() => {
                             dismissSwipeOnboarding();
                             snapFeed.scrollToNext();
@@ -1620,7 +1735,7 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
                   role="dialog"
                   aria-modal="true"
                   aria-labelledby="mobile-prompt-overlay-title"
-                  className="pointer-events-auto absolute inset-0 z-[110] flex flex-col bg-zinc-950"
+                  className={`pointer-events-auto absolute inset-0 z-[110] flex flex-col ${PROMPT_SHEET_SURFACE}`}
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -1819,7 +1934,7 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
                   <StickyListingNavButton
                     slug={listingPrev}
                     direction="prev"
-                    onGo={goListingNeighbor}
+                    onGo={handleDesktopPrev}
                     floatingGlass
                   />
                   <button
@@ -1864,7 +1979,9 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
                   <StickyListingNavButton
                     slug={listingNext}
                     direction="next"
-                    onGo={goListingNeighbor}
+                    canLoadMore={canLoadMoreDesktopNext}
+                    loading={desktopNextLoading}
+                    onGo={handleDesktopNext}
                     floatingGlass
                   />
                 </div>
@@ -2113,6 +2230,43 @@ function MobileSnapMediaSlide({
   );
 }
 
+function MobileSnapTailLoaderSlide({
+  index,
+  slideHeight,
+}: {
+  index: number;
+  slideHeight: number;
+}) {
+  const slideStyle =
+    slideHeight > 0
+      ? {
+          top: `${index * slideHeight}px`,
+          height: `${slideHeight}px`,
+        }
+      : {
+          top: 0,
+          height: "100%",
+        };
+
+  return (
+    <div
+      data-card-snap-slide="tail-loader"
+      data-card-snap-index={index}
+      aria-live="polite"
+      style={slideStyle}
+      className="pointer-events-none absolute inset-x-0 flex w-full snap-start snap-always flex-col items-center justify-center gap-3 overflow-hidden bg-zinc-950 px-6 text-center"
+    >
+      <span
+        className="block h-7 w-7 animate-spin rounded-full border-2 border-white/20 border-t-white/90"
+        aria-hidden
+      />
+      <span className="text-[13px] font-medium text-white/75">
+        Загружаем следующие промты…
+      </span>
+    </div>
+  );
+}
+
 /** One-time mobile tooltip next to ↑↓ listing arrows. */
 function CardSwipeOnboarding({ onDismiss }: { onDismiss: () => void }) {
   useEffect(() => {
@@ -2160,23 +2314,29 @@ function CardSwipeOnboarding({ onDismiss }: { onDismiss: () => void }) {
   );
 }
 
-/** Предыдущая / следующая карточка листинга (localStorage контекст). */
+/** Предыдущая / следующая карточка листинга (localStorage + пагинация активной ленты). */
 function StickyListingNavButton({
   slug,
   direction,
   onGo,
+  canLoadMore = false,
+  loading = false,
   floatingGlass = false,
   orientation = "horizontal",
 }: {
   slug: string | null;
   direction: "prev" | "next";
-  onGo: (slug: string) => void;
+  onGo: (slug: string | null) => void;
+  /** Когда карточка последняя в загруженной порции, но у выдачи есть ещё страницы. */
+  canLoadMore?: boolean;
+  /** Пока ждём ответ следующей страницы после клика / свайпа в конце списка. */
+  loading?: boolean;
   /** Мобила fullscreen над фото: круг-пилюля без «полосы-дока» (как тег‑glass). */
   floatingGlass?: boolean;
   /** Desktop split: ↑/↓ between photo and panel. */
   orientation?: "horizontal" | "vertical";
 }) {
-  const enabled = slug != null;
+  const enabled = slug != null || canLoadMore || loading;
   const vertical = orientation === "vertical";
   const bar = `${OVERLAY_BUTTON_UA_RESET} flex h-auto min-h-12 w-full items-center justify-center rounded-xl bg-zinc-800 text-white shadow-lg transition-colors motion-reduce:transition-none`;
   const chip = `${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black/15 text-white/88 backdrop-blur-md shadow-none transition-colors motion-reduce:transition-none`;
@@ -2191,16 +2351,35 @@ function StickyListingNavButton({
     <button
       type="button"
       disabled={!enabled}
+      aria-busy={loading || undefined}
       className={`${base} ${enabled ? accent : "opacity-35"}`}
       aria-label={
-        direction === "prev"
-          ? "Предыдущая карточка из листинга"
-          : "Следующая карточка из листинга"
+        loading
+          ? "Загружаем следующую карточку"
+          : direction === "prev"
+            ? "Предыдущая карточка из листинга"
+            : "Следующая карточка из листинга"
       }
-      title={direction === "prev" ? "Предыдущая в ленте" : "Следующая в ленте"}
-      onClick={() => slug && onGo(slug)}
+      title={
+        loading
+          ? "Загружаем следующие карточки…"
+          : direction === "prev"
+            ? "Предыдущая в ленте"
+            : "Следующая в ленте"
+      }
+      onClick={() => {
+        if (loading) return;
+        if (slug != null || canLoadMore) {
+          onGo(slug);
+        }
+      }}
     >
-      {vertical ? (
+      {loading ? (
+        <span
+          className="block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/25 border-t-white"
+          aria-hidden
+        />
+      ) : vertical ? (
         direction === "prev" ? (
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden>
             <path d="M18 15l-6-6-6 6" />

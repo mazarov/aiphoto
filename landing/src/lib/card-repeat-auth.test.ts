@@ -1,12 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  CARD_REPEAT_IDLE_ARIA_LABEL,
+  CARD_REPEAT_IDLE_LABEL,
   cardRepeatComposeIntent,
   dockSurfaceForCardRepeat,
   listingPathForGenerateLeave,
   resolveCardRepeatAction,
   shouldKeepCardAuthReturnOverlay,
 } from "./card-repeat-auth";
+
+test("card repeat CTA label is unified across all prompt cards", () => {
+  assert.equal(CARD_REPEAT_IDLE_LABEL, "Повторить на своём фото");
+  assert.equal(CARD_REPEAT_IDLE_ARIA_LABEL, "Повторить этот образ на своём фото");
+});
 
 test("guest Повторить waits while auth is hydrating", () => {
   assert.equal(

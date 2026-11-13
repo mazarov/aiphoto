@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDebugCardHidden } from "@/hooks/useDebugCardHidden";
+import { useListingNavigationFeed } from "@/hooks/useListingNavigationFeed";
 import { omitCardById } from "@/lib/debug-hide-card";
 import { resolveAdLandingTitle } from "@/lib/ad-landing-title";
 import { useListingFilters } from "@/hooks/useListingFilters";
@@ -19,13 +20,15 @@ import {
 import { ListingMasonry } from "./ListingMasonry";
 import { ListingPhotoTile } from "./ListingPhotoTile";
 import { ListingPromptCountBadge } from "./ListingPromptCountBadge";
-import {
-  toGenerationExampleCard,
-  writeGenerationExampleNavigation,
-} from "@/lib/generation/example-card";
+import { toGenerationExampleCard } from "@/lib/generation/example-card";
+import { appendUniqueCardsById } from "@/lib/listing-cards";
+import { primeListingNavigationCardData } from "@/lib/listing-card-navigation-context";
 import { listingHeadingImageAlt } from "@/lib/hero-carousel-alt";
 import { listingPhotoAspectRatio } from "@/lib/listing-masonry";
-import { LISTING_LOAD_MORE_LABEL } from "@/lib/listing-pagination";
+import {
+  LISTING_LOAD_MORE_LABEL,
+  LISTING_SEARCH_PAGE_SIZE,
+} from "@/lib/listing-pagination";
 import type { PromptCardFull } from "@/lib/supabase";
 import type { Dimension } from "@/lib/tag-registry";
 import type { ListingSort } from "@/lib/listing-sort";
@@ -132,6 +135,9 @@ export function CatalogWithFilters({
   );
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
+  const [searchHasMore, setSearchHasMore] = useState(false);
+  const searchOffsetRef = useRef(0);
+  const searchLoadingMoreRef = useRef(false);
   const { filters, setFilter, applyFilters, resetFilters, activeCount, mergedRpcParams } =
     useListingFilters({
       baseRpcParams,
@@ -159,6 +165,8 @@ export function CatalogWithFilters({
       setSearchCards(null);
       setSearchLoading(false);
       setSearchError("");
+      setSearchHasMore(false);
+      searchOffsetRef.current = 0;
       return;
     }
 
@@ -167,17 +175,22 @@ export function CatalogWithFilters({
       setSearchLoading(true);
       setSearchError("");
       void fetch(
-        `/api/search?q=${encodeURIComponent(trimmedQuery)}&limit=${SEARCH_RESULT_LIMIT}`,
+        `/api/search?q=${encodeURIComponent(trimmedQuery)}&limit=${SEARCH_RESULT_LIMIT}&offset=0`,
         { cache: "no-store", signal: controller.signal }
       )
         .then(async (response) => {
           if (!response.ok) throw new Error("search_failed");
           const payload = (await response.json()) as { cards?: PromptCardFull[] };
-          setSearchCards(payload.cards ?? []);
+          const initial = payload.cards ?? [];
+          setSearchCards(initial);
+          searchOffsetRef.current = initial.length;
+          setSearchHasMore(initial.length === SEARCH_RESULT_LIMIT);
         })
         .catch((error: unknown) => {
           if (error instanceof DOMException && error.name === "AbortError") return;
           setSearchCards([]);
+          setSearchHasMore(false);
+          searchOffsetRef.current = 0;
           setSearchError("Не удалось загрузить подборку. Попробуйте ещё раз.");
         })
         .finally(() => {
@@ -191,18 +204,51 @@ export function CatalogWithFilters({
     };
   }, [isSearching, trimmedQuery]);
 
+  const loadMoreInlineSearch = useCallback(async () => {
+    if (!isSearching || searchLoadingMoreRef.current || !searchHasMore) return;
+    searchLoadingMoreRef.current = true;
+    try {
+      const offset = searchOffsetRef.current;
+      const response = await fetch(
+        `/api/search?q=${encodeURIComponent(trimmedQuery)}&limit=${LISTING_SEARCH_PAGE_SIZE}&offset=${offset}`,
+        { cache: "no-store" }
+      );
+      if (!response.ok) return;
+      const payload = (await response.json()) as { cards?: PromptCardFull[] };
+      const nextBatch = payload.cards ?? [];
+      searchOffsetRef.current = offset + nextBatch.length;
+      setSearchHasMore(nextBatch.length === LISTING_SEARCH_PAGE_SIZE);
+      if (nextBatch.length > 0) {
+        setSearchCards((current) =>
+          appendUniqueCardsById(current ?? [], nextBatch)
+        );
+      }
+    } finally {
+      searchLoadingMoreRef.current = false;
+    }
+  }, [isSearching, searchHasMore, trimmedQuery]);
+
   const showNewEmpty =
     !isSearching && !searchListing && sort === "new" && totalCount === 0;
   const searchExamples = useMemo(
     () => (searchCards ?? []).map(toGenerationExampleCard),
     [searchCards]
   );
-
-  useLayoutEffect(() => {
-    if (isSearching && searchExamples.length > 0) {
-      writeGenerationExampleNavigation(searchExamples);
-    }
-  }, [isSearching, searchExamples]);
+  const searchSlugs = useMemo(
+    () => searchExamples.map((card) => card.slug),
+    [searchExamples]
+  );
+  const { navigationContainerProps: inlineSearchNavProps } =
+    useListingNavigationFeed({
+      slugs: searchSlugs,
+      hasMore: searchHasMore,
+      onLoadMore: loadMoreInlineSearch,
+      onPrimeCards: () =>
+        primeListingNavigationCardData(
+          searchExamples.map((card) => card.navigationData)
+        ),
+      enabled: isSearching && searchSlugs.length > 0,
+    });
 
   useEffect(() => {
     if (!adLandingTitle) return;
@@ -289,7 +335,10 @@ export function CatalogWithFilters({
 
       {preGrid ? <div className="mt-3">{preGrid}</div> : null}
 
-      <div className={`relative mt-5${isSearching ? " overflow-hidden" : ""}`}>
+      <div
+        className={`relative mt-5${isSearching ? " overflow-hidden" : ""}`}
+        {...(isSearching ? inlineSearchNavProps : {})}
+      >
         {isSearching ? (
           <>
             <ListingMasonry

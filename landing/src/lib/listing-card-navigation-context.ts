@@ -1,7 +1,8 @@
 /**
- * Сохраняет порядок slug карточек с листинга (localStorage), чтобы на `/p/[slug]`
- * переключать соседей через router.replace в той же вкладке (один экран просмотра).
- * sessionStorage не подходит: листинг открывает карточку в новой вкладке (target="_blank").
+ * Сохраняет порядок slug карточек с листинга (localStorage) + runtime-контракт
+ * пагинации активной ленты, чтобы из открытой карточки `/p/[slug]` при докликивании
+ * или досвайпывании до конца списка автоматически подгружалась следующая порция
+ * и открывалась следующая карточка.
  */
 
 import type { CardPageData, PromptCardFull } from "@/lib/supabase";
@@ -11,24 +12,72 @@ export const LISTING_CARD_NAV_UPDATED_EVENT =
   "promptshot:listing-navigation-updated";
 export const LISTING_CARD_NAV_LOAD_MORE_EVENT =
   "promptshot:listing-navigation-load-more";
+export const LISTING_CARD_NAV_LOAD_MORE_SETTLED_EVENT =
+  "promptshot:listing-navigation-load-more-settled";
 
-/** Верхний предел записи — защита localStorage от раздувания. */
+/** Верхний предел записи в localStorage — защита от раздувания. */
 export const LISTING_CARD_NAV_MAX_SLUGS = 500;
+const LISTING_CARD_DATA_CACHE_MAX = 600;
 
 export type ListingNavGridItem =
   | { type: "single"; card: PromptCardFull }
   | { type: "group"; key: string; cards: PromptCardFull[] };
+
+export type ListingNavigationWriteOptions = {
+  sourceId?: string | null;
+  hasMore?: boolean;
+};
 
 type StoredPayload = {
   slugs: string[];
   updatedAt: number;
 };
 
+type LoadMoreHandler = () => void | Promise<unknown>;
+
 const listingCardDataBySlug = new Map<string, CardPageData>();
+const loadMoreSubscribers = new Map<LoadMoreHandler, string | null>();
+
+let activeNavigationSourceId: string | null = null;
+let activeNavigationHasMore = false;
+let activeNavigationLoading = false;
+let inflightLoadMorePromise: Promise<void> | null = null;
 
 function normalizeSlug(slug: string | null | undefined): string | null {
   const t = slug?.trim();
   return t || null;
+}
+
+function dispatchWindowEvent(eventName: string): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(eventName));
+}
+
+function waitNextCommitTurn(): Promise<void> {
+  return new Promise((resolve) => {
+    if (
+      typeof window !== "undefined" &&
+      typeof window.requestAnimationFrame === "function"
+    ) {
+      window.requestAnimationFrame(() => resolve());
+      return;
+    }
+    setTimeout(resolve, 0);
+  });
+}
+
+function getMatchingLoadMoreHandlers(): LoadMoreHandler[] {
+  const handlers: LoadMoreHandler[] = [];
+  for (const [handler, subSourceId] of loadMoreSubscribers.entries()) {
+    if (activeNavigationSourceId !== null) {
+      if (subSourceId === activeNavigationSourceId) {
+        handlers.push(handler);
+      }
+    } else if (subSourceId === null) {
+      handlers.push(handler);
+    }
+  }
+  return handlers;
 }
 
 /**
@@ -64,7 +113,17 @@ export function capListingSlugList(slugs: string[]): string[] {
   return slugs.slice(-LISTING_CARD_NAV_MAX_SLUGS);
 }
 
-export function writeListingNavigationContext(slugs: string[]): void {
+export function writeListingNavigationContext(
+  slugs: string[],
+  options?: ListingNavigationWriteOptions
+): void {
+  if (options && "sourceId" in options) {
+    activeNavigationSourceId = options.sourceId ?? null;
+  } else if (!options) {
+    activeNavigationSourceId = null;
+  }
+  activeNavigationHasMore = Boolean(options?.hasMore);
+
   if (typeof window === "undefined") return;
   try {
     const capped = capListingSlugList(slugs);
@@ -76,16 +135,52 @@ export function writeListingNavigationContext(slugs: string[]): void {
       LISTING_CARD_NAV_STORAGE_KEY,
       JSON.stringify(payload)
     );
-    window.dispatchEvent(new Event(LISTING_CARD_NAV_UPDATED_EVENT));
+    dispatchWindowEvent(LISTING_CARD_NAV_UPDATED_EVENT);
   } catch {
     /* квота / приватный режим */
+    dispatchWindowEvent(LISTING_CARD_NAV_UPDATED_EVENT);
   }
 }
 
+export function syncListingNavigationPaginationState({
+  sourceId,
+  hasMore,
+}: {
+  sourceId: string;
+  hasMore: boolean;
+}): void {
+  if (activeNavigationSourceId !== sourceId) return;
+  const nextHasMore = Boolean(hasMore);
+  if (activeNavigationHasMore === nextHasMore) return;
+  activeNavigationHasMore = nextHasMore;
+  dispatchWindowEvent(LISTING_CARD_NAV_UPDATED_EVENT);
+}
+
+export function canLoadMoreListingNavigation(): boolean {
+  if (!activeNavigationHasMore) return false;
+  return getMatchingLoadMoreHandlers().length > 0;
+}
+
+export function isListingNavigationLoadingMore(): boolean {
+  return activeNavigationLoading;
+}
+
+export function getActiveListingNavigationSourceId(): string | null {
+  return activeNavigationSourceId;
+}
+
 export function primeListingNavigationCardData(cards: CardPageData[]): void {
-  listingCardDataBySlug.clear();
   for (const card of cards.slice(-LISTING_CARD_NAV_MAX_SLUGS)) {
+    if (!card?.slug) continue;
+    listingCardDataBySlug.delete(card.slug);
     listingCardDataBySlug.set(card.slug, card);
+  }
+  while (listingCardDataBySlug.size > LISTING_CARD_DATA_CACHE_MAX) {
+    const oldest = listingCardDataBySlug.keys().next().value as
+      | string
+      | undefined;
+    if (!oldest) break;
+    listingCardDataBySlug.delete(oldest);
   }
 }
 
@@ -165,11 +260,11 @@ export function primeListingNavigationCards(cards: PromptCardFull[]): void {
   const cardData = cards
     .slice(-LISTING_CARD_NAV_MAX_SLUGS)
     .map((card) => {
-    const groupCards = card.sourceGroupKey
-      ? [...(groups.get(card.sourceGroupKey) ?? [])].sort(
-          (a, b) => a.cardSplitIndex - b.cardSplitIndex
-        )
-      : [];
+      const groupCards = card.sourceGroupKey
+        ? [...(groups.get(card.sourceGroupKey) ?? [])].sort(
+            (a, b) => a.cardSplitIndex - b.cardSplitIndex
+          )
+        : [];
       return toListingCardPageData(card, groupCards);
     });
   primeListingNavigationCardData(cardData);
@@ -181,10 +276,42 @@ export function readListingNavigationCard(
   return listingCardDataBySlug.get(slug) ?? null;
 }
 
-/** Ask the currently mounted listing/search controller to append its next page. */
-export function requestListingNavigationLoadMore(): void {
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(new Event(LISTING_CARD_NAV_LOAD_MORE_EVENT));
+/**
+ * Ask the currently active mounted listing/search controller to append its next page.
+ * Deduplicates concurrent in-flight requests and emits `UPDATED` + `LOAD_MORE_SETTLED`
+ * once React has had a frame to commit the appended cards.
+ */
+export function requestListingNavigationLoadMore(): Promise<void> {
+  if (inflightLoadMorePromise) {
+    return inflightLoadMorePromise;
+  }
+
+  const handlers = getMatchingLoadMoreHandlers();
+  dispatchWindowEvent(LISTING_CARD_NAV_LOAD_MORE_EVENT);
+  if (handlers.length === 0) {
+    dispatchWindowEvent(LISTING_CARD_NAV_LOAD_MORE_SETTLED_EVENT);
+    return Promise.resolve();
+  }
+
+  activeNavigationLoading = true;
+  dispatchWindowEvent(LISTING_CARD_NAV_UPDATED_EVENT);
+
+  const run = (async () => {
+    try {
+      await Promise.all(handlers.map((fn) => Promise.resolve(fn())));
+      await waitNextCommitTurn();
+    } catch {
+      /* individual feed handles UI error state */
+    } finally {
+      activeNavigationLoading = false;
+      inflightLoadMorePromise = null;
+      dispatchWindowEvent(LISTING_CARD_NAV_UPDATED_EVENT);
+      dispatchWindowEvent(LISTING_CARD_NAV_LOAD_MORE_SETTLED_EVENT);
+    }
+  })();
+
+  inflightLoadMorePromise = run;
+  return run;
 }
 
 export function subscribeListingNavigationUpdates(
@@ -197,12 +324,28 @@ export function subscribeListingNavigationUpdates(
 }
 
 export function subscribeListingNavigationLoadMore(
+  listener: LoadMoreHandler,
+  options?: { sourceId?: string | null }
+): () => void {
+  const sourceId = options?.sourceId ?? null;
+  loadMoreSubscribers.set(listener, sourceId);
+  dispatchWindowEvent(LISTING_CARD_NAV_UPDATED_EVENT);
+  return () => {
+    loadMoreSubscribers.delete(listener);
+    dispatchWindowEvent(LISTING_CARD_NAV_UPDATED_EVENT);
+  };
+}
+
+export function subscribeListingNavigationLoadMoreSettled(
   listener: () => void
 ): () => void {
   if (typeof window === "undefined") return () => {};
-  window.addEventListener(LISTING_CARD_NAV_LOAD_MORE_EVENT, listener);
+  window.addEventListener(LISTING_CARD_NAV_LOAD_MORE_SETTLED_EVENT, listener);
   return () =>
-    window.removeEventListener(LISTING_CARD_NAV_LOAD_MORE_EVENT, listener);
+    window.removeEventListener(
+      LISTING_CARD_NAV_LOAD_MORE_SETTLED_EVENT,
+      listener
+    );
 }
 
 export function readListingNavigationContext(): string[] | null {
@@ -238,4 +381,13 @@ export function resolveListingNavNeighbors(
     prevSlug: i > 0 ? slugs[i - 1]! : null,
     nextSlug: i < slugs.length - 1 ? slugs[i + 1]! : null,
   };
+}
+
+export function resetListingNavigationRuntimeForTests(): void {
+  listingCardDataBySlug.clear();
+  loadMoreSubscribers.clear();
+  activeNavigationSourceId = null;
+  activeNavigationHasMore = false;
+  activeNavigationLoading = false;
+  inflightLoadMorePromise = null;
 }

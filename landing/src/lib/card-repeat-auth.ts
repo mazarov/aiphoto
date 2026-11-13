@@ -17,6 +17,10 @@ import {
 export type CardRepeatAction = "wait" | "auth" | "generate";
 export type CardRepeatComposeIntent = "resume" | "animate";
 
+/** Canonical CTA label across every prompt card (`CardPageClient` desktop, mobile HUD, and text-only sticky bar). */
+export const CARD_REPEAT_IDLE_LABEL = "Повторить на своём фото";
+export const CARD_REPEAT_IDLE_ARIA_LABEL = "Повторить этот образ на своём фото";
+
 /**
  * Published video cards repeat as image-to-video (own photo + card motion prompt).
  * Photo / photoshoot cards stay on image compose.

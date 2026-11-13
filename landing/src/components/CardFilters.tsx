@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import type { PromptCardFull } from "@/lib/supabase";
 import { TAG_REGISTRY } from "@/lib/tag-registry";
 import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
@@ -13,8 +13,8 @@ import { LISTING_DEFAULT_SORT, type ListingSort } from "@/lib/listing-sort";
 import {
   buildListingSlugOrder,
   primeListingNavigationCards,
-  writeListingNavigationContext,
 } from "@/lib/listing-card-navigation-context";
+import { useListingNavigationFeed } from "@/hooks/useListingNavigationFeed";
 import { omitCardById, shouldDropHiddenCardFromListing } from "@/lib/debug-hide-card";
 import { useDebugCardHidden } from "@/hooks/useDebugCardHidden";
 import { ListingCardDebugOverlay } from "./ListingCardDebugOverlay";
@@ -43,6 +43,9 @@ type Props = {
   headingAltSlots?: readonly string[];
   /** Catalog teaser: hide the hanging tail under the «Ещё» row. */
   clipToShortestColumn?: boolean;
+  /** Forwarded by InfiniteGrid so card-viewer pagination knows whether more pages exist. */
+  hasMore?: boolean;
+  onLoadMore?: () => void | Promise<unknown>;
 };
 
 function getSeoTagSlugs(seoTags: unknown): string[] {
@@ -121,6 +124,8 @@ export function FilterableGrid({
   sort = LISTING_DEFAULT_SORT,
   headingAltSlots,
   clipToShortestColumn = false,
+  hasMore = false,
+  onLoadMore,
 }: Props) {
   const { user } = useAuth();
   const isAdmin = isCatalogAdminEmail(user?.email);
@@ -422,14 +427,30 @@ export function FilterableGrid({
       .filter((page) => page.length > 0);
   }, [cardPages, isFilterMode, isIdMode, listingCards]);
 
-  useLayoutEffect(() => {
-    if (isIdMode || isFilterMode) return;
-    const order = buildListingSlugOrder(
-      listingCards.map((card) => ({ type: "single" as const, card }))
-    );
-    primeListingNavigationCards(listingCards);
-    writeListingNavigationContext(order);
-  }, [listingCards, isIdMode, isFilterMode]);
+  const listingSlugs = useMemo(
+    () =>
+      buildListingSlugOrder(
+        listingCards.map((card) => ({ type: "single" as const, card }))
+      ),
+    [listingCards]
+  );
+  const effectiveHasMore = isIdMode
+    ? false
+    : isFilterMode
+      ? filterHasMore
+      : hasMore;
+  const effectiveLoadMore = isIdMode
+    ? undefined
+    : isFilterMode
+      ? () => doFilterSearch(true)
+      : onLoadMore;
+  const { navigationContainerProps } = useListingNavigationFeed({
+    slugs: listingSlugs,
+    hasMore: effectiveHasMore,
+    onLoadMore: effectiveLoadMore,
+    onPrimeCards: () => primeListingNavigationCards(listingCards),
+    enabled: !isIdMode || listingCards.length > 0,
+  });
 
   function handleReset() {
     setFilters({ ...(isAdmin ? DEFAULT_DEBUG_FILTERS : DEFAULT_FILTERS) });
@@ -475,7 +496,7 @@ export function FilterableGrid({
 
   return (
     <CardInteractionsProvider cardIds={cardIds}>
-      <div>
+      <div {...navigationContainerProps}>
         {datasetOnly && filters.dataset && (
           <p className="mb-4 text-sm text-zinc-600">
             Датасет:{" "}
