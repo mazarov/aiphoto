@@ -1,0 +1,260 @@
+{
+  "pulledAt": "2026-09-17T04:39:42.109Z",
+  "testStart": "2026-08-23",
+  "lastPaymentDay": "2026-09-17",
+  "totals": {
+    "users": 119,
+    "payments": 168,
+    "revenue": 26959,
+    "everRepeatUsers": 22,
+    "everRepeatRate": 18.49,
+    "crossWeekRepeatUsers": 3,
+    "crossWeekRepeatRate": 2.52
+  },
+  "cohorts": [
+    {
+      "cohortWeek": "2026-08-17",
+      "label": "17.08–23.08",
+      "partial": false,
+      "users": 1,
+      "paymentsInCohortWeek": 1,
+      "revenueInCohortWeek": 99,
+      "avgCheck": 99,
+      "firstPlans": {
+        "trial 99": 1
+      },
+      "withinWeekRepeatUsers": 0,
+      "withinWeekRepeatRate": 0,
+      "everRepeatUsers": 0,
+      "everRepeatRate": 0,
+      "returnedLaterUsers": 0,
+      "returnedLaterRate": 0,
+      "laterReturnsByWeek": {},
+      "nextWeekReturn": {
+        "users": 0,
+        "payments": 0,
+        "revenue": 0
+      }
+    },
+    {
+      "cohortWeek": "2026-08-24",
+      "label": "24.08–30.08",
+      "partial": false,
+      "users": 50,
+      "paymentsInCohortWeek": 59,
+      "revenueInCohortWeek": 9881,
+      "avgCheck": 167.47,
+      "firstPlans": {
+        "trial 99": 26,
+        "trial 199": 19,
+        "pro 469": 2,
+        "start 399": 2,
+        "start 299": 1
+      },
+      "withinWeekRepeatUsers": 6,
+      "withinWeekRepeatRate": 12,
+      "everRepeatUsers": 8,
+      "everRepeatRate": 16,
+      "returnedLaterUsers": 2,
+      "returnedLaterRate": 4,
+      "laterReturnsByWeek": {
+        "2026-08-31": {
+          "users": 1,
+          "payments": 1,
+          "revenue": 99
+        },
+        "2026-09-07": {
+          "users": 1,
+          "payments": 2,
+          "revenue": 198
+        }
+      },
+      "nextWeekReturn": {
+        "users": 1,
+        "payments": 1,
+        "revenue": 99
+      }
+    },
+    {
+      "cohortWeek": "2026-08-31",
+      "label": "31.08–06.09",
+      "partial": false,
+      "users": 24,
+      "paymentsInCohortWeek": 35,
+      "revenueInCohortWeek": 5435,
+      "avgCheck": 155.29,
+      "firstPlans": {
+        "trial 199": 12,
+        "trial 99": 11,
+        "pro 469": 1
+      },
+      "withinWeekRepeatUsers": 6,
+      "withinWeekRepeatRate": 25,
+      "everRepeatUsers": 6,
+      "everRepeatRate": 25,
+      "returnedLaterUsers": 1,
+      "returnedLaterRate": 4.17,
+      "laterReturnsByWeek": {
+        "2026-09-07": {
+          "users": 1,
+          "payments": 10,
+          "revenue": 1960
+        }
+      },
+      "nextWeekReturn": {
+        "users": 1,
+        "payments": 10,
+        "revenue": 1960
+      }
+    },
+    {
+      "cohortWeek": "2026-09-07",
+      "label": "07.09–13.09",
+      "partial": false,
+      "users": 30,
+      "paymentsInCohortWeek": 35,
+      "revenueInCohortWeek": 6276,
+      "avgCheck": 179.31,
+      "firstPlans": {
+        "trial 99": 24,
+        "pro 469": 4,
+        "max 990": 1,
+        "start 299": 1
+      },
+      "withinWeekRepeatUsers": 4,
+      "withinWeekRepeatRate": 13.33,
+      "everRepeatUsers": 4,
+      "everRepeatRate": 13.33,
+      "returnedLaterUsers": 0,
+      "returnedLaterRate": 0,
+      "laterReturnsByWeek": {},
+      "nextWeekReturn": {
+        "users": 0,
+        "payments": 0,
+        "revenue": 0
+      }
+    },
+    {
+      "cohortWeek": "2026-09-14",
+      "label": "14.09–20.09",
+      "partial": true,
+      "users": 14,
+      "paymentsInCohortWeek": 25,
+      "revenueInCohortWeek": 3011,
+      "avgCheck": 120.44,
+      "firstPlans": {
+        "trial 99": 13,
+        "pro 375": 1
+      },
+      "withinWeekRepeatUsers": 4,
+      "withinWeekRepeatRate": 28.57,
+      "everRepeatUsers": 4,
+      "everRepeatRate": 28.57,
+      "returnedLaterUsers": 0,
+      "returnedLaterRate": 0,
+      "laterReturnsByWeek": {},
+      "nextWeekReturn": {
+        "users": 0,
+        "payments": 0,
+        "revenue": 0
+      }
+    }
+  ],
+  "retentionMatrix": [
+    {
+      "cohortWeek": "2026-08-17",
+      "label": "17.08–23.08",
+      "size": 1,
+      "cells": {
+        "2026-08-17": {
+          "users": 1,
+          "rate": 100
+        },
+        "2026-08-24": {
+          "users": 0,
+          "rate": 0
+        },
+        "2026-08-31": {
+          "users": 0,
+          "rate": 0
+        },
+        "2026-09-07": {
+          "users": 0,
+          "rate": 0
+        },
+        "2026-09-14": {
+          "users": 0,
+          "rate": 0
+        }
+      }
+    },
+    {
+      "cohortWeek": "2026-08-24",
+      "label": "24.08–30.08",
+      "size": 50,
+      "cells": {
+        "2026-08-24": {
+          "users": 50,
+          "rate": 100
+        },
+        "2026-08-31": {
+          "users": 1,
+          "rate": 2
+        },
+        "2026-09-07": {
+          "users": 1,
+          "rate": 2
+        },
+        "2026-09-14": {
+          "users": 0,
+          "rate": 0
+        }
+      }
+    },
+    {
+      "cohortWeek": "2026-08-31",
+      "label": "31.08–06.09",
+      "size": 24,
+      "cells": {
+        "2026-08-31": {
+          "users": 24,
+          "rate": 100
+        },
+        "2026-09-07": {
+          "users": 1,
+          "rate": 4.17
+        },
+        "2026-09-14": {
+          "users": 0,
+          "rate": 0
+        }
+      }
+    },
+    {
+      "cohortWeek": "2026-09-07",
+      "label": "07.09–13.09",
+      "size": 30,
+      "cells": {
+        "2026-09-07": {
+          "users": 30,
+          "rate": 100
+        },
+        "2026-09-14": {
+          "users": 0,
+          "rate": 0
+        }
+      }
+    },
+    {
+      "cohortWeek": "2026-09-14",
+      "label": "14.09–20.09",
+      "size": 14,
+      "cells": {
+        "2026-09-14": {
+          "users": 14,
+          "rate": 100
+        }
+      }
+    }
+  ]
+}

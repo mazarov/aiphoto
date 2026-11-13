@@ -1,0 +1,73 @@
+{
+  "asOf": "2026-09-17T04:50:27.943Z",
+  "matureDirectUsers": 82,
+  "d7RepeatUsers": 14,
+  "d7RepeatRatePct": 17.1,
+  "timeToSecondHours": {
+    "p25": 0.2,
+    "p50": 0.3,
+    "p75": 0.7
+  },
+  "secondPairs": {
+    "trial→trial": 10,
+    "trial→start": 4
+  },
+  "repeaters": {
+    "users": 14,
+    "firstArppuRub": 113.3,
+    "firstCreditsMean": 35.7,
+    "completed7dMean": 19.4,
+    "completed7dP50": 17.5,
+    "completed24hMean": 17.9,
+    "spent7dMean": 97.5,
+    "spentVsFirstGrantPct": 273,
+    "generatedMultiDayUsers": 8,
+    "generatedMultiDayRatePct": 57.1,
+    "noSuccessfulGenerationUsers": 0,
+    "birthdayUsers": 13,
+    "birthdayUserRatePct": 92.9,
+    "catalogUsers": 14,
+    "customUsers": 5,
+    "currentEmptyUsers": 7,
+    "currentEmptyRatePct": 50,
+    "currentBalanceP50": 0.5,
+    "contentCategories": {
+      "birthday": 175,
+      "family/kids": 28,
+      "other": 26,
+      "fashion/beauty": 24,
+      "couple": 9,
+      "portrait": 8,
+      "business": 1
+    }
+  },
+  "nonRepeaters": {
+    "users": 68,
+    "firstArppuRub": 173.7,
+    "firstCreditsMean": 61.8,
+    "completed7dMean": 6.7,
+    "completed7dP50": 6,
+    "completed24hMean": 6.6,
+    "spent7dMean": 37.1,
+    "spentVsFirstGrantPct": 60,
+    "generatedMultiDayUsers": 6,
+    "generatedMultiDayRatePct": 8.8,
+    "noSuccessfulGenerationUsers": 5,
+    "birthdayUsers": 60,
+    "birthdayUserRatePct": 88.2,
+    "catalogUsers": 61,
+    "customUsers": 12,
+    "currentEmptyUsers": 30,
+    "currentEmptyRatePct": 44.1,
+    "currentBalanceP50": 10,
+    "contentCategories": {
+      "birthday": 310,
+      "fashion/beauty": 60,
+      "other": 34,
+      "portrait": 24,
+      "family/kids": 15,
+      "couple": 10,
+      "business": 3
+    }
+  }
+}

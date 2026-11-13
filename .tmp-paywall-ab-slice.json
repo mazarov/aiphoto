@@ -1,0 +1,682 @@
+{
+  "pulledAt": "2026-09-07T15:32:49.287Z",
+  "elapsedMs": 821,
+  "window": {
+    "from": "2026-08-23T00:00:00+03:00",
+    "to": "now",
+    "first": "2026-08-22T21:10:00.824156+00:00",
+    "last": "2026-09-07T14:55:28.192358+00:00",
+    "firstMsk": "23.08, 00:10",
+    "lastMsk": "07.09, 17:55"
+  },
+  "totals": {
+    "payments": 478,
+    "yookassa": 474,
+    "robokassa": 4,
+    "users": 347,
+    "revenue": 104059,
+    "credits": 45010
+  },
+  "byStored": {
+    "control": {
+      "payments": 174,
+      "users": 134,
+      "revenue": 48126,
+      "avgCheck": 276.59,
+      "arppu": 359.15,
+      "credits": 24400,
+      "rubPerCredit": 1.97,
+      "margin": 30983,
+      "marginPerPayment": 178.06,
+      "plans": {
+        "trial 199": 144,
+        "pro 899": 6,
+        "start 399": 18,
+        "trial 179": 1,
+        "max 1499": 4,
+        "pro 719": 1
+      },
+      "days": {
+        "2026-08-23": 9,
+        "2026-08-24": 17,
+        "2026-08-25": 14,
+        "2026-08-26": 19,
+        "2026-08-27": 11,
+        "2026-08-28": 4,
+        "2026-08-29": 7,
+        "2026-08-30": 7,
+        "2026-08-31": 12,
+        "2026-09-01": 11,
+        "2026-09-02": 12,
+        "2026-09-03": 9,
+        "2026-09-04": 12,
+        "2026-09-05": 18,
+        "2026-09-06": 11,
+        "2026-09-07": 1
+      },
+      "channels": {
+        "none": 14,
+        "direct": 54,
+        "yandex_seo": 88,
+        "referral": 6,
+        "google_seo": 11,
+        "ya": 1
+      },
+      "providers": {
+        "yookassa": 171,
+        "robokassa": 3
+      },
+      "catalogs": {
+        "control": 172,
+        "other": 2
+      }
+    },
+    "treatment": {
+      "payments": 297,
+      "users": 214,
+      "revenue": 53779,
+      "avgCheck": 181.07,
+      "arppu": 251.3,
+      "credits": 19690,
+      "rubPerCredit": 2.73,
+      "margin": 38410.1,
+      "marginPerPayment": 129.33,
+      "plans": {
+        "pro 469": 32,
+        "max 990": 6,
+        "trial 99": 222,
+        "start 299": 36,
+        "trial 89": 1
+      },
+      "days": {
+        "2026-08-23": 14,
+        "2026-08-24": 35,
+        "2026-08-25": 30,
+        "2026-08-26": 25,
+        "2026-08-27": 11,
+        "2026-08-28": 24,
+        "2026-08-29": 11,
+        "2026-08-30": 9,
+        "2026-08-31": 14,
+        "2026-09-01": 12,
+        "2026-09-02": 12,
+        "2026-09-03": 13,
+        "2026-09-04": 17,
+        "2026-09-05": 18,
+        "2026-09-06": 29,
+        "2026-09-07": 23
+      },
+      "channels": {
+        "none": 23,
+        "direct": 86,
+        "yandex_seo": 145,
+        "google_seo": 32,
+        "referral": 10,
+        "bing_seo": 1
+      },
+      "providers": {
+        "yookassa": 296,
+        "robokassa": 1
+      },
+      "catalogs": {
+        "treatment": 296,
+        "other": 1
+      }
+    },
+    "unlabeled": {
+      "payments": 7,
+      "users": 6,
+      "revenue": 2154,
+      "avgCheck": 307.71,
+      "arppu": 359,
+      "credits": 920,
+      "rubPerCredit": 2.34,
+      "margin": 1472.77,
+      "marginPerPayment": 210.4,
+      "plans": {
+        "trial 99": 4,
+        "pro 469": 1,
+        "start 299": 1,
+        "max 990": 1
+      },
+      "days": {
+        "2026-09-01": 2,
+        "2026-09-02": 3,
+        "2026-09-03": 1,
+        "2026-09-04": 1
+      },
+      "channels": {
+        "direct": 4,
+        "yandex_seo": 3
+      },
+      "providers": {
+        "yookassa": 7
+      },
+      "catalogs": {
+        "treatment": 7
+      }
+    }
+  },
+  "byCatalog": {
+    "control": {
+      "payments": 172,
+      "users": 133,
+      "revenue": 47228,
+      "avgCheck": 274.58,
+      "arppu": 355.1,
+      "credits": 23630,
+      "rubPerCredit": 2,
+      "margin": 30562.22,
+      "marginPerPayment": 177.69,
+      "plans": {
+        "trial 199": 144,
+        "pro 899": 6,
+        "start 399": 18,
+        "max 1499": 4
+      },
+      "days": {
+        "2026-08-23": 9,
+        "2026-08-24": 16,
+        "2026-08-25": 14,
+        "2026-08-26": 19,
+        "2026-08-27": 11,
+        "2026-08-28": 4,
+        "2026-08-29": 7,
+        "2026-08-30": 7,
+        "2026-08-31": 12,
+        "2026-09-01": 11,
+        "2026-09-02": 12,
+        "2026-09-03": 9,
+        "2026-09-04": 12,
+        "2026-09-05": 17,
+        "2026-09-06": 11,
+        "2026-09-07": 1
+      },
+      "channels": {
+        "none": 14,
+        "direct": 53,
+        "yandex_seo": 87,
+        "referral": 6,
+        "google_seo": 11,
+        "ya": 1
+      },
+      "providers": {
+        "yookassa": 169,
+        "robokassa": 3
+      },
+      "catalogs": {
+        "control": 172
+      }
+    },
+    "treatment": {
+      "payments": 303,
+      "users": 218,
+      "revenue": 55844,
+      "avgCheck": 184.3,
+      "arppu": 256.17,
+      "credits": 20580,
+      "rubPerCredit": 2.71,
+      "margin": 39818.01,
+      "marginPerPayment": 131.41,
+      "plans": {
+        "pro 469": 33,
+        "max 990": 7,
+        "trial 99": 226,
+        "start 299": 37
+      },
+      "days": {
+        "2026-08-23": 14,
+        "2026-08-24": 35,
+        "2026-08-25": 30,
+        "2026-08-26": 25,
+        "2026-08-27": 11,
+        "2026-08-28": 23,
+        "2026-08-29": 11,
+        "2026-08-30": 9,
+        "2026-08-31": 14,
+        "2026-09-01": 14,
+        "2026-09-02": 15,
+        "2026-09-03": 14,
+        "2026-09-04": 18,
+        "2026-09-05": 18,
+        "2026-09-06": 29,
+        "2026-09-07": 23
+      },
+      "channels": {
+        "none": 23,
+        "direct": 90,
+        "yandex_seo": 147,
+        "google_seo": 32,
+        "referral": 10,
+        "bing_seo": 1
+      },
+      "providers": {
+        "yookassa": 302,
+        "robokassa": 1
+      },
+      "catalogs": {
+        "treatment": 303
+      }
+    },
+    "other": {
+      "payments": 3,
+      "users": 3,
+      "revenue": 987,
+      "avgCheck": 329,
+      "arppu": 329,
+      "credits": 800,
+      "rubPerCredit": 1.23,
+      "margin": 485.64,
+      "marginPerPayment": 161.88,
+      "plans": {
+        "trial 179": 1,
+        "trial 89": 1,
+        "pro 719": 1
+      },
+      "days": {
+        "2026-08-24": 1,
+        "2026-08-28": 1,
+        "2026-09-05": 1
+      },
+      "channels": {
+        "yandex_seo": 2,
+        "direct": 1
+      },
+      "providers": {
+        "yookassa": 3
+      },
+      "catalogs": {
+        "other": 3
+      }
+    }
+  },
+  "byChannel": {
+    "none": {
+      "payments": 37,
+      "users": 34,
+      "revenue": 10364,
+      "avgCheck": 280.11,
+      "arppu": 304.82,
+      "credits": 5030,
+      "rubPerCredit": 2.06,
+      "margin": 6784.52,
+      "marginPerPayment": 183.37,
+      "plans": {
+        "pro 469": 3,
+        "trial 199": 9,
+        "max 990": 1,
+        "trial 99": 15,
+        "start 299": 4,
+        "pro 899": 3,
+        "start 399": 2
+      },
+      "days": {
+        "2026-08-23": 22,
+        "2026-08-24": 12,
+        "2026-09-05": 1,
+        "2026-09-07": 2
+      },
+      "channels": {
+        "none": 37
+      },
+      "providers": {
+        "yookassa": 37
+      },
+      "catalogs": {
+        "treatment": 23,
+        "control": 14
+      }
+    },
+    "direct": {
+      "payments": 144,
+      "users": 107,
+      "revenue": 33690,
+      "avgCheck": 233.96,
+      "arppu": 314.86,
+      "credits": 14665,
+      "rubPerCredit": 2.3,
+      "margin": 22897.16,
+      "marginPerPayment": 159.01,
+      "plans": {
+        "trial 99": 64,
+        "trial 199": 46,
+        "start 299": 7,
+        "pro 899": 1,
+        "pro 469": 15,
+        "max 990": 4,
+        "start 399": 5,
+        "max 1499": 1,
+        "pro 719": 1
+      },
+      "days": {
+        "2026-08-23": 1,
+        "2026-08-24": 16,
+        "2026-08-25": 23,
+        "2026-08-26": 16,
+        "2026-08-27": 1,
+        "2026-08-28": 8,
+        "2026-08-29": 7,
+        "2026-08-30": 6,
+        "2026-08-31": 8,
+        "2026-09-01": 14,
+        "2026-09-02": 9,
+        "2026-09-03": 4,
+        "2026-09-04": 10,
+        "2026-09-05": 11,
+        "2026-09-06": 8,
+        "2026-09-07": 2
+      },
+      "channels": {
+        "direct": 144
+      },
+      "providers": {
+        "yookassa": 140,
+        "robokassa": 4
+      },
+      "catalogs": {
+        "treatment": 90,
+        "control": 53,
+        "other": 1
+      }
+    },
+    "yandex_seo": {
+      "payments": 236,
+      "users": 170,
+      "revenue": 47616,
+      "avgCheck": 201.76,
+      "arppu": 280.09,
+      "credits": 19910,
+      "rubPerCredit": 2.39,
+      "margin": 32770.21,
+      "marginPerPayment": 138.86,
+      "plans": {
+        "start 299": 20,
+        "trial 99": 115,
+        "trial 199": 73,
+        "pro 469": 10,
+        "trial 179": 1,
+        "start 399": 10,
+        "max 1499": 2,
+        "max 990": 2,
+        "trial 89": 1,
+        "pro 899": 2
+      },
+      "days": {
+        "2026-08-24": 16,
+        "2026-08-25": 18,
+        "2026-08-26": 24,
+        "2026-08-27": 18,
+        "2026-08-28": 12,
+        "2026-08-29": 10,
+        "2026-08-30": 7,
+        "2026-08-31": 11,
+        "2026-09-01": 7,
+        "2026-09-02": 18,
+        "2026-09-03": 16,
+        "2026-09-04": 17,
+        "2026-09-05": 21,
+        "2026-09-06": 23,
+        "2026-09-07": 18
+      },
+      "channels": {
+        "yandex_seo": 236
+      },
+      "providers": {
+        "yookassa": 236
+      },
+      "catalogs": {
+        "treatment": 147,
+        "control": 87,
+        "other": 2
+      }
+    },
+    "google_seo": {
+      "payments": 43,
+      "users": 35,
+      "revenue": 8967,
+      "avgCheck": 208.53,
+      "arppu": 256.2,
+      "credits": 4175,
+      "rubPerCredit": 2.15,
+      "margin": 5958.47,
+      "marginPerPayment": 138.57,
+      "plans": {
+        "start 299": 5,
+        "trial 99": 24,
+        "trial 199": 9,
+        "start 399": 1,
+        "pro 469": 3,
+        "max 1499": 1
+      },
+      "days": {
+        "2026-08-24": 6,
+        "2026-08-25": 2,
+        "2026-08-26": 3,
+        "2026-08-27": 2,
+        "2026-08-28": 8,
+        "2026-08-29": 1,
+        "2026-08-30": 2,
+        "2026-08-31": 6,
+        "2026-09-01": 1,
+        "2026-09-03": 3,
+        "2026-09-04": 3,
+        "2026-09-05": 1,
+        "2026-09-06": 3,
+        "2026-09-07": 2
+      },
+      "channels": {
+        "google_seo": 43
+      },
+      "providers": {
+        "yookassa": 43
+      },
+      "catalogs": {
+        "treatment": 32,
+        "control": 11
+      }
+    },
+    "referral": {
+      "payments": 16,
+      "users": 10,
+      "revenue": 2754,
+      "avgCheck": 172.13,
+      "arppu": 275.4,
+      "credits": 960,
+      "rubPerCredit": 2.87,
+      "margin": 1991.12,
+      "marginPerPayment": 124.45,
+      "plans": {
+        "pro 469": 1,
+        "trial 199": 6,
+        "trial 99": 8,
+        "start 299": 1
+      },
+      "days": {
+        "2026-08-24": 2,
+        "2026-08-25": 1,
+        "2026-08-26": 1,
+        "2026-08-27": 1,
+        "2026-08-30": 1,
+        "2026-09-01": 2,
+        "2026-09-05": 2,
+        "2026-09-06": 6
+      },
+      "channels": {
+        "referral": 16
+      },
+      "providers": {
+        "yookassa": 16
+      },
+      "catalogs": {
+        "treatment": 10,
+        "control": 6
+      }
+    },
+    "bing_seo": {
+      "payments": 1,
+      "users": 1,
+      "revenue": 469,
+      "avgCheck": 469,
+      "arppu": 469,
+      "credits": 200,
+      "rubPerCredit": 2.35,
+      "margin": 320.83,
+      "marginPerPayment": 320.83,
+      "plans": {
+        "pro 469": 1
+      },
+      "days": {
+        "2026-08-31": 1
+      },
+      "channels": {
+        "bing_seo": 1
+      },
+      "providers": {
+        "yookassa": 1
+      },
+      "catalogs": {
+        "treatment": 1
+      }
+    },
+    "ya": {
+      "payments": 1,
+      "users": 1,
+      "revenue": 199,
+      "avgCheck": 199,
+      "arppu": 199,
+      "credits": 70,
+      "rubPerCredit": 2.84,
+      "margin": 143.56,
+      "marginPerPayment": 143.56,
+      "plans": {
+        "trial 199": 1
+      },
+      "days": {
+        "2026-09-01": 1
+      },
+      "channels": {
+        "ya": 1
+      },
+      "providers": {
+        "yookassa": 1
+      },
+      "catalogs": {
+        "control": 1
+      }
+    }
+  },
+  "daily": {
+    "2026-08-23": {
+      "n": 23,
+      "revenue": 7008,
+      "control": 9,
+      "treatment": 14,
+      "other": 0
+    },
+    "2026-08-24": {
+      "n": 52,
+      "revenue": 11708,
+      "control": 16,
+      "treatment": 35,
+      "other": 1
+    },
+    "2026-08-25": {
+      "n": 44,
+      "revenue": 7836,
+      "control": 14,
+      "treatment": 30,
+      "other": 0
+    },
+    "2026-08-26": {
+      "n": 44,
+      "revenue": 12339,
+      "control": 19,
+      "treatment": 25,
+      "other": 0
+    },
+    "2026-08-27": {
+      "n": 22,
+      "revenue": 4618,
+      "control": 11,
+      "treatment": 11,
+      "other": 0
+    },
+    "2026-08-28": {
+      "n": 28,
+      "revenue": 6572,
+      "control": 4,
+      "treatment": 23,
+      "other": 1
+    },
+    "2026-08-29": {
+      "n": 18,
+      "revenue": 4382,
+      "control": 7,
+      "treatment": 11,
+      "other": 0
+    },
+    "2026-08-30": {
+      "n": 16,
+      "revenue": 2484,
+      "control": 7,
+      "treatment": 9,
+      "other": 0
+    },
+    "2026-08-31": {
+      "n": 26,
+      "revenue": 5654,
+      "control": 12,
+      "treatment": 14,
+      "other": 0
+    },
+    "2026-09-01": {
+      "n": 25,
+      "revenue": 4515,
+      "control": 11,
+      "treatment": 14,
+      "other": 0
+    },
+    "2026-09-02": {
+      "n": 27,
+      "revenue": 4443,
+      "control": 12,
+      "treatment": 15,
+      "other": 0
+    },
+    "2026-09-03": {
+      "n": 23,
+      "revenue": 5287,
+      "control": 9,
+      "treatment": 14,
+      "other": 0
+    },
+    "2026-09-04": {
+      "n": 30,
+      "revenue": 7171,
+      "control": 12,
+      "treatment": 18,
+      "other": 0
+    },
+    "2026-09-05": {
+      "n": 36,
+      "revenue": 7675,
+      "control": 17,
+      "treatment": 18,
+      "other": 1
+    },
+    "2026-09-06": {
+      "n": 40,
+      "revenue": 7251,
+      "control": 11,
+      "treatment": 29,
+      "other": 0
+    },
+    "2026-09-07": {
+      "n": 24,
+      "revenue": 5116,
+      "control": 1,
+      "treatment": 23,
+      "other": 0
+    }
+  }
+}

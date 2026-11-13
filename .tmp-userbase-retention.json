@@ -1,0 +1,370 @@
+{
+  "asOf": "2026-09-13T09:35:19.294Z",
+  "timezoneNote": "Недели и «сегодня» считаются от now UTC; бакеты часов/дней — абсолютные интервалы.",
+  "identityNote": "Плательщик = landing_user_id живой YooKassa/Robokassa (succeeded + credited, не test). Генерации client_source≠admin. Email не читали.",
+  "funnel": {
+    "landingUsers": 6225,
+    "paidUsers": 680,
+    "paidPctOfUsers": 10.9,
+    "neverPaid": 5545,
+    "oncePayers": 545,
+    "repeatPayers": 135,
+    "threePlusPayers": 58,
+    "repeatRatePct": 19.9,
+    "mature7d": 499,
+    "secondWithin7d": 90,
+    "secondWithin7dPct": 18,
+    "mature30d": 48,
+    "secondWithin30d": 11,
+    "secondWithin30dPct": 22.9
+  },
+  "money": {
+    "livePayments": 944,
+    "revenueRub": 194914,
+    "revenueFirstRub": 130545,
+    "revenueRepeatRub": 64369,
+    "revenueRepeatSharePct": 33,
+    "avgCheckRub": 206.48,
+    "avgSpendPerPayerRub": 286.64,
+    "oncePayersSpendRub": 107179,
+    "repeatPayersSpendRub": 87735,
+    "grantedCredits": 82140,
+    "spentCredits": 56942,
+    "refundedCredits": 5024,
+    "leftoverCreditsAll": 24458,
+    "leftoverCreditsPaid": 24458,
+    "leftoverQuietPaidCredits": 13491,
+    "generationCostGrantedRub": 41070,
+    "generationCostSpentRub": 28471,
+    "unusedPaidLiabilityRub": 12229
+  },
+  "segments": {
+    "paid": 680,
+    "paid_active": 195,
+    "paid_quiet": 355,
+    "empty": 270,
+    "trial_only": 540,
+    "paid_unused": 47,
+    "paid_leftover_quiet": 215,
+    "paid_empty_quiet": 140
+  },
+  "firstPlan": [
+    {
+      "plan": "trial",
+      "firstBuyers": 583,
+      "sharePct": 85.7,
+      "secondBuyers": 123,
+      "secondRatePct": 21.1,
+      "secondRevenueRub": 25139
+    },
+    {
+      "plan": "start",
+      "firstBuyers": 48,
+      "sharePct": 7.1,
+      "secondBuyers": 7,
+      "secondRatePct": 14.6,
+      "secondRevenueRub": 2863
+    },
+    {
+      "plan": "pro",
+      "firstBuyers": 41,
+      "sharePct": 6,
+      "secondBuyers": 4,
+      "secondRatePct": 9.8,
+      "secondRevenueRub": 1512
+    },
+    {
+      "plan": "max",
+      "firstBuyers": 8,
+      "sharePct": 1.2,
+      "secondBuyers": 1,
+      "secondRatePct": 12.5,
+      "secondRevenueRub": 990
+    }
+  ],
+  "secondGivenFirst": [
+    {
+      "pair": "trial→trial",
+      "count": 92,
+      "shareOfRepeatPct": 68.1
+    },
+    {
+      "pair": "trial→start",
+      "count": 25,
+      "shareOfRepeatPct": 18.5
+    },
+    {
+      "pair": "trial→pro",
+      "count": 4,
+      "shareOfRepeatPct": 3
+    },
+    {
+      "pair": "pro→pro",
+      "count": 3,
+      "shareOfRepeatPct": 2.2
+    },
+    {
+      "pair": "start→start",
+      "count": 3,
+      "shareOfRepeatPct": 2.2
+    },
+    {
+      "pair": "trial→max",
+      "count": 2,
+      "shareOfRepeatPct": 1.5
+    },
+    {
+      "pair": "start→trial",
+      "count": 2,
+      "shareOfRepeatPct": 1.5
+    },
+    {
+      "pair": "start→pro",
+      "count": 2,
+      "shareOfRepeatPct": 1.5
+    },
+    {
+      "pair": "pro→trial",
+      "count": 1,
+      "shareOfRepeatPct": 0.7
+    },
+    {
+      "pair": "max→max",
+      "count": 1,
+      "shareOfRepeatPct": 0.7
+    }
+  ],
+  "paymentCountDist": {
+    "1": 545,
+    "2": 77,
+    "3": 32,
+    "4": 12,
+    "5+": 14
+  },
+  "spendTiers": {
+    "100–299": 273,
+    "500–999": 39,
+    "300–499": 88,
+    "2000+": 6,
+    "1000–1999": 16,
+    "1–99": 258
+  },
+  "timeToSecond": {
+    "n": 135,
+    "p50Hours": 0.6,
+    "p75Hours": 9.5,
+    "p50Days": 0,
+    "p75Days": 0.4,
+    "buckets": {
+      "0–24ч": 111,
+      "3–7д": 6,
+      "7–14д": 7,
+      "1–3д": 10,
+      "14–30д": 1
+    }
+  },
+  "recencyPaid": {
+    "0–7д": 201,
+    "31–60д": 33,
+    "15–30д": 275,
+    "нет генерации": 47,
+    "8–14д": 124
+  },
+  "recencyEmptyQuiet": {
+    "15–30д": 123,
+    "31–60д": 14,
+    "нет генерации": 3
+  },
+  "cohortsByFirstPayWeek": [
+    {
+      "weekStartMoscow": "2026-08-10",
+      "firstPayers": 94,
+      "withSecond": 18,
+      "secondRatePct": 19.1
+    },
+    {
+      "weekStartMoscow": "2026-08-17",
+      "firstPayers": 119,
+      "withSecond": 23,
+      "secondRatePct": 19.3
+    },
+    {
+      "weekStartMoscow": "2026-08-24",
+      "firstPayers": 163,
+      "withSecond": 37,
+      "secondRatePct": 22.7
+    },
+    {
+      "weekStartMoscow": "2026-08-31",
+      "firstPayers": 136,
+      "withSecond": 24,
+      "secondRatePct": 17.6
+    },
+    {
+      "weekStartMoscow": "2026-09-07",
+      "firstPayers": 168,
+      "withSecond": 33,
+      "secondRatePct": 19.6
+    }
+  ],
+  "lowBalanceUpgrade": {
+    "offers": 134,
+    "uniqueUsers": 134,
+    "converted24h": 30,
+    "converted7d": 30,
+    "convertedEver": 30,
+    "mature7": 0,
+    "mature7_repeat7": 0,
+    "mature30": 0,
+    "mature30_repeat30": 0,
+    "usedOfferId": 42,
+    "converted24hPct": 22.4,
+    "converted7dPct": 22.4,
+    "convertedEverPct": 22.4,
+    "mature7RatePct": 0,
+    "mature30RatePct": 0
+  },
+  "offersBySource": {
+    "yk_abandon_24h": 61,
+    "yk_abandon_40m": 6,
+    "onboard_d7": 61,
+    "low_balance_upgrade": 134
+  },
+  "mailSentByTemplate": {
+    "analyze_intent": 421,
+    "welcome": 4442,
+    "tokens_credited": 713,
+    "no_credits": 46,
+    "credits_empty": 255,
+    "yk_abandon_40m": 66,
+    "onboard_d1": 3568,
+    "paid_unused": 29,
+    "yk_abandon_24h": 61,
+    "onboard_d3": 3244,
+    "onboard_d7": 61,
+    "low_balance_upgrade": 1
+  },
+  "mailByStatus": {
+    "sent": 12907,
+    "pending": 1
+  },
+  "leftoverConcentration": {
+    "paidWithLeftover": 410,
+    "leftoverTop10SharePct": 52.5
+  },
+  "whatIfForever20": {
+    "note": "Если бы все повторные чеки уже прошедших плательщиков были −20%. Исторический контрфактуал, не прогноз спроса.",
+    "repeatRevenueActualRub": 64369,
+    "repeatRevenueAt20OffRub": 51495.2,
+    "givenAwayRub": 12873.8
+  },
+  "whatIfLoyalty": {
+    "usersSpendGe500": 61,
+    "usersSpendGe500Pct": 9,
+    "usersSpendGe1000": 22,
+    "usersSpendGe1000Pct": 3.2,
+    "note": "Пороги 500/1000 ₽ — доля уже заплативших, которым лестница дала бы статус почти сразу."
+  },
+  "gensUnmatchedToPayers": 0,
+  "oncePayersState": {
+    "leftover_recent": 145,
+    "leftover_quiet": 155,
+    "empty_recent": 101,
+    "empty_quiet": 100,
+    "unused": 44
+  },
+  "trialOncePayersState": {
+    "leftover_recent": 108,
+    "leftover_quiet": 127,
+    "empty_recent": 98,
+    "empty_quiet": 95,
+    "unused": 32
+  },
+  "trialOnceLeftoverCredits": 7691,
+  "emptyRecent": 130,
+  "emptyRecentTrialOnly": 122,
+  "secondIn24h": {
+    "trial_to_trial": 79,
+    "trial_to_higher": 25,
+    "other": 7,
+    "withOfferId": 27,
+    "withoutOfferId": 84
+  },
+  "secondTrialRevenueRub": 11888,
+  "secondHigherFromTrialRevenueRub": 13251,
+  "repeatPaymentPlans": {
+    "trial": 172,
+    "max": 8,
+    "pro": 28,
+    "start": 56
+  },
+  "trialNeverHigher": 540,
+  "trialNeverHigherPctOfTrialFirst": 92.6,
+  "winbackEligible14": 275,
+  "winbackEligible30": 33,
+  "winbackCoverage14": {
+    "none": 116,
+    "cancelled": 153,
+    "scheduled": 6,
+    "done": 0
+  },
+  "winbackCoverage30": {
+    "none": 33,
+    "cancelled": 0,
+    "scheduled": 0,
+    "done": 0
+  },
+  "winbackDue": {
+    "scheduled": 333,
+    "overdue": 0,
+    "future": 333,
+    "cancelled": 396,
+    "done": 0
+  },
+  "mailDueByTemplate": {
+    "onboard_d1": 4428,
+    "onboard_d3": 4428,
+    "onboard_d7": 4428,
+    "credits_empty": 303,
+    "yk_abandon_40m": 1037,
+    "winback_14": 729,
+    "yk_abandon_24h": 1037,
+    "paid_unused": 493,
+    "yk_abandon_5m": 695,
+    "analyze_intent": 591,
+    "no_credits": 83,
+    "low_balance_upgrade": 134
+  },
+  "mailDueByStatus": {
+    "onboard_d1:scheduled": 153,
+    "onboard_d3:done": 3244,
+    "onboard_d3:scheduled": 451,
+    "onboard_d1:done": 3569,
+    "onboard_d7:done": 61,
+    "onboard_d3:cancelled": 733,
+    "onboard_d7:cancelled": 3262,
+    "credits_empty:cancelled": 48,
+    "onboard_d1:cancelled": 706,
+    "yk_abandon_40m:cancelled": 970,
+    "winback_14:cancelled": 396,
+    "onboard_d7:scheduled": 1105,
+    "credits_empty:done": 255,
+    "yk_abandon_24h:cancelled": 969,
+    "paid_unused:cancelled": 464,
+    "yk_abandon_5m:cancelled": 695,
+    "analyze_intent:cancelled": 168,
+    "analyze_intent:done": 421,
+    "yk_abandon_40m:done": 66,
+    "no_credits:cancelled": 37,
+    "no_credits:done": 46,
+    "yk_abandon_24h:done": 61,
+    "paid_unused:done": 29,
+    "low_balance_upgrade:cancelled": 129,
+    "winback_14:scheduled": 333,
+    "yk_abandon_24h:scheduled": 7,
+    "analyze_intent:scheduled": 2,
+    "low_balance_upgrade:done": 1,
+    "low_balance_upgrade:scheduled": 4,
+    "yk_abandon_40m:scheduled": 1
+  }
+}

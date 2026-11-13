@@ -1,0 +1,48 @@
+{
+  "path": "/stil/vysokaya-moda",
+  "fetched_at": "2026-09-24T22:33:51+03:00",
+  "rows": [
+    {
+      "query": "промт для фото девушки в стиле высокой моды",
+      "shows": 2.0,
+      "clicks": 0.0,
+      "ctr": 0.0,
+      "position": 3.0
+    },
+    {
+      "query": "промт фон показ мод",
+      "shows": 2.0,
+      "clicks": 1.0,
+      "ctr": 0.5,
+      "position": 12.5
+    },
+    {
+      "query": "prompt for generating images: nano-banana, haute couture theme, fashion, runway, photography.",
+      "shows": 1.0,
+      "clicks": 0.0,
+      "ctr": 0.0,
+      "position": 14.0
+    },
+    {
+      "query": "промт для фотосессии в стиле высокой моды",
+      "shows": 1.0,
+      "clicks": 0.0,
+      "ctr": 0.0,
+      "position": 8.0
+    },
+    {
+      "query": "промт для шикарного чёрного платья",
+      "shows": 1.0,
+      "clicks": 0.0,
+      "ctr": 0.0,
+      "position": 4.0
+    },
+    {
+      "query": "промты для нейросети для фото в платье пиджаке",
+      "shows": 1.0,
+      "clicks": 0.0,
+      "ctr": 0.0,
+      "position": 3.0
+    }
+  ]
+}

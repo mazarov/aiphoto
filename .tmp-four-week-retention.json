@@ -1,0 +1,1584 @@
+{
+  "asOf": "2026-09-17T04:48:43.416Z",
+  "timezone": "Europe/Moscow",
+  "definitions": {
+    "cohort": "week of first-ever live payment",
+    "direct": "first-ever live payment has yclid or utm_source=yandex + utm_medium=cpc",
+    "repeat": "second live payment by same landing user",
+    "generation": "non-admin landing_generations after first payment; completed is successful",
+    "content": "heuristic keyword classification of public card title + prompt text; only aggregates are output"
+  },
+  "dataQuality": {
+    "livePayments": 1090,
+    "paidUsers": 780,
+    "generationRowsSinceFirstCohort": 6530,
+    "generationUsers": 531,
+    "usersRows": 6909,
+    "cardsResolved": 2059
+  },
+  "cohorts": [
+    {
+      "week": "2026-08-24",
+      "end": "2026-08-30",
+      "partial": false,
+      "all": {
+        "users": 163,
+        "firstRevenueRub": 35529,
+        "firstArppuRub": 217.97,
+        "totalPayments": 249,
+        "totalRevenueRub": 54415,
+        "repeatUsers": 37,
+        "repeatRatePct": 22.7,
+        "d1": {
+          "mature": 163,
+          "repeatUsers": 31,
+          "repeatRatePct": 19
+        },
+        "d3": {
+          "mature": 163,
+          "repeatUsers": 34,
+          "repeatRatePct": 20.9
+        },
+        "d7": {
+          "mature": 163,
+          "repeatUsers": 35,
+          "repeatRatePct": 21.5,
+          "generatedUsers": 151,
+          "generatedRatePct": 92.6
+        },
+        "nextWeek": {
+          "paymentUsers": 8,
+          "paymentRatePct": 4.9,
+          "generationUsers": 17,
+          "generationRatePct": 10.4,
+          "activeNoPayUsers": 9
+        },
+        "generation": {
+          "users": 151,
+          "userRatePct": 92.6,
+          "within24hUsers": 150,
+          "within24hRatePct": 92,
+          "attempts": 2634,
+          "completed": 2453,
+          "failed": 181,
+          "failureRatePct": 6.9,
+          "completedPerUserMean": 15,
+          "completedPerUserP50": 7,
+          "completedPerUserP75": 14,
+          "multiDayUsers": 33,
+          "multiDayRatePct": 20.2,
+          "multiWeekUsers": 19,
+          "multiWeekRatePct": 11.7,
+          "grantedCredits": 22880,
+          "spentCredits": 14765,
+          "spentSharePct": 64.5,
+          "currentBalanceCredits": 6446,
+          "balanceP50": 5,
+          "kinds": {
+            "catalog_card": 1714,
+            "custom_prompt": 428,
+            "edit/remix": 236,
+            "video": 58,
+            "photoshoot": 17
+          },
+          "models": {
+            "gemini-2.5-flash-image": 1822,
+            "seedream-5.0-pro": 205,
+            "gemini-3-pro-image-preview": 132,
+            "grok-imagine-image-2.0": 121,
+            "gemini-3.1-flash-image-preview": 105,
+            "veo-3.1-lite-generate-preview": 48,
+            "grok-imagine-video-1.5": 10,
+            "flux-2-flex": 8,
+            "seedream-4.5": 2
+          },
+          "contentCategories": {
+            "fashion/beauty": 957,
+            "birthday": 543,
+            "portrait": 218,
+            "family/kids": 189,
+            "couple": 177,
+            "other": 156,
+            "travel/outdoor": 132,
+            "business": 66,
+            "product/object": 14,
+            "holiday": 1
+          },
+          "topCards": {
+            "Девушка в чёрном жакете с тортом и свечами на дне рождения в тёмной студии с проекцией детского фото": 41,
+            "Женщина в профиль с зажжённым тортом на дне рождения в тёмной студии с проекцией детского фото на фоне": 20,
+            "Новый тренд       Поцелуй": 19,
+            "Visual Hook: Стильный, рокерский образ ребенка, сидящего среди черных шаров и конфетти,...": 15,
+            "Visual Hook: Контраст между текущим образом субъекта и его детским изображением, проеци...": 15,
+            "Делаем фото на день рождения с шампанским": 14,
+            "Вечернее фото на день рождения": 13,
+            "Трендовое черно-белое селфи с эффектом движения и дерзким взглядом девушки": 13
+          }
+        },
+        "noRepeatState": {
+          "users": 126,
+          "unusedUsers": 9,
+          "unusedSharePct": 7.1,
+          "emptyUsers": 52,
+          "emptySharePct": 41.3,
+          "leftoverUsers": 74,
+          "leftoverSharePct": 58.7,
+          "leftoverCredits": 6116
+        }
+      },
+      "direct": {
+        "users": 49,
+        "firstRevenueRub": 8291,
+        "firstArppuRub": 169.2,
+        "totalPayments": 61,
+        "totalRevenueRub": 10079,
+        "repeatUsers": 8,
+        "repeatRatePct": 16.3,
+        "d1": {
+          "mature": 49,
+          "repeatUsers": 7,
+          "repeatRatePct": 14.3
+        },
+        "d3": {
+          "mature": 49,
+          "repeatUsers": 7,
+          "repeatRatePct": 14.3
+        },
+        "d7": {
+          "mature": 49,
+          "repeatUsers": 7,
+          "repeatRatePct": 14.3,
+          "generatedUsers": 47,
+          "generatedRatePct": 95.9
+        },
+        "nextWeek": {
+          "paymentUsers": 1,
+          "paymentRatePct": 2,
+          "generationUsers": 3,
+          "generationRatePct": 6.1,
+          "activeNoPayUsers": 2
+        },
+        "generation": {
+          "users": 47,
+          "userRatePct": 95.9,
+          "within24hUsers": 47,
+          "within24hRatePct": 95.9,
+          "attempts": 483,
+          "completed": 464,
+          "failed": 19,
+          "failureRatePct": 3.9,
+          "completedPerUserMean": 9.5,
+          "completedPerUserP50": 7,
+          "completedPerUserP75": 12,
+          "multiDayUsers": 11,
+          "multiDayRatePct": 22.4,
+          "multiWeekUsers": 3,
+          "multiWeekRatePct": 6.1,
+          "grantedCredits": 3500,
+          "spentCredits": 2490,
+          "spentSharePct": 71.1,
+          "currentBalanceCredits": 976,
+          "balanceP50": 5,
+          "kinds": {
+            "catalog_card": 348,
+            "edit/remix": 70,
+            "custom_prompt": 42,
+            "video": 3,
+            "photoshoot": 1
+          },
+          "models": {
+            "gemini-2.5-flash-image": 419,
+            "grok-imagine-image-2.0": 20,
+            "gemini-3-pro-image-preview": 15,
+            "gemini-3.1-flash-image-preview": 5,
+            "veo-3.1-lite-generate-preview": 3,
+            "seedream-5.0-pro": 2
+          },
+          "contentCategories": {
+            "birthday": 315,
+            "fashion/beauty": 67,
+            "family/kids": 29,
+            "portrait": 17,
+            "couple": 16,
+            "business": 8,
+            "other": 6,
+            "travel/outdoor": 5,
+            "product/object": 1
+          },
+          "topCards": {
+            "Девушка в чёрном жакете с тортом и свечами на дне рождения в тёмной студии с проекцией детского фото": 29,
+            "Женщина в профиль с зажжённым тортом на дне рождения в тёмной студии с проекцией детского фото на фоне": 18,
+            "Visual Hook: Контраст между текущим образом субъекта и его детским изображением, проеци...": 14,
+            "Visual Hook: Стильный, рокерский образ ребенка, сидящего среди черных шаров и конфетти,...": 12,
+            "Visual Hook: A warm, nostalgic glow illuminates a person holding a birthday cake, with...": 12,
+            "Visual Hook: Стильный и уверенный портрет с реквизитом, создающий образ \"делового ребен...": 9,
+            "Visual Hook: Элегантный портрет с праздничным тортом, подчеркивающий радостное событие...": 9,
+            "Фото на день рождения": 8
+          }
+        },
+        "noRepeatState": {
+          "users": 41,
+          "unusedUsers": 2,
+          "unusedSharePct": 4.9,
+          "emptyUsers": 17,
+          "emptySharePct": 41.5,
+          "leftoverUsers": 24,
+          "leftoverSharePct": 58.5,
+          "leftoverCredits": 921
+        }
+      },
+      "nonDirect": {
+        "users": 114,
+        "firstRevenueRub": 27238,
+        "firstArppuRub": 238.93,
+        "totalPayments": 188,
+        "totalRevenueRub": 44336,
+        "repeatUsers": 29,
+        "repeatRatePct": 25.4,
+        "d1": {
+          "mature": 114,
+          "repeatUsers": 24,
+          "repeatRatePct": 21.1
+        },
+        "d3": {
+          "mature": 114,
+          "repeatUsers": 27,
+          "repeatRatePct": 23.7
+        },
+        "d7": {
+          "mature": 114,
+          "repeatUsers": 28,
+          "repeatRatePct": 24.6,
+          "generatedUsers": 104,
+          "generatedRatePct": 91.2
+        },
+        "nextWeek": {
+          "paymentUsers": 7,
+          "paymentRatePct": 6.1,
+          "generationUsers": 14,
+          "generationRatePct": 12.3,
+          "activeNoPayUsers": 7
+        },
+        "generation": {
+          "users": 104,
+          "userRatePct": 91.2,
+          "within24hUsers": 103,
+          "within24hRatePct": 90.4,
+          "attempts": 2151,
+          "completed": 1989,
+          "failed": 162,
+          "failureRatePct": 7.5,
+          "completedPerUserMean": 17.4,
+          "completedPerUserP50": 6.5,
+          "completedPerUserP75": 15.5,
+          "multiDayUsers": 22,
+          "multiDayRatePct": 19.3,
+          "multiWeekUsers": 16,
+          "multiWeekRatePct": 14,
+          "grantedCredits": 19380,
+          "spentCredits": 12275,
+          "spentSharePct": 63.3,
+          "currentBalanceCredits": 5470,
+          "balanceP50": 5,
+          "kinds": {
+            "catalog_card": 1366,
+            "custom_prompt": 386,
+            "edit/remix": 166,
+            "video": 55,
+            "photoshoot": 16
+          },
+          "models": {
+            "gemini-2.5-flash-image": 1403,
+            "seedream-5.0-pro": 203,
+            "gemini-3-pro-image-preview": 117,
+            "grok-imagine-image-2.0": 101,
+            "gemini-3.1-flash-image-preview": 100,
+            "veo-3.1-lite-generate-preview": 45,
+            "grok-imagine-video-1.5": 10,
+            "flux-2-flex": 8,
+            "seedream-4.5": 2
+          },
+          "contentCategories": {
+            "fashion/beauty": 890,
+            "birthday": 228,
+            "portrait": 201,
+            "couple": 161,
+            "family/kids": 160,
+            "other": 150,
+            "travel/outdoor": 127,
+            "business": 58,
+            "product/object": 13,
+            "holiday": 1
+          },
+          "topCards": {
+            "Новый тренд       Поцелуй": 19,
+            "Черно-белое семейное фото": 13,
+            "Девушка в чёрном жакете с тортом и свечами на дне рождения в тёмной студии с проекцией детского фото": 12,
+            "Трендовое черно-белое селфи с эффектом движения и дерзким взглядом девушки": 12,
+            "Visual Hook: Интимный, высококонтрастный портрет, запечатлевающий нежное объятие между...": 12,
+            "Visual Hook: Эстетика непринужденной задумчивости в осеннем поле под пасмурным небом. S...": 11,
+            "Visual Hook: Триптих черно-белых изображений, запечатлевающий интимные моменты пары в н...": 10,
+            "Visual Hook: A tender, intimate black and white portrait emphasizing connection through...": 10
+          }
+        },
+        "noRepeatState": {
+          "users": 85,
+          "unusedUsers": 7,
+          "unusedSharePct": 8.2,
+          "emptyUsers": 35,
+          "emptySharePct": 41.2,
+          "leftoverUsers": 50,
+          "leftoverSharePct": 58.8,
+          "leftoverCredits": 5195
+        }
+      }
+    },
+    {
+      "week": "2026-08-31",
+      "end": "2026-09-06",
+      "partial": false,
+      "all": {
+        "users": 136,
+        "firstRevenueRub": 23474,
+        "firstArppuRub": 172.6,
+        "totalPayments": 184,
+        "totalRevenueRub": 35172,
+        "repeatUsers": 25,
+        "repeatRatePct": 18.4,
+        "d1": {
+          "mature": 136,
+          "repeatUsers": 21,
+          "repeatRatePct": 15.4
+        },
+        "d3": {
+          "mature": 136,
+          "repeatUsers": 22,
+          "repeatRatePct": 16.2
+        },
+        "d7": {
+          "mature": 136,
+          "repeatUsers": 24,
+          "repeatRatePct": 17.6,
+          "generatedUsers": 127,
+          "generatedRatePct": 93.4
+        },
+        "nextWeek": {
+          "paymentUsers": 3,
+          "paymentRatePct": 2.2,
+          "generationUsers": 10,
+          "generationRatePct": 7.4,
+          "activeNoPayUsers": 7
+        },
+        "generation": {
+          "users": 127,
+          "userRatePct": 93.4,
+          "within24hUsers": 126,
+          "within24hRatePct": 92.6,
+          "attempts": 1816,
+          "completed": 1799,
+          "failed": 17,
+          "failureRatePct": 0.9,
+          "completedPerUserMean": 13.2,
+          "completedPerUserP50": 6,
+          "completedPerUserP75": 13,
+          "multiDayUsers": 26,
+          "multiDayRatePct": 19.1,
+          "multiWeekUsers": 12,
+          "multiWeekRatePct": 8.8,
+          "grantedCredits": 14635,
+          "spentCredits": 9955,
+          "spentSharePct": 68,
+          "currentBalanceCredits": 5164,
+          "balanceP50": 10,
+          "kinds": {
+            "catalog_card": 1273,
+            "custom_prompt": 345,
+            "edit/remix": 125,
+            "photoshoot": 33,
+            "video": 23
+          },
+          "models": {
+            "gemini-2.5-flash-image": 1604,
+            "seedream-5.0-pro": 113,
+            "gemini-3-pro-image-preview": 27,
+            "grok-imagine-image-2.0": 20,
+            "veo-3.1-lite-generate-preview": 17,
+            "gemini-3.1-flash-image-preview": 11,
+            "grok-imagine-video-1.5": 6,
+            "flux-2-flex": 1
+          },
+          "contentCategories": {
+            "fashion/beauty": 695,
+            "birthday": 388,
+            "family/kids": 303,
+            "couple": 138,
+            "other": 120,
+            "portrait": 79,
+            "travel/outdoor": 37,
+            "business": 30,
+            "product/object": 7,
+            "holiday": 2
+          },
+          "topCards": {
+            "Visual Hook: Шикарный монохромный образ, подчеркнутый контрастом черного и белого, с ак...": 16,
+            "Женщина в профиль с зажжённым тортом на дне рождения в тёмной студии с проекцией детского фото на фоне": 13,
+            "Visual Hook: Контраст между текущим образом субъекта и его детским изображением, проеци...": 12,
+            "Девушка в чёрном жакете с тортом и свечами на дне рождения в тёмной студии с проекцией детского фото": 10,
+            "Visual Hook: A dramatic interplay of light and shadow highlights a person in elegant at...": 10,
+            "Visual Hook: Черно-белый портрет пары, сидящей на полу в непринужденной позе, с мягким...": 10,
+            "Visual Hook: A sophisticated, celebratory portrait centered on a milestone birthday, fe...": 10,
+            "Visual Hook: A formal portrait of a man holding a birthday cake, surrounded by festive...": 9
+          }
+        },
+        "noRepeatState": {
+          "users": 111,
+          "unusedUsers": 9,
+          "unusedSharePct": 8.1,
+          "emptyUsers": 43,
+          "emptySharePct": 38.7,
+          "leftoverUsers": 67,
+          "leftoverSharePct": 60.4,
+          "leftoverCredits": 3016
+        }
+      },
+      "direct": {
+        "users": 23,
+        "firstRevenueRub": 3747,
+        "firstArppuRub": 162.91,
+        "totalPayments": 30,
+        "totalRevenueRub": 4540,
+        "repeatUsers": 5,
+        "repeatRatePct": 21.7,
+        "d1": {
+          "mature": 23,
+          "repeatUsers": 5,
+          "repeatRatePct": 21.7
+        },
+        "d3": {
+          "mature": 23,
+          "repeatUsers": 5,
+          "repeatRatePct": 21.7
+        },
+        "d7": {
+          "mature": 23,
+          "repeatUsers": 5,
+          "repeatRatePct": 21.7,
+          "generatedUsers": 20,
+          "generatedRatePct": 87
+        },
+        "nextWeek": {
+          "paymentUsers": 0,
+          "paymentRatePct": 0,
+          "generationUsers": 1,
+          "generationRatePct": 4.3,
+          "activeNoPayUsers": 1
+        },
+        "generation": {
+          "users": 20,
+          "userRatePct": 87,
+          "within24hUsers": 20,
+          "within24hRatePct": 87,
+          "attempts": 195,
+          "completed": 192,
+          "failed": 3,
+          "failureRatePct": 1.5,
+          "completedPerUserMean": 8.3,
+          "completedPerUserP50": 6,
+          "completedPerUserP75": 13,
+          "multiDayUsers": 3,
+          "multiDayRatePct": 13,
+          "multiWeekUsers": 1,
+          "multiWeekRatePct": 4.3,
+          "grantedCredits": 1550,
+          "spentCredits": 1010,
+          "spentSharePct": 65.2,
+          "currentBalanceCredits": 527,
+          "balanceP50": 10,
+          "kinds": {
+            "catalog_card": 140,
+            "edit/remix": 28,
+            "custom_prompt": 19,
+            "photoshoot": 3,
+            "video": 2
+          },
+          "models": {
+            "gemini-2.5-flash-image": 183,
+            "seedream-5.0-pro": 5,
+            "veo-3.1-lite-generate-preview": 2,
+            "grok-imagine-image-2.0": 2
+          },
+          "contentCategories": {
+            "birthday": 135,
+            "family/kids": 22,
+            "fashion/beauty": 17,
+            "other": 9,
+            "portrait": 5,
+            "couple": 4
+          },
+          "topCards": {
+            "Visual Hook: Контраст между текущим образом субъекта и его детским изображением, проеци...": 12,
+            "Женщина в профиль с зажжённым тортом на дне рождения в тёмной студии с проекцией детского фото на фоне": 10,
+            "Visual Hook: A dramatic interplay of light and shadow highlights a person in elegant at...": 9,
+            "Девушка в чёрном жакете с тортом и свечами на дне рождения в тёмной студии с проекцией детского фото": 8,
+            "Visual Hook: A warm, nostalgic glow illuminates a person holding a birthday cake, with...": 5,
+            "Visual Hook: Две фигуры, одна взрослая и одна детская, сосредоточены на торте со свечам...": 5,
+            "Детская фотосессия": 4,
+            "Visual Hook: The warm, dramatic glow of candlelight illuminates a person holding a birt...": 3
+          }
+        },
+        "noRepeatState": {
+          "users": 18,
+          "unusedUsers": 3,
+          "unusedSharePct": 16.7,
+          "emptyUsers": 7,
+          "emptySharePct": 38.9,
+          "leftoverUsers": 11,
+          "leftoverSharePct": 61.1,
+          "leftoverCredits": 486
+        }
+      },
+      "nonDirect": {
+        "users": 113,
+        "firstRevenueRub": 19727,
+        "firstArppuRub": 174.58,
+        "totalPayments": 154,
+        "totalRevenueRub": 30632,
+        "repeatUsers": 20,
+        "repeatRatePct": 17.7,
+        "d1": {
+          "mature": 113,
+          "repeatUsers": 16,
+          "repeatRatePct": 14.2
+        },
+        "d3": {
+          "mature": 113,
+          "repeatUsers": 17,
+          "repeatRatePct": 15
+        },
+        "d7": {
+          "mature": 113,
+          "repeatUsers": 19,
+          "repeatRatePct": 16.8,
+          "generatedUsers": 107,
+          "generatedRatePct": 94.7
+        },
+        "nextWeek": {
+          "paymentUsers": 3,
+          "paymentRatePct": 2.7,
+          "generationUsers": 9,
+          "generationRatePct": 8,
+          "activeNoPayUsers": 6
+        },
+        "generation": {
+          "users": 107,
+          "userRatePct": 94.7,
+          "within24hUsers": 106,
+          "within24hRatePct": 93.8,
+          "attempts": 1621,
+          "completed": 1607,
+          "failed": 14,
+          "failureRatePct": 0.9,
+          "completedPerUserMean": 14.2,
+          "completedPerUserP50": 6,
+          "completedPerUserP75": 13,
+          "multiDayUsers": 23,
+          "multiDayRatePct": 20.4,
+          "multiWeekUsers": 11,
+          "multiWeekRatePct": 9.7,
+          "grantedCredits": 13085,
+          "spentCredits": 8945,
+          "spentSharePct": 68.4,
+          "currentBalanceCredits": 4637,
+          "balanceP50": 10,
+          "kinds": {
+            "catalog_card": 1133,
+            "custom_prompt": 326,
+            "edit/remix": 97,
+            "photoshoot": 30,
+            "video": 21
+          },
+          "models": {
+            "gemini-2.5-flash-image": 1421,
+            "seedream-5.0-pro": 108,
+            "gemini-3-pro-image-preview": 27,
+            "grok-imagine-image-2.0": 18,
+            "veo-3.1-lite-generate-preview": 15,
+            "gemini-3.1-flash-image-preview": 11,
+            "grok-imagine-video-1.5": 6,
+            "flux-2-flex": 1
+          },
+          "contentCategories": {
+            "fashion/beauty": 678,
+            "family/kids": 281,
+            "birthday": 253,
+            "couple": 134,
+            "other": 111,
+            "portrait": 74,
+            "travel/outdoor": 37,
+            "business": 30,
+            "product/object": 7,
+            "holiday": 2
+          },
+          "topCards": {
+            "Visual Hook: Шикарный монохромный образ, подчеркнутый контрастом черного и белого, с ак...": 15,
+            "Visual Hook: Черно-белый портрет пары, сидящей на полу в непринужденной позе, с мягким...": 10,
+            "Visual Hook: A sophisticated, celebratory portrait centered on a milestone birthday, fe...": 10,
+            "Visual Hook: Контрастное сопоставление женской красоты и военной экипировки в монохромн...": 9,
+            "Visual Hook: A formal portrait of a man holding a birthday cake, surrounded by festive...": 8,
+            "Visual Hook: Контрастное изображение двух фигур, одна из которых в военной форме, а дру...": 8,
+            "Сохранить внешность на 100%. Не изменять черты лица, пропорции. Атмосферный вертикальны...": 8,
+            "Visual Hook: Dramatic split lighting bisecting the face into stark light and shadow. Sc...": 7
+          }
+        },
+        "noRepeatState": {
+          "users": 93,
+          "unusedUsers": 6,
+          "unusedSharePct": 6.5,
+          "emptyUsers": 36,
+          "emptySharePct": 38.7,
+          "leftoverUsers": 56,
+          "leftoverSharePct": 60.2,
+          "leftoverCredits": 2530
+        }
+      }
+    },
+    {
+      "week": "2026-09-07",
+      "end": "2026-09-13",
+      "partial": false,
+      "all": {
+        "users": 183,
+        "firstRevenueRub": 26248,
+        "firstArppuRub": 143.43,
+        "totalPayments": 251,
+        "totalRevenueRub": 37788,
+        "repeatUsers": 40,
+        "repeatRatePct": 21.9,
+        "d1": {
+          "mature": 183,
+          "repeatUsers": 37,
+          "repeatRatePct": 20.2
+        },
+        "d3": {
+          "mature": 183,
+          "repeatUsers": 39,
+          "repeatRatePct": 21.3
+        },
+        "d7": {
+          "mature": 83,
+          "repeatUsers": 17,
+          "repeatRatePct": 20.5,
+          "generatedUsers": 76,
+          "generatedRatePct": 91.6
+        },
+        "nextWeek": {
+          "paymentUsers": 5,
+          "paymentRatePct": 2.7,
+          "generationUsers": 6,
+          "generationRatePct": 3.3,
+          "activeNoPayUsers": 2
+        },
+        "generation": {
+          "users": 173,
+          "userRatePct": 94.5,
+          "within24hUsers": 173,
+          "within24hRatePct": 94.5,
+          "attempts": 1455,
+          "completed": 1442,
+          "failed": 13,
+          "failureRatePct": 0.9,
+          "completedPerUserMean": 7.9,
+          "completedPerUserP50": 5,
+          "completedPerUserP75": 7,
+          "multiDayUsers": 20,
+          "multiDayRatePct": 10.9,
+          "multiWeekUsers": 6,
+          "multiWeekRatePct": 3.3,
+          "grantedCredits": 14070,
+          "spentCredits": 9380,
+          "spentSharePct": 66.7,
+          "currentBalanceCredits": 4191,
+          "balanceP50": 5,
+          "kinds": {
+            "catalog_card": 1124,
+            "custom_prompt": 198,
+            "edit/remix": 73,
+            "photoshoot": 25,
+            "video": 22
+          },
+          "models": {
+            "gemini-2.5-flash-image": 1026,
+            "seedream-5.0-pro": 129,
+            "gemini-3.1-flash-image-preview": 113,
+            "gemini-3-pro-image-preview": 102,
+            "grok-imagine-image-2.0": 43,
+            "grok-imagine-video-1.5": 11,
+            "veo-3.1-lite-generate-preview": 9,
+            "flux-2-flex": 7,
+            "gemini-omni-flash-preview": 2
+          },
+          "contentCategories": {
+            "fashion/beauty": 520,
+            "birthday": 363,
+            "family/kids": 153,
+            "couple": 127,
+            "portrait": 92,
+            "business": 72,
+            "other": 58,
+            "travel/outdoor": 53,
+            "product/object": 4
+          },
+          "topCards": {
+            "Создай фотореалистичный чёрно-белый портрет 9:16 из двух фото: левая половина лица деву...": 36,
+            "Создай фотореалистичный чёрно-белый портрет-коллаж из двух предоставленных фотографий....": 26,
+            "Visual Hook: The intimate, low-light composition where two glowing birthday candles obs...": 16,
+            "Visual Hook: Элегантный портрет, запечатлевающий момент празднования на фоне ностальгич...": 12,
+            "Используйте внешность пользователя в масштабе 1:1 — те же лицо, тон кожи, волосы и проп...": 12,
+            "Visual Hook: Изображение демонстрирует динамичный силуэт человека в развевающемся плать...": 12,
+            "Visual Hook: Шикарный монохромный образ, подчеркнутый контрастом черного и белого, с ак...": 11,
+            "Visual Hook: Контрастное изображение, где фигура в белом платье с крыльями обнимает чел...": 11
+          }
+        },
+        "noRepeatState": {
+          "users": 143,
+          "unusedUsers": 10,
+          "unusedSharePct": 7,
+          "emptyUsers": 54,
+          "emptySharePct": 37.8,
+          "leftoverUsers": 89,
+          "leftoverSharePct": 62.2,
+          "leftoverCredits": 3433
+        }
+      },
+      "direct": {
+        "users": 30,
+        "firstRevenueRub": 5541,
+        "firstArppuRub": 184.7,
+        "totalPayments": 35,
+        "totalRevenueRub": 6276,
+        "repeatUsers": 4,
+        "repeatRatePct": 13.3,
+        "d1": {
+          "mature": 30,
+          "repeatUsers": 4,
+          "repeatRatePct": 13.3
+        },
+        "d3": {
+          "mature": 30,
+          "repeatUsers": 4,
+          "repeatRatePct": 13.3
+        },
+        "d7": {
+          "mature": 10,
+          "repeatUsers": 2,
+          "repeatRatePct": 20,
+          "generatedUsers": 10,
+          "generatedRatePct": 100
+        },
+        "nextWeek": {
+          "paymentUsers": 0,
+          "paymentRatePct": 0,
+          "generationUsers": 0,
+          "generationRatePct": 0,
+          "activeNoPayUsers": 0
+        },
+        "generation": {
+          "users": 28,
+          "userRatePct": 93.3,
+          "within24hUsers": 28,
+          "within24hRatePct": 93.3,
+          "attempts": 191,
+          "completed": 191,
+          "failed": 0,
+          "failureRatePct": 0,
+          "completedPerUserMean": 6.4,
+          "completedPerUserP50": 5,
+          "completedPerUserP75": 6,
+          "multiDayUsers": 1,
+          "multiDayRatePct": 3.3,
+          "multiWeekUsers": 0,
+          "multiWeekRatePct": 0,
+          "grantedCredits": 2410,
+          "spentCredits": 1135,
+          "spentSharePct": 47.1,
+          "currentBalanceCredits": 1220,
+          "balanceP50": 7.5,
+          "kinds": {
+            "catalog_card": 147,
+            "custom_prompt": 25,
+            "edit/remix": 12,
+            "video": 4,
+            "photoshoot": 3
+          },
+          "models": {
+            "gemini-2.5-flash-image": 145,
+            "gemini-3-pro-image-preview": 16,
+            "grok-imagine-image-2.0": 15,
+            "seedream-5.0-pro": 10,
+            "veo-3.1-lite-generate-preview": 2,
+            "grok-imagine-video-1.5": 2,
+            "gemini-3.1-flash-image-preview": 1
+          },
+          "contentCategories": {
+            "birthday": 136,
+            "fashion/beauty": 21,
+            "family/kids": 15,
+            "portrait": 6,
+            "other": 5,
+            "business": 4,
+            "travel/outdoor": 3,
+            "couple": 1
+          },
+          "topCards": {
+            "Visual Hook: The intimate, low-light composition where two glowing birthday candles obs...": 10,
+            "Visual Hook: Изображение демонстрирует динамичный силуэт человека в развевающемся плать...": 9,
+            "Visual Hook: Черно-белое изображение человека в темных очках, задувающего свечу на торт...": 7,
+            "Используйте внешность пользователя в масштабе 1:1 — те же лицо, тон кожи, волосы и проп...": 6,
+            "Visual Hook: Элегантный силуэт человека, держащего торт со свечами, освещенный круглым...": 6,
+            "Visual Hook: A poignant black and white composition juxtaposing two figures across a bi...": 5,
+            "Девушка в чёрном жакете с тортом и свечами на дне рождения в тёмной студии с проекцией детского фото": 5,
+            "Visual Hook: A dramatic interplay of light and shadow highlights a person in elegant at...": 4
+          }
+        },
+        "noRepeatState": {
+          "users": 26,
+          "unusedUsers": 2,
+          "unusedSharePct": 7.7,
+          "emptyUsers": 11,
+          "emptySharePct": 42.3,
+          "leftoverUsers": 15,
+          "leftoverSharePct": 57.7,
+          "leftoverCredits": 1195
+        }
+      },
+      "nonDirect": {
+        "users": 153,
+        "firstRevenueRub": 20707,
+        "firstArppuRub": 135.34,
+        "totalPayments": 216,
+        "totalRevenueRub": 31512,
+        "repeatUsers": 36,
+        "repeatRatePct": 23.5,
+        "d1": {
+          "mature": 153,
+          "repeatUsers": 33,
+          "repeatRatePct": 21.6
+        },
+        "d3": {
+          "mature": 153,
+          "repeatUsers": 35,
+          "repeatRatePct": 22.9
+        },
+        "d7": {
+          "mature": 73,
+          "repeatUsers": 15,
+          "repeatRatePct": 20.5,
+          "generatedUsers": 66,
+          "generatedRatePct": 90.4
+        },
+        "nextWeek": {
+          "paymentUsers": 5,
+          "paymentRatePct": 3.3,
+          "generationUsers": 6,
+          "generationRatePct": 3.9,
+          "activeNoPayUsers": 2
+        },
+        "generation": {
+          "users": 145,
+          "userRatePct": 94.8,
+          "within24hUsers": 145,
+          "within24hRatePct": 94.8,
+          "attempts": 1264,
+          "completed": 1251,
+          "failed": 13,
+          "failureRatePct": 1,
+          "completedPerUserMean": 8.2,
+          "completedPerUserP50": 5,
+          "completedPerUserP75": 8,
+          "multiDayUsers": 19,
+          "multiDayRatePct": 12.4,
+          "multiWeekUsers": 6,
+          "multiWeekRatePct": 3.9,
+          "grantedCredits": 11660,
+          "spentCredits": 8245,
+          "spentSharePct": 70.7,
+          "currentBalanceCredits": 2971,
+          "balanceP50": 5,
+          "kinds": {
+            "catalog_card": 977,
+            "custom_prompt": 173,
+            "edit/remix": 61,
+            "photoshoot": 22,
+            "video": 18
+          },
+          "models": {
+            "gemini-2.5-flash-image": 881,
+            "seedream-5.0-pro": 119,
+            "gemini-3.1-flash-image-preview": 112,
+            "gemini-3-pro-image-preview": 86,
+            "grok-imagine-image-2.0": 28,
+            "grok-imagine-video-1.5": 9,
+            "veo-3.1-lite-generate-preview": 7,
+            "flux-2-flex": 7,
+            "gemini-omni-flash-preview": 2
+          },
+          "contentCategories": {
+            "fashion/beauty": 499,
+            "birthday": 227,
+            "family/kids": 138,
+            "couple": 126,
+            "portrait": 86,
+            "business": 68,
+            "other": 53,
+            "travel/outdoor": 50,
+            "product/object": 4
+          },
+          "topCards": {
+            "Создай фотореалистичный чёрно-белый портрет 9:16 из двух фото: левая половина лица деву...": 36,
+            "Создай фотореалистичный чёрно-белый портрет-коллаж из двух предоставленных фотографий....": 26,
+            "Visual Hook: Контрастное изображение, где фигура в белом платье с крыльями обнимает чел...": 11,
+            "Фото ко дню дочери": 10,
+            "Сохранить внешность на 100%. Не изменять черты лица, пропорции. Атмосферный вертикальны...": 10,
+            "Visual Hook: Шикарный монохромный образ, подчеркнутый контрастом черного и белого, с ак...": 9,
+            "Visual Hook: Элегантный портрет, запечатлевающий момент празднования на фоне ностальгич...": 9,
+            "Visual Hook: A vertically stacked, pyramid-like family portrait with hands framing face...": 9
+          }
+        },
+        "noRepeatState": {
+          "users": 117,
+          "unusedUsers": 8,
+          "unusedSharePct": 6.8,
+          "emptyUsers": 43,
+          "emptySharePct": 36.8,
+          "leftoverUsers": 74,
+          "leftoverSharePct": 63.2,
+          "leftoverCredits": 2238
+        }
+      }
+    },
+    {
+      "week": "2026-09-14",
+      "end": "2026-09-20",
+      "partial": true,
+      "all": {
+        "users": 85,
+        "firstRevenueRub": 12095,
+        "firstArppuRub": 142.29,
+        "totalPayments": 108,
+        "totalRevenueRub": 14848,
+        "repeatUsers": 14,
+        "repeatRatePct": 16.5,
+        "d1": {
+          "mature": 59,
+          "repeatUsers": 8,
+          "repeatRatePct": 13.6
+        },
+        "d3": {
+          "mature": 7,
+          "repeatUsers": 1,
+          "repeatRatePct": 14.3
+        },
+        "d7": {
+          "mature": 0,
+          "repeatUsers": 0,
+          "repeatRatePct": null,
+          "generatedUsers": 0,
+          "generatedRatePct": null
+        },
+        "nextWeek": {
+          "paymentUsers": 0,
+          "paymentRatePct": 0,
+          "generationUsers": 0,
+          "generationRatePct": 0,
+          "activeNoPayUsers": 0
+        },
+        "generation": {
+          "users": 78,
+          "userRatePct": 91.8,
+          "within24hUsers": 78,
+          "within24hRatePct": 91.8,
+          "attempts": 436,
+          "completed": 429,
+          "failed": 7,
+          "failureRatePct": 1.6,
+          "completedPerUserMean": 5,
+          "completedPerUserP50": 3,
+          "completedPerUserP75": 6,
+          "multiDayUsers": 5,
+          "multiDayRatePct": 5.9,
+          "multiWeekUsers": 0,
+          "multiWeekRatePct": 0,
+          "grantedCredits": 5140,
+          "spentCredits": 3790,
+          "spentSharePct": 73.7,
+          "currentBalanceCredits": 879,
+          "balanceP50": 0,
+          "kinds": {
+            "catalog_card": 330,
+            "custom_prompt": 45,
+            "edit/remix": 35,
+            "video": 13,
+            "photoshoot": 6
+          },
+          "models": {
+            "gemini-3-pro-image-preview": 189,
+            "gemini-2.5-flash-image": 126,
+            "gemini-3.1-flash-image-preview": 39,
+            "seedream-5.0-pro": 35,
+            "grok-imagine-image-2.0": 21,
+            "veo-3.1-lite-generate-preview": 8,
+            "flux-2-flex": 6,
+            "grok-imagine-video-1.5": 4,
+            "gemini-omni-flash-preview": 1
+          },
+          "contentCategories": {
+            "fashion/beauty": 151,
+            "birthday": 129,
+            "family/kids": 55,
+            "travel/outdoor": 23,
+            "couple": 23,
+            "other": 19,
+            "portrait": 16,
+            "business": 9,
+            "product/object": 4
+          },
+          "topCards": {
+            "Visual Hook: A stoic, direct gaze from a uniformed figure against a dark, minimalist ba...": 13,
+            "Серия летних семейных фото": 8,
+            "Visual Hook: Яркое зеленое на фоне осеннего урожая создает контрастный и жизнерадостный...": 6,
+            "Visual Hook: Сравнительный портрет двух эпох, запечатлевающий взросление и преемственно...": 6,
+            "Девушка в чёрном жакете с тортом и свечами на дне рождения в тёмной студии с проекцией детского фото": 6,
+            "Visual Hook: Крупный план человека, задувающего свечи в форме цифр, с мягким светом, по...": 5,
+            "Visual Hook: Изображение демонстрирует игривый портрет младенца, лежащего на спине, с п...": 4,
+            "Visual Hook: Стильный, рокерский образ ребенка, сидящего среди черных шаров и конфетти,...": 4
+          }
+        },
+        "noRepeatState": {
+          "users": 71,
+          "unusedUsers": 6,
+          "unusedSharePct": 8.5,
+          "emptyUsers": 44,
+          "emptySharePct": 62,
+          "leftoverUsers": 26,
+          "leftoverSharePct": 36.6,
+          "leftoverCredits": 751
+        }
+      },
+      "direct": {
+        "users": 13,
+        "firstRevenueRub": 1287,
+        "firstArppuRub": 99,
+        "totalPayments": 24,
+        "totalRevenueRub": 2636,
+        "repeatUsers": 4,
+        "repeatRatePct": 30.8,
+        "d1": {
+          "mature": 7,
+          "repeatUsers": 3,
+          "repeatRatePct": 42.9
+        },
+        "d3": {
+          "mature": 0,
+          "repeatUsers": 0,
+          "repeatRatePct": null
+        },
+        "d7": {
+          "mature": 0,
+          "repeatUsers": 0,
+          "repeatRatePct": null,
+          "generatedUsers": 0,
+          "generatedRatePct": null
+        },
+        "nextWeek": {
+          "paymentUsers": 0,
+          "paymentRatePct": 0,
+          "generationUsers": 0,
+          "generationRatePct": 0,
+          "activeNoPayUsers": 0
+        },
+        "generation": {
+          "users": 12,
+          "userRatePct": 92.3,
+          "within24hUsers": 12,
+          "within24hRatePct": 92.3,
+          "attempts": 82,
+          "completed": 82,
+          "failed": 0,
+          "failureRatePct": 0,
+          "completedPerUserMean": 6.3,
+          "completedPerUserP50": 3,
+          "completedPerUserP75": 7,
+          "multiDayUsers": 0,
+          "multiDayRatePct": 0,
+          "multiWeekUsers": 0,
+          "multiWeekRatePct": 0,
+          "grantedCredits": 930,
+          "spentCredits": 780,
+          "spentSharePct": 83.9,
+          "currentBalanceCredits": 55,
+          "balanceP50": 0,
+          "kinds": {
+            "catalog_card": 63,
+            "edit/remix": 9,
+            "custom_prompt": 5,
+            "video": 5
+          },
+          "models": {
+            "gemini-3-pro-image-preview": 47,
+            "gemini-2.5-flash-image": 13,
+            "seedream-5.0-pro": 10,
+            "gemini-3.1-flash-image-preview": 7,
+            "veo-3.1-lite-generate-preview": 5
+          },
+          "contentCategories": {
+            "birthday": 65,
+            "fashion/beauty": 13,
+            "portrait": 2,
+            "family/kids": 1,
+            "couple": 1
+          },
+          "topCards": {
+            "Visual Hook: Сравнительный портрет двух эпох, запечатлевающий взросление и преемственно...": 6,
+            "Девушка в чёрном жакете с тортом и свечами на дне рождения в тёмной студии с проекцией детского фото": 6,
+            "Visual Hook: Две фигуры, одна взрослая и одна детская, сосредоточены на торте со свечам...": 4,
+            "Visual Hook: Концептуальный портрет, противопоставляющий два возраста одной и той же ли...": 4,
+            "Делаем ч/б фото на день рождения с маленькой собой": 4,
+            "Visual Hook: Крупный план человека, держащего горящие свечи в форме числа \"35\" и букет...": 3,
+            "Молодая женщина с тортом и девочкой в праздничной обстановке на домашней фотографии": 3,
+            "Мать и взрослая дочь в темных свитерах на нейтральном фоне в студийном макро портрете с заботой и спокойствием": 2
+          }
+        },
+        "noRepeatState": {
+          "users": 9,
+          "unusedUsers": 1,
+          "unusedSharePct": 11.1,
+          "emptyUsers": 6,
+          "emptySharePct": 66.7,
+          "leftoverUsers": 3,
+          "leftoverSharePct": 33.3,
+          "leftoverCredits": 50
+        }
+      },
+      "nonDirect": {
+        "users": 72,
+        "firstRevenueRub": 10808,
+        "firstArppuRub": 150.11,
+        "totalPayments": 84,
+        "totalRevenueRub": 12212,
+        "repeatUsers": 10,
+        "repeatRatePct": 13.9,
+        "d1": {
+          "mature": 52,
+          "repeatUsers": 5,
+          "repeatRatePct": 9.6
+        },
+        "d3": {
+          "mature": 7,
+          "repeatUsers": 1,
+          "repeatRatePct": 14.3
+        },
+        "d7": {
+          "mature": 0,
+          "repeatUsers": 0,
+          "repeatRatePct": null,
+          "generatedUsers": 0,
+          "generatedRatePct": null
+        },
+        "nextWeek": {
+          "paymentUsers": 0,
+          "paymentRatePct": 0,
+          "generationUsers": 0,
+          "generationRatePct": 0,
+          "activeNoPayUsers": 0
+        },
+        "generation": {
+          "users": 66,
+          "userRatePct": 91.7,
+          "within24hUsers": 66,
+          "within24hRatePct": 91.7,
+          "attempts": 354,
+          "completed": 347,
+          "failed": 7,
+          "failureRatePct": 2,
+          "completedPerUserMean": 4.8,
+          "completedPerUserP50": 3,
+          "completedPerUserP75": 6,
+          "multiDayUsers": 5,
+          "multiDayRatePct": 6.9,
+          "multiWeekUsers": 0,
+          "multiWeekRatePct": 0,
+          "grantedCredits": 4210,
+          "spentCredits": 3010,
+          "spentSharePct": 71.5,
+          "currentBalanceCredits": 824,
+          "balanceP50": 0,
+          "kinds": {
+            "catalog_card": 267,
+            "custom_prompt": 40,
+            "edit/remix": 26,
+            "video": 8,
+            "photoshoot": 6
+          },
+          "models": {
+            "gemini-3-pro-image-preview": 142,
+            "gemini-2.5-flash-image": 113,
+            "gemini-3.1-flash-image-preview": 32,
+            "seedream-5.0-pro": 25,
+            "grok-imagine-image-2.0": 21,
+            "flux-2-flex": 6,
+            "grok-imagine-video-1.5": 4,
+            "veo-3.1-lite-generate-preview": 3,
+            "gemini-omni-flash-preview": 1
+          },
+          "contentCategories": {
+            "fashion/beauty": 138,
+            "birthday": 64,
+            "family/kids": 54,
+            "travel/outdoor": 23,
+            "couple": 22,
+            "other": 19,
+            "portrait": 14,
+            "business": 9,
+            "product/object": 4
+          },
+          "topCards": {
+            "Visual Hook: A stoic, direct gaze from a uniformed figure against a dark, minimalist ba...": 13,
+            "Серия летних семейных фото": 8,
+            "Visual Hook: Яркое зеленое на фоне осеннего урожая создает контрастный и жизнерадостный...": 6,
+            "Visual Hook: Изображение демонстрирует игривый портрет младенца, лежащего на спине, с п...": 4,
+            "Visual Hook: Стильный, рокерский образ ребенка, сидящего среди черных шаров и конфетти,...": 4,
+            "Делаем фото на день рождения с шампанским": 4,
+            "Девушка стоит на фоне осеннего пейзажа в парке, вокруг жёлтые и коричневые листья на тр...": 4,
+            "Visual Hook: Выразительный контраст темного силуэта на фоне темного автомобиля, подчерк...": 3
+          }
+        },
+        "noRepeatState": {
+          "users": 62,
+          "unusedUsers": 5,
+          "unusedSharePct": 8.1,
+          "emptyUsers": 38,
+          "emptySharePct": 61.3,
+          "leftoverUsers": 23,
+          "leftoverSharePct": 37.1,
+          "leftoverCredits": 701
+        }
+      }
+    }
+  ],
+  "matureThreeWeeks": {
+    "all": {
+      "users": 482,
+      "firstRevenueRub": 85251,
+      "firstArppuRub": 176.87,
+      "totalPayments": 684,
+      "totalRevenueRub": 127375,
+      "repeatUsers": 102,
+      "repeatRatePct": 21.2,
+      "d1": {
+        "mature": 482,
+        "repeatUsers": 89,
+        "repeatRatePct": 18.5
+      },
+      "d3": {
+        "mature": 482,
+        "repeatUsers": 95,
+        "repeatRatePct": 19.7
+      },
+      "d7": {
+        "mature": 382,
+        "repeatUsers": 76,
+        "repeatRatePct": 19.9,
+        "generatedUsers": 354,
+        "generatedRatePct": 92.7
+      },
+      "nextWeek": {
+        "paymentUsers": 144,
+        "paymentRatePct": 29.9,
+        "generationUsers": 144,
+        "generationRatePct": 29.9,
+        "activeNoPayUsers": 9
+      },
+      "generation": {
+        "users": 451,
+        "userRatePct": 93.6,
+        "within24hUsers": 449,
+        "within24hRatePct": 93.2,
+        "attempts": 5905,
+        "completed": 5694,
+        "failed": 211,
+        "failureRatePct": 3.6,
+        "completedPerUserMean": 11.8,
+        "completedPerUserP50": 6,
+        "completedPerUserP75": 12,
+        "multiDayUsers": 79,
+        "multiDayRatePct": 16.4,
+        "multiWeekUsers": 37,
+        "multiWeekRatePct": 7.7,
+        "grantedCredits": 51585,
+        "spentCredits": 34100,
+        "spentSharePct": 66.1,
+        "currentBalanceCredits": 15801,
+        "balanceP50": 5,
+        "kinds": {
+          "catalog_card": 4111,
+          "custom_prompt": 971,
+          "edit/remix": 434,
+          "video": 103,
+          "photoshoot": 75
+        },
+        "models": {
+          "gemini-2.5-flash-image": 4452,
+          "seedream-5.0-pro": 447,
+          "gemini-3-pro-image-preview": 261,
+          "gemini-3.1-flash-image-preview": 229,
+          "grok-imagine-image-2.0": 184,
+          "veo-3.1-lite-generate-preview": 74,
+          "grok-imagine-video-1.5": 27,
+          "flux-2-flex": 16,
+          "seedream-4.5": 2,
+          "gemini-omni-flash-preview": 2
+        },
+        "contentCategories": {
+          "fashion/beauty": 2172,
+          "birthday": 1294,
+          "family/kids": 645,
+          "couple": 442,
+          "portrait": 389,
+          "other": 334,
+          "travel/outdoor": 222,
+          "business": 168,
+          "product/object": 25,
+          "holiday": 3
+        },
+        "topCards": {
+          "Девушка в чёрном жакете с тортом и свечами на дне рождения в тёмной студии с проекцией детского фото": 60,
+          "Создай фотореалистичный чёрно-белый портрет 9:16 из двух фото: левая половина лица деву...": 42,
+          "Женщина в профиль с зажжённым тортом на дне рождения в тёмной студии с проекцией детского фото на фоне": 36,
+          "Visual Hook: Контраст между текущим образом субъекта и его детским изображением, проеци...": 29,
+          "Visual Hook: Шикарный монохромный образ, подчеркнутый контрастом черного и белого, с ак...": 29,
+          "Создай фотореалистичный чёрно-белый портрет-коллаж из двух предоставленных фотографий....": 29,
+          "Делаем фото на день рождения с шампанским": 28,
+          "Черно-белое семейное фото": 24
+        }
+      },
+      "noRepeatState": {
+        "users": 380,
+        "unusedUsers": 28,
+        "unusedSharePct": 7.4,
+        "emptyUsers": 149,
+        "emptySharePct": 39.2,
+        "leftoverUsers": 230,
+        "leftoverSharePct": 60.5,
+        "leftoverCredits": 12565
+      }
+    },
+    "direct": {
+      "users": 102,
+      "firstRevenueRub": 17579,
+      "firstArppuRub": 172.34,
+      "totalPayments": 126,
+      "totalRevenueRub": 20895,
+      "repeatUsers": 17,
+      "repeatRatePct": 16.7,
+      "d1": {
+        "mature": 102,
+        "repeatUsers": 16,
+        "repeatRatePct": 15.7
+      },
+      "d3": {
+        "mature": 102,
+        "repeatUsers": 16,
+        "repeatRatePct": 15.7
+      },
+      "d7": {
+        "mature": 82,
+        "repeatUsers": 14,
+        "repeatRatePct": 17.1,
+        "generatedUsers": 77,
+        "generatedRatePct": 93.9
+      },
+      "nextWeek": {
+        "paymentUsers": 24,
+        "paymentRatePct": 23.5,
+        "generationUsers": 23,
+        "generationRatePct": 22.5,
+        "activeNoPayUsers": 2
+      },
+      "generation": {
+        "users": 95,
+        "userRatePct": 93.1,
+        "within24hUsers": 95,
+        "within24hRatePct": 93.1,
+        "attempts": 869,
+        "completed": 847,
+        "failed": 22,
+        "failureRatePct": 2.5,
+        "completedPerUserMean": 8.3,
+        "completedPerUserP50": 6,
+        "completedPerUserP75": 12,
+        "multiDayUsers": 15,
+        "multiDayRatePct": 14.7,
+        "multiWeekUsers": 4,
+        "multiWeekRatePct": 3.9,
+        "grantedCredits": 7460,
+        "spentCredits": 4635,
+        "spentSharePct": 62.1,
+        "currentBalanceCredits": 2723,
+        "balanceP50": 5,
+        "kinds": {
+          "catalog_card": 635,
+          "edit/remix": 110,
+          "custom_prompt": 86,
+          "video": 9,
+          "photoshoot": 7
+        },
+        "models": {
+          "gemini-2.5-flash-image": 747,
+          "grok-imagine-image-2.0": 37,
+          "gemini-3-pro-image-preview": 31,
+          "seedream-5.0-pro": 17,
+          "veo-3.1-lite-generate-preview": 7,
+          "gemini-3.1-flash-image-preview": 6,
+          "grok-imagine-video-1.5": 2
+        },
+        "contentCategories": {
+          "birthday": 586,
+          "fashion/beauty": 105,
+          "family/kids": 66,
+          "portrait": 28,
+          "couple": 21,
+          "other": 20,
+          "business": 12,
+          "travel/outdoor": 8,
+          "product/object": 1
+        },
+        "topCards": {
+          "Девушка в чёрном жакете с тортом и свечами на дне рождения в тёмной студии с проекцией детского фото": 42,
+          "Женщина в профиль с зажжённым тортом на дне рождения в тёмной студии с проекцией детского фото на фоне": 31,
+          "Visual Hook: Контраст между текущим образом субъекта и его детским изображением, проеци...": 27,
+          "Visual Hook: A warm, nostalgic glow illuminates a person holding a birthday cake, with...": 18,
+          "Visual Hook: A dramatic interplay of light and shadow highlights a person in elegant at...": 15,
+          "Visual Hook: Две фигуры, одна взрослая и одна детская, сосредоточены на торте со свечам...": 14,
+          "Visual Hook: The intimate, low-light composition where two glowing birthday candles obs...": 14,
+          "Visual Hook: Элегантный силуэт человека, держащего торт со свечами, освещенный круглым...": 14
+        }
+      },
+      "noRepeatState": {
+        "users": 85,
+        "unusedUsers": 7,
+        "unusedSharePct": 8.2,
+        "emptyUsers": 35,
+        "emptySharePct": 41.2,
+        "leftoverUsers": 50,
+        "leftoverSharePct": 58.8,
+        "leftoverCredits": 2602
+      }
+    },
+    "nonDirect": {
+      "users": 380,
+      "firstRevenueRub": 67672,
+      "firstArppuRub": 178.08,
+      "totalPayments": 558,
+      "totalRevenueRub": 106480,
+      "repeatUsers": 85,
+      "repeatRatePct": 22.4,
+      "d1": {
+        "mature": 380,
+        "repeatUsers": 73,
+        "repeatRatePct": 19.2
+      },
+      "d3": {
+        "mature": 380,
+        "repeatUsers": 79,
+        "repeatRatePct": 20.8
+      },
+      "d7": {
+        "mature": 300,
+        "repeatUsers": 62,
+        "repeatRatePct": 20.7,
+        "generatedUsers": 277,
+        "generatedRatePct": 92.3
+      },
+      "nextWeek": {
+        "paymentUsers": 120,
+        "paymentRatePct": 31.6,
+        "generationUsers": 121,
+        "generationRatePct": 31.8,
+        "activeNoPayUsers": 7
+      },
+      "generation": {
+        "users": 356,
+        "userRatePct": 93.7,
+        "within24hUsers": 354,
+        "within24hRatePct": 93.2,
+        "attempts": 5036,
+        "completed": 4847,
+        "failed": 189,
+        "failureRatePct": 3.8,
+        "completedPerUserMean": 12.8,
+        "completedPerUserP50": 6,
+        "completedPerUserP75": 12,
+        "multiDayUsers": 64,
+        "multiDayRatePct": 16.8,
+        "multiWeekUsers": 33,
+        "multiWeekRatePct": 8.7,
+        "grantedCredits": 44125,
+        "spentCredits": 29465,
+        "spentSharePct": 66.8,
+        "currentBalanceCredits": 13078,
+        "balanceP50": 5,
+        "kinds": {
+          "catalog_card": 3476,
+          "custom_prompt": 885,
+          "edit/remix": 324,
+          "video": 94,
+          "photoshoot": 68
+        },
+        "models": {
+          "gemini-2.5-flash-image": 3705,
+          "seedream-5.0-pro": 430,
+          "gemini-3-pro-image-preview": 230,
+          "gemini-3.1-flash-image-preview": 223,
+          "grok-imagine-image-2.0": 147,
+          "veo-3.1-lite-generate-preview": 67,
+          "grok-imagine-video-1.5": 25,
+          "flux-2-flex": 16,
+          "seedream-4.5": 2,
+          "gemini-omni-flash-preview": 2
+        },
+        "contentCategories": {
+          "fashion/beauty": 2067,
+          "birthday": 708,
+          "family/kids": 579,
+          "couple": 421,
+          "portrait": 361,
+          "other": 314,
+          "travel/outdoor": 214,
+          "business": 156,
+          "product/object": 24,
+          "holiday": 3
+        },
+        "topCards": {
+          "Создай фотореалистичный чёрно-белый портрет 9:16 из двух фото: левая половина лица деву...": 42,
+          "Создай фотореалистичный чёрно-белый портрет-коллаж из двух предоставленных фотографий....": 29,
+          "Черно-белое семейное фото": 24,
+          "Visual Hook: Шикарный монохромный образ, подчеркнутый контрастом черного и белого, с ак...": 24,
+          "Visual Hook: A stoic, direct gaze from a uniformed figure against a dark, minimalist ba...": 20,
+          "Сохранить внешность на 100%. Не изменять черты лица, пропорции. Атмосферный вертикальны...": 20,
+          "Новый тренд       Поцелуй": 19,
+          "Visual Hook: Контрастное сопоставление женской красоты и военной экипировки в монохромн...": 19
+        }
+      },
+      "noRepeatState": {
+        "users": 295,
+        "unusedUsers": 21,
+        "unusedSharePct": 7.1,
+        "emptyUsers": 114,
+        "emptySharePct": 38.6,
+        "leftoverUsers": 180,
+        "leftoverSharePct": 61,
+        "leftoverCredits": 9963
+      }
+    }
+  }
+}

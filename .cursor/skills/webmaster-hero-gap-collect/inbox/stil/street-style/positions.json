@@ -1,0 +1,48 @@
+{
+  "path": "/stil/street-style",
+  "fetched_at": "2026-09-24T22:34:09+03:00",
+  "rows": [
+    {
+      "query": "вы просили промт для визуализации одежды на нейромодели в стиле street style в москве. промпт длинный, поэтому я сохранила его в отдельный файл вот он: https://docs.google.com/document/d/12f2eiuo9f37m8ghq9j2vf5bzrcgtr_jbmibjrkqnzyc/edit?usp=drivesdk",
+      "shows": 2.0,
+      "clicks": 0.0,
+      "ctr": 0.0,
+      "position": 5.5
+    },
+    {
+      "query": "генератор по дизайн фото с множество неформальных стилях",
+      "shows": 1.0,
+      "clicks": 0.0,
+      "ctr": 0.0,
+      "position": 8.0
+    },
+    {
+      "query": "картинки в стиле строисет пана",
+      "shows": 1.0,
+      "clicks": 0.0,
+      "ctr": 0.0,
+      "position": 9.0
+    },
+    {
+      "query": "промпты для стрит денса",
+      "shows": 1.0,
+      "clicks": 0.0,
+      "ctr": 0.0,
+      "position": 7.0
+    },
+    {
+      "query": "стиль фото в стиле тру",
+      "shows": 1.0,
+      "clicks": 0.0,
+      "ctr": 0.0,
+      "position": 8.0
+    },
+    {
+      "query": "уличное фото в стиле гранж нейросеть",
+      "shows": 1.0,
+      "clicks": 0.0,
+      "ctr": 0.0,
+      "position": 6.0
+    }
+  ]
+}

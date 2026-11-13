@@ -1,0 +1,3364 @@
+{
+  "pulledAt": "2026-09-17T04:33:48.338Z",
+  "elapsedMs": 7485,
+  "week": {
+    "from": "2026-09-15",
+    "to": "2026-09-17"
+  },
+  "prevWeek": {
+    "from": "2026-09-08",
+    "to": "2026-09-14"
+  },
+  "cumulative": {
+    "from": "2026-08-23",
+    "to": "2026-09-17"
+  },
+  "weekPnl": {
+    "payments": 16,
+    "users": 10,
+    "revenue": 2060,
+    "avgCheck": 128.75,
+    "credits": 790,
+    "fee": 87.98,
+    "usn": 123.6,
+    "gen": 395,
+    "productAfterAlloc": 1453.42,
+    "mp": {
+      "users": 10,
+      "payments": 16,
+      "revenue": 2060,
+      "noClientId": 0,
+      "noClientIdRevenue": 0
+    },
+    "byCampaign": {
+      "ПРОМТЫ": {
+        "payments": 16,
+        "revenue": 2060,
+        "users": 10
+      }
+    },
+    "byDay": {
+      "2026-09-15": {
+        "payments": 5,
+        "revenue": 731
+      },
+      "2026-09-16": {
+        "payments": 10,
+        "revenue": 1230
+      },
+      "2026-09-17": {
+        "payments": 1,
+        "revenue": 99
+      }
+    },
+    "paymentRows": [
+      {
+        "creditedAt": "2026-09-15T14:18:21.177054+00:00",
+        "day": "2026-09-15",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-15T14:43:28.794139+00:00",
+        "day": "2026-09-15",
+        "plan": "trial",
+        "amount": 79,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 55.89,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-15T15:39:22.273468+00:00",
+        "day": "2026-09-15",
+        "plan": "trial",
+        "amount": 79,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 55.89,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-15T18:18:00.383+00:00",
+        "day": "2026-09-15",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-15T18:53:55.251853+00:00",
+        "day": "2026-09-15",
+        "plan": "pro",
+        "amount": 375,
+        "credits": 200,
+        "campaign": "ПРОМТЫ",
+        "margin": 236.49,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-15T21:36:33.919823+00:00",
+        "day": "2026-09-16",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-16T08:47:58.409341+00:00",
+        "day": "2026-09-16",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-16T16:36:46.262931+00:00",
+        "day": "2026-09-16",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-16T17:48:22.032521+00:00",
+        "day": "2026-09-16",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-16T18:14:47.600156+00:00",
+        "day": "2026-09-16",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-16T19:36:09.32143+00:00",
+        "day": "2026-09-16",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-16T19:49:18.847494+00:00",
+        "day": "2026-09-16",
+        "plan": "trial",
+        "amount": 79,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 55.89,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-16T19:58:06.625697+00:00",
+        "day": "2026-09-16",
+        "plan": "trial",
+        "amount": 79,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 55.89,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-16T20:10:56.428036+00:00",
+        "day": "2026-09-16",
+        "plan": "start",
+        "amount": 239,
+        "credits": 100,
+        "campaign": "ПРОМТЫ",
+        "margin": 164.45,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-16T20:39:44.443567+00:00",
+        "day": "2026-09-16",
+        "plan": "start",
+        "amount": 239,
+        "credits": 100,
+        "campaign": "ПРОМТЫ",
+        "margin": 164.45,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-17T03:07:29.589075+00:00",
+        "day": "2026-09-17",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      }
+    ],
+    "ads": {
+      "source": "direct_api",
+      "mediaRub": 1832,
+      "withVatRub": 2235.04
+    },
+    "realized": -781.62,
+    "cacMediaRub": 183.2,
+    "cacMaxRub": 82
+  },
+  "prevWeekPnl": {
+    "payments": 54,
+    "users": 34,
+    "revenue": 9187,
+    "avgCheck": 170.13,
+    "credits": 3430,
+    "fee": 392.4,
+    "usn": 551.22,
+    "gen": 1715,
+    "productAfterAlloc": 6528.38,
+    "mp": {
+      "users": 34,
+      "payments": 54,
+      "revenue": 9187,
+      "noClientId": 0,
+      "noClientIdRevenue": 0
+    },
+    "byCampaign": {
+      "713989153": {
+        "payments": 10,
+        "revenue": 1960,
+        "users": 1
+      },
+      "ПРОМТЫ": {
+        "payments": 41,
+        "revenue": 6560,
+        "users": 31
+      },
+      "ГЕНЕРАЦИЯ": {
+        "payments": 1,
+        "revenue": 469,
+        "users": 1
+      },
+      "yclid": {
+        "payments": 2,
+        "revenue": 198,
+        "users": 1
+      }
+    },
+    "byDay": {
+      "2026-09-08": {
+        "payments": 7,
+        "revenue": 1203
+      },
+      "2026-09-09": {
+        "payments": 4,
+        "revenue": 536
+      },
+      "2026-09-10": {
+        "payments": 6,
+        "revenue": 1904
+      },
+      "2026-09-11": {
+        "payments": 12,
+        "revenue": 2459
+      },
+      "2026-09-12": {
+        "payments": 8,
+        "revenue": 1142
+      },
+      "2026-09-13": {
+        "payments": 8,
+        "revenue": 992
+      },
+      "2026-09-14": {
+        "payments": 9,
+        "revenue": 951
+      }
+    },
+    "paymentRows": [
+      {
+        "creditedAt": "2026-09-08T05:28:06.05486+00:00",
+        "day": "2026-09-08",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-08T05:34:29.657982+00:00",
+        "day": "2026-09-08",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-08T06:00:25.304822+00:00",
+        "day": "2026-09-08",
+        "plan": "start",
+        "amount": 239,
+        "credits": 100,
+        "campaign": "ПРОМТЫ",
+        "margin": 164.45,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-08T10:26:42.82162+00:00",
+        "day": "2026-09-08",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "713989153",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-08T10:50:50.573806+00:00",
+        "day": "2026-09-08",
+        "plan": "pro",
+        "amount": 469,
+        "credits": 200,
+        "campaign": "713989153",
+        "margin": 320.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-08T16:40:42.180818+00:00",
+        "day": "2026-09-08",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-08T19:55:50.440421+00:00",
+        "day": "2026-09-08",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-09T09:52:08.138799+00:00",
+        "day": "2026-09-09",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-09T10:09:58.033654+00:00",
+        "day": "2026-09-09",
+        "plan": "start",
+        "amount": 239,
+        "credits": 100,
+        "campaign": "ПРОМТЫ",
+        "margin": 164.45,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-09T12:10:57.893854+00:00",
+        "day": "2026-09-09",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-09T16:38:13.781248+00:00",
+        "day": "2026-09-09",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-10T04:13:40.592606+00:00",
+        "day": "2026-09-10",
+        "plan": "pro",
+        "amount": 469,
+        "credits": 200,
+        "campaign": "ПРОМТЫ",
+        "margin": 320.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-10T06:30:57.44397+00:00",
+        "day": "2026-09-10",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-10T09:33:28.071235+00:00",
+        "day": "2026-09-10",
+        "plan": "start",
+        "amount": 299,
+        "credits": 100,
+        "campaign": "713989153",
+        "margin": 218.29,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-10T17:57:28.706889+00:00",
+        "day": "2026-09-10",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-10T18:21:00.960336+00:00",
+        "day": "2026-09-10",
+        "plan": "pro",
+        "amount": 469,
+        "credits": 200,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 320.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-10T20:20:57.104968+00:00",
+        "day": "2026-09-10",
+        "plan": "pro",
+        "amount": 469,
+        "credits": 200,
+        "campaign": "ПРОМТЫ",
+        "margin": 320.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T01:37:11.286956+00:00",
+        "day": "2026-09-11",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "yclid",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T05:37:53.081447+00:00",
+        "day": "2026-09-11",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T08:26:00.199065+00:00",
+        "day": "2026-09-11",
+        "plan": "max",
+        "amount": 990,
+        "credits": 500,
+        "campaign": "ПРОМТЫ",
+        "margin": 638.33,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T08:33:55.928664+00:00",
+        "day": "2026-09-11",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T08:52:43.827999+00:00",
+        "day": "2026-09-11",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "yclid",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T10:07:55.094529+00:00",
+        "day": "2026-09-11",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T15:52:00.95198+00:00",
+        "day": "2026-09-11",
+        "plan": "start",
+        "amount": 299,
+        "credits": 100,
+        "campaign": "ПРОМТЫ",
+        "margin": 218.29,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T16:07:02.099217+00:00",
+        "day": "2026-09-11",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T16:19:54.371455+00:00",
+        "day": "2026-09-11",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "713989153",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T16:42:35.431197+00:00",
+        "day": "2026-09-11",
+        "plan": "start",
+        "amount": 299,
+        "credits": 100,
+        "campaign": "713989153",
+        "margin": 218.29,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T19:22:36.63372+00:00",
+        "day": "2026-09-11",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T19:33:35.109609+00:00",
+        "day": "2026-09-11",
+        "plan": "trial",
+        "amount": 79,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 55.89,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T21:08:41.278688+00:00",
+        "day": "2026-09-12",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T21:48:26.025289+00:00",
+        "day": "2026-09-12",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-12T14:44:00.435865+00:00",
+        "day": "2026-09-12",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-12T14:58:00.444215+00:00",
+        "day": "2026-09-12",
+        "plan": "pro",
+        "amount": 469,
+        "credits": 200,
+        "campaign": "ПРОМТЫ",
+        "margin": 320.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-12T16:28:55.111115+00:00",
+        "day": "2026-09-12",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-12T18:09:32.032585+00:00",
+        "day": "2026-09-12",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-12T18:23:56.405631+00:00",
+        "day": "2026-09-12",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-12T19:08:14.429661+00:00",
+        "day": "2026-09-12",
+        "plan": "trial",
+        "amount": 79,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 55.89,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-12T22:01:50.642948+00:00",
+        "day": "2026-09-13",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "713989153",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-13T06:55:40.4793+00:00",
+        "day": "2026-09-13",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "713989153",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-13T07:31:28.294818+00:00",
+        "day": "2026-09-13",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "713989153",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-13T13:04:25.334751+00:00",
+        "day": "2026-09-13",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "713989153",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-13T14:53:11.116007+00:00",
+        "day": "2026-09-13",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-13T18:00:39.158265+00:00",
+        "day": "2026-09-13",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-13T19:48:18.631696+00:00",
+        "day": "2026-09-13",
+        "plan": "start",
+        "amount": 299,
+        "credits": 100,
+        "campaign": "713989153",
+        "margin": 218.29,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-13T20:40:00.840071+00:00",
+        "day": "2026-09-13",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-14T07:50:20.949783+00:00",
+        "day": "2026-09-14",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-14T08:13:00.195452+00:00",
+        "day": "2026-09-14",
+        "plan": "trial",
+        "amount": 79,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 55.89,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-14T09:52:11.269632+00:00",
+        "day": "2026-09-14",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-14T11:29:47.374625+00:00",
+        "day": "2026-09-14",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-14T11:39:02.022445+00:00",
+        "day": "2026-09-14",
+        "plan": "trial",
+        "amount": 79,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 55.89,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-14T11:47:31.381734+00:00",
+        "day": "2026-09-14",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-14T11:51:01.198367+00:00",
+        "day": "2026-09-14",
+        "plan": "trial",
+        "amount": 79,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 55.89,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-14T17:26:17.925582+00:00",
+        "day": "2026-09-14",
+        "plan": "start",
+        "amount": 239,
+        "credits": 100,
+        "campaign": "ПРОМТЫ",
+        "margin": 164.45,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-14T19:16:31.417472+00:00",
+        "day": "2026-09-14",
+        "plan": "trial",
+        "amount": 79,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 55.89,
+        "hasClient": true,
+        "provider": "yookassa"
+      }
+    ],
+    "ads": {
+      "source": "direct_api",
+      "mediaRub": 6374,
+      "withVatRub": 7776.28
+    },
+    "realized": -1247.9,
+    "cacMediaRub": 187.47,
+    "cacMaxRub": 82
+  },
+  "cumPnl": {
+    "payments": 168,
+    "users": 119,
+    "revenue": 26959,
+    "avgCheck": 160.47,
+    "credits": 9640,
+    "fee": 1151.55,
+    "usn": 1617.54,
+    "gen": 4820,
+    "productAfterAlloc": 19369.91,
+    "mp": {
+      "users": 115,
+      "payments": 164,
+      "revenue": 26263,
+      "noClientId": 4,
+      "noClientIdRevenue": 696
+    },
+    "byCampaign": {
+      "713989153": {
+        "payments": 15,
+        "revenue": 2855,
+        "users": 1
+      },
+      "старый": {
+        "payments": 1,
+        "revenue": 99,
+        "users": 1
+      },
+      "ГЕНЕРАЦИЯ": {
+        "payments": 30,
+        "revenue": 6010,
+        "users": 25
+      },
+      "yclid": {
+        "payments": 18,
+        "revenue": 2652,
+        "users": 13
+      },
+      "ПРОМТЫ": {
+        "payments": 104,
+        "revenue": 15343,
+        "users": 79
+      }
+    },
+    "byDay": {
+      "2026-08-23": {
+        "payments": 1,
+        "revenue": 99
+      },
+      "2026-08-24": {
+        "payments": 14,
+        "revenue": 2286
+      },
+      "2026-08-25": {
+        "payments": 19,
+        "revenue": 2781
+      },
+      "2026-08-26": {
+        "payments": 13,
+        "revenue": 2927
+      },
+      "2026-08-27": {
+        "payments": 1,
+        "revenue": 99
+      },
+      "2026-08-28": {
+        "payments": 3,
+        "revenue": 297
+      },
+      "2026-08-29": {
+        "payments": 5,
+        "revenue": 695
+      },
+      "2026-08-30": {
+        "payments": 4,
+        "revenue": 796
+      },
+      "2026-08-31": {
+        "payments": 6,
+        "revenue": 894
+      },
+      "2026-09-01": {
+        "payments": 10,
+        "revenue": 1860
+      },
+      "2026-09-02": {
+        "payments": 3,
+        "revenue": 297
+      },
+      "2026-09-03": {
+        "payments": 2,
+        "revenue": 298
+      },
+      "2026-09-04": {
+        "payments": 2,
+        "revenue": 398
+      },
+      "2026-09-05": {
+        "payments": 8,
+        "revenue": 992
+      },
+      "2026-09-06": {
+        "payments": 5,
+        "revenue": 795
+      },
+      "2026-09-07": {
+        "payments": 2,
+        "revenue": 198
+      },
+      "2026-09-08": {
+        "payments": 7,
+        "revenue": 1203
+      },
+      "2026-09-09": {
+        "payments": 4,
+        "revenue": 536
+      },
+      "2026-09-10": {
+        "payments": 6,
+        "revenue": 1904
+      },
+      "2026-09-11": {
+        "payments": 12,
+        "revenue": 2459
+      },
+      "2026-09-12": {
+        "payments": 8,
+        "revenue": 1142
+      },
+      "2026-09-13": {
+        "payments": 8,
+        "revenue": 992
+      },
+      "2026-09-14": {
+        "payments": 9,
+        "revenue": 951
+      },
+      "2026-09-15": {
+        "payments": 5,
+        "revenue": 731
+      },
+      "2026-09-16": {
+        "payments": 10,
+        "revenue": 1230
+      },
+      "2026-09-17": {
+        "payments": 1,
+        "revenue": 99
+      }
+    },
+    "paymentRows": [
+      {
+        "creditedAt": "2026-08-23T03:47:58.14684+00:00",
+        "day": "2026-08-23",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "старый",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-24T09:33:11.107167+00:00",
+        "day": "2026-08-24",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-24T09:37:15.40108+00:00",
+        "day": "2026-08-24",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-24T10:35:54.681388+00:00",
+        "day": "2026-08-24",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-24T11:42:39.817052+00:00",
+        "day": "2026-08-24",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "yclid",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-24T12:33:22.539333+00:00",
+        "day": "2026-08-24",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 143.56,
+        "hasClient": false,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-24T12:57:42.921662+00:00",
+        "day": "2026-08-24",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-24T13:17:05.250737+00:00",
+        "day": "2026-08-24",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "yclid",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-24T13:27:02.091679+00:00",
+        "day": "2026-08-24",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-24T15:10:09.84602+00:00",
+        "day": "2026-08-24",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "yclid",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-24T18:04:00.885908+00:00",
+        "day": "2026-08-24",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "yclid",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-24T18:14:25.450202+00:00",
+        "day": "2026-08-24",
+        "plan": "start",
+        "amount": 299,
+        "credits": 100,
+        "campaign": "yclid",
+        "margin": 218.29,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-24T19:07:25.266265+00:00",
+        "day": "2026-08-24",
+        "plan": "start",
+        "amount": 299,
+        "credits": 100,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 218.29,
+        "hasClient": false,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-24T19:26:36.918769+00:00",
+        "day": "2026-08-24",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "yclid",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-24T20:05:58.971047+00:00",
+        "day": "2026-08-24",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-25T03:30:12.30472+00:00",
+        "day": "2026-08-25",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "yclid",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-25T04:25:53.247465+00:00",
+        "day": "2026-08-25",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "yclid",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-25T04:35:02.239203+00:00",
+        "day": "2026-08-25",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-25T04:36:19.522658+00:00",
+        "day": "2026-08-25",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "yclid",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-25T05:43:17.96317+00:00",
+        "day": "2026-08-25",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "yclid",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-25T05:55:25.888744+00:00",
+        "day": "2026-08-25",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "yclid",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-25T05:59:11.796147+00:00",
+        "day": "2026-08-25",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "yclid",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-25T08:39:01.671519+00:00",
+        "day": "2026-08-25",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-25T08:47:22.392181+00:00",
+        "day": "2026-08-25",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "yclid",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-25T08:50:34.258854+00:00",
+        "day": "2026-08-25",
+        "plan": "start",
+        "amount": 299,
+        "credits": 100,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 218.29,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-25T09:07:14.069813+00:00",
+        "day": "2026-08-25",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ПРОМТЫ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-25T10:22:53.01293+00:00",
+        "day": "2026-08-25",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-25T12:43:02.441869+00:00",
+        "day": "2026-08-25",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ПРОМТЫ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-25T13:01:16.275452+00:00",
+        "day": "2026-08-25",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-25T13:47:21.68232+00:00",
+        "day": "2026-08-25",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-25T14:01:35.904855+00:00",
+        "day": "2026-08-25",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-25T15:59:39.707421+00:00",
+        "day": "2026-08-25",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-25T16:05:55.493978+00:00",
+        "day": "2026-08-25",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ПРОМТЫ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-25T17:28:00.859149+00:00",
+        "day": "2026-08-25",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-26T06:41:42.18619+00:00",
+        "day": "2026-08-26",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-26T09:36:38.896388+00:00",
+        "day": "2026-08-26",
+        "plan": "start",
+        "amount": 299,
+        "credits": 100,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 218.29,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-26T10:27:06.50771+00:00",
+        "day": "2026-08-26",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-26T14:22:46.755837+00:00",
+        "day": "2026-08-26",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ПРОМТЫ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-26T14:23:11.413144+00:00",
+        "day": "2026-08-26",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-26T14:58:54.681539+00:00",
+        "day": "2026-08-26",
+        "plan": "pro",
+        "amount": 469,
+        "credits": 200,
+        "campaign": "ПРОМТЫ",
+        "margin": 320.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-26T18:27:26.900997+00:00",
+        "day": "2026-08-26",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ПРОМТЫ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-26T19:05:29.670068+00:00",
+        "day": "2026-08-26",
+        "plan": "pro",
+        "amount": 469,
+        "credits": 200,
+        "campaign": "yclid",
+        "margin": 320.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-26T19:50:35.409718+00:00",
+        "day": "2026-08-26",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "yclid",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-26T19:52:19.513411+00:00",
+        "day": "2026-08-26",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ПРОМТЫ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-26T20:00:57.008109+00:00",
+        "day": "2026-08-26",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "yclid",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-26T20:26:01.563854+00:00",
+        "day": "2026-08-26",
+        "plan": "start",
+        "amount": 399,
+        "credits": 175,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 270.52,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-26T20:32:42.456223+00:00",
+        "day": "2026-08-26",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-27T07:26:28.420868+00:00",
+        "day": "2026-08-27",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-28T10:08:32.638414+00:00",
+        "day": "2026-08-28",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-28T17:57:16.867289+00:00",
+        "day": "2026-08-28",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-28T20:48:45.066637+00:00",
+        "day": "2026-08-28",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-29T03:27:20.031108+00:00",
+        "day": "2026-08-29",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-29T04:56:26.26952+00:00",
+        "day": "2026-08-29",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ПРОМТЫ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-29T05:07:52.489352+00:00",
+        "day": "2026-08-29",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-29T06:41:16.893238+00:00",
+        "day": "2026-08-29",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-29T19:31:37.412807+00:00",
+        "day": "2026-08-29",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-30T07:44:34.137861+00:00",
+        "day": "2026-08-30",
+        "plan": "start",
+        "amount": 399,
+        "credits": 175,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 270.52,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-30T11:05:24.597313+00:00",
+        "day": "2026-08-30",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-30T19:35:49.241899+00:00",
+        "day": "2026-08-30",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ПРОМТЫ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-30T20:32:27.106447+00:00",
+        "day": "2026-08-30",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-30T21:13:20.515918+00:00",
+        "day": "2026-08-31",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-31T07:12:01.581079+00:00",
+        "day": "2026-08-31",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ПРОМТЫ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-31T07:18:31.456211+00:00",
+        "day": "2026-08-31",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-31T18:04:25.219608+00:00",
+        "day": "2026-08-31",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-31T19:13:59.368612+00:00",
+        "day": "2026-08-31",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-08-31T20:37:14.935097+00:00",
+        "day": "2026-08-31",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ПРОМТЫ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-01T11:48:02.039311+00:00",
+        "day": "2026-09-01",
+        "plan": "pro",
+        "amount": 469,
+        "credits": 200,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 320.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-01T12:09:01.679389+00:00",
+        "day": "2026-09-01",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ПРОМТЫ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-01T13:12:32.317199+00:00",
+        "day": "2026-09-01",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-01T13:28:14.820319+00:00",
+        "day": "2026-09-01",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-01T13:42:17.014202+00:00",
+        "day": "2026-09-01",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-01T14:22:38.146988+00:00",
+        "day": "2026-09-01",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ПРОМТЫ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-01T14:47:01.443761+00:00",
+        "day": "2026-09-01",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ПРОМТЫ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-01T17:58:00.443139+00:00",
+        "day": "2026-09-01",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 73.83,
+        "hasClient": false,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-01T18:08:53.137973+00:00",
+        "day": "2026-09-01",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-01T18:41:14.990801+00:00",
+        "day": "2026-09-01",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-02T07:20:11.997498+00:00",
+        "day": "2026-09-02",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-02T14:34:45.611793+00:00",
+        "day": "2026-09-02",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-02T15:51:28.391489+00:00",
+        "day": "2026-09-02",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": false,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-03T19:26:02.979904+00:00",
+        "day": "2026-09-03",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-03T20:40:48.374072+00:00",
+        "day": "2026-09-03",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "713989153",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-04T18:13:30.360956+00:00",
+        "day": "2026-09-04",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ПРОМТЫ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-04T20:48:32.872678+00:00",
+        "day": "2026-09-04",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "713989153",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-04T21:11:31.046686+00:00",
+        "day": "2026-09-05",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-05T06:29:12.039258+00:00",
+        "day": "2026-09-05",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-05T07:08:51.624095+00:00",
+        "day": "2026-09-05",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-05T15:08:15.106133+00:00",
+        "day": "2026-09-05",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-05T15:23:00.529042+00:00",
+        "day": "2026-09-05",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-05T15:54:12.571041+00:00",
+        "day": "2026-09-05",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-05T20:38:59.39934+00:00",
+        "day": "2026-09-05",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "713989153",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-05T20:57:54.426009+00:00",
+        "day": "2026-09-05",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "713989153",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-06T05:40:55.149934+00:00",
+        "day": "2026-09-06",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ПРОМТЫ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-06T15:34:52.964004+00:00",
+        "day": "2026-09-06",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-06T17:14:43.350101+00:00",
+        "day": "2026-09-06",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "713989153",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-06T18:59:27.88706+00:00",
+        "day": "2026-09-06",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ПРОМТЫ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-06T19:51:39.827672+00:00",
+        "day": "2026-09-06",
+        "plan": "trial",
+        "amount": 199,
+        "credits": 70,
+        "campaign": "ПРОМТЫ",
+        "margin": 143.56,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-07T10:45:01.30236+00:00",
+        "day": "2026-09-07",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-07T19:10:28.285405+00:00",
+        "day": "2026-09-07",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-08T05:28:06.05486+00:00",
+        "day": "2026-09-08",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-08T05:34:29.657982+00:00",
+        "day": "2026-09-08",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-08T06:00:25.304822+00:00",
+        "day": "2026-09-08",
+        "plan": "start",
+        "amount": 239,
+        "credits": 100,
+        "campaign": "ПРОМТЫ",
+        "margin": 164.45,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-08T10:26:42.82162+00:00",
+        "day": "2026-09-08",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "713989153",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-08T10:50:50.573806+00:00",
+        "day": "2026-09-08",
+        "plan": "pro",
+        "amount": 469,
+        "credits": 200,
+        "campaign": "713989153",
+        "margin": 320.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-08T16:40:42.180818+00:00",
+        "day": "2026-09-08",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-08T19:55:50.440421+00:00",
+        "day": "2026-09-08",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-09T09:52:08.138799+00:00",
+        "day": "2026-09-09",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-09T10:09:58.033654+00:00",
+        "day": "2026-09-09",
+        "plan": "start",
+        "amount": 239,
+        "credits": 100,
+        "campaign": "ПРОМТЫ",
+        "margin": 164.45,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-09T12:10:57.893854+00:00",
+        "day": "2026-09-09",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-09T16:38:13.781248+00:00",
+        "day": "2026-09-09",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-10T04:13:40.592606+00:00",
+        "day": "2026-09-10",
+        "plan": "pro",
+        "amount": 469,
+        "credits": 200,
+        "campaign": "ПРОМТЫ",
+        "margin": 320.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-10T06:30:57.44397+00:00",
+        "day": "2026-09-10",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-10T09:33:28.071235+00:00",
+        "day": "2026-09-10",
+        "plan": "start",
+        "amount": 299,
+        "credits": 100,
+        "campaign": "713989153",
+        "margin": 218.29,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-10T17:57:28.706889+00:00",
+        "day": "2026-09-10",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-10T18:21:00.960336+00:00",
+        "day": "2026-09-10",
+        "plan": "pro",
+        "amount": 469,
+        "credits": 200,
+        "campaign": "ГЕНЕРАЦИЯ",
+        "margin": 320.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-10T20:20:57.104968+00:00",
+        "day": "2026-09-10",
+        "plan": "pro",
+        "amount": 469,
+        "credits": 200,
+        "campaign": "ПРОМТЫ",
+        "margin": 320.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T01:37:11.286956+00:00",
+        "day": "2026-09-11",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "yclid",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T05:37:53.081447+00:00",
+        "day": "2026-09-11",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T08:26:00.199065+00:00",
+        "day": "2026-09-11",
+        "plan": "max",
+        "amount": 990,
+        "credits": 500,
+        "campaign": "ПРОМТЫ",
+        "margin": 638.33,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T08:33:55.928664+00:00",
+        "day": "2026-09-11",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T08:52:43.827999+00:00",
+        "day": "2026-09-11",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "yclid",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T10:07:55.094529+00:00",
+        "day": "2026-09-11",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T15:52:00.95198+00:00",
+        "day": "2026-09-11",
+        "plan": "start",
+        "amount": 299,
+        "credits": 100,
+        "campaign": "ПРОМТЫ",
+        "margin": 218.29,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T16:07:02.099217+00:00",
+        "day": "2026-09-11",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T16:19:54.371455+00:00",
+        "day": "2026-09-11",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "713989153",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T16:42:35.431197+00:00",
+        "day": "2026-09-11",
+        "plan": "start",
+        "amount": 299,
+        "credits": 100,
+        "campaign": "713989153",
+        "margin": 218.29,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T19:22:36.63372+00:00",
+        "day": "2026-09-11",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T19:33:35.109609+00:00",
+        "day": "2026-09-11",
+        "plan": "trial",
+        "amount": 79,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 55.89,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T21:08:41.278688+00:00",
+        "day": "2026-09-12",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-11T21:48:26.025289+00:00",
+        "day": "2026-09-12",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-12T14:44:00.435865+00:00",
+        "day": "2026-09-12",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-12T14:58:00.444215+00:00",
+        "day": "2026-09-12",
+        "plan": "pro",
+        "amount": 469,
+        "credits": 200,
+        "campaign": "ПРОМТЫ",
+        "margin": 320.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-12T16:28:55.111115+00:00",
+        "day": "2026-09-12",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-12T18:09:32.032585+00:00",
+        "day": "2026-09-12",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-12T18:23:56.405631+00:00",
+        "day": "2026-09-12",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-12T19:08:14.429661+00:00",
+        "day": "2026-09-12",
+        "plan": "trial",
+        "amount": 79,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 55.89,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-12T22:01:50.642948+00:00",
+        "day": "2026-09-13",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "713989153",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-13T06:55:40.4793+00:00",
+        "day": "2026-09-13",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "713989153",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-13T07:31:28.294818+00:00",
+        "day": "2026-09-13",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "713989153",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-13T13:04:25.334751+00:00",
+        "day": "2026-09-13",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "713989153",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-13T14:53:11.116007+00:00",
+        "day": "2026-09-13",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-13T18:00:39.158265+00:00",
+        "day": "2026-09-13",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-13T19:48:18.631696+00:00",
+        "day": "2026-09-13",
+        "plan": "start",
+        "amount": 299,
+        "credits": 100,
+        "campaign": "713989153",
+        "margin": 218.29,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-13T20:40:00.840071+00:00",
+        "day": "2026-09-13",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-14T07:50:20.949783+00:00",
+        "day": "2026-09-14",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-14T08:13:00.195452+00:00",
+        "day": "2026-09-14",
+        "plan": "trial",
+        "amount": 79,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 55.89,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-14T09:52:11.269632+00:00",
+        "day": "2026-09-14",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-14T11:29:47.374625+00:00",
+        "day": "2026-09-14",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-14T11:39:02.022445+00:00",
+        "day": "2026-09-14",
+        "plan": "trial",
+        "amount": 79,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 55.89,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-14T11:47:31.381734+00:00",
+        "day": "2026-09-14",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-14T11:51:01.198367+00:00",
+        "day": "2026-09-14",
+        "plan": "trial",
+        "amount": 79,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 55.89,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-14T17:26:17.925582+00:00",
+        "day": "2026-09-14",
+        "plan": "start",
+        "amount": 239,
+        "credits": 100,
+        "campaign": "ПРОМТЫ",
+        "margin": 164.45,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-14T19:16:31.417472+00:00",
+        "day": "2026-09-14",
+        "plan": "trial",
+        "amount": 79,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 55.89,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-15T14:18:21.177054+00:00",
+        "day": "2026-09-15",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-15T14:43:28.794139+00:00",
+        "day": "2026-09-15",
+        "plan": "trial",
+        "amount": 79,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 55.89,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-15T15:39:22.273468+00:00",
+        "day": "2026-09-15",
+        "plan": "trial",
+        "amount": 79,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 55.89,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-15T18:18:00.383+00:00",
+        "day": "2026-09-15",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-15T18:53:55.251853+00:00",
+        "day": "2026-09-15",
+        "plan": "pro",
+        "amount": 375,
+        "credits": 200,
+        "campaign": "ПРОМТЫ",
+        "margin": 236.49,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-15T21:36:33.919823+00:00",
+        "day": "2026-09-16",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-16T08:47:58.409341+00:00",
+        "day": "2026-09-16",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-16T16:36:46.262931+00:00",
+        "day": "2026-09-16",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-16T17:48:22.032521+00:00",
+        "day": "2026-09-16",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-16T18:14:47.600156+00:00",
+        "day": "2026-09-16",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-16T19:36:09.32143+00:00",
+        "day": "2026-09-16",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-16T19:49:18.847494+00:00",
+        "day": "2026-09-16",
+        "plan": "trial",
+        "amount": 79,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 55.89,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-16T19:58:06.625697+00:00",
+        "day": "2026-09-16",
+        "plan": "trial",
+        "amount": 79,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 55.89,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-16T20:10:56.428036+00:00",
+        "day": "2026-09-16",
+        "plan": "start",
+        "amount": 239,
+        "credits": 100,
+        "campaign": "ПРОМТЫ",
+        "margin": 164.45,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-16T20:39:44.443567+00:00",
+        "day": "2026-09-16",
+        "plan": "start",
+        "amount": 239,
+        "credits": 100,
+        "campaign": "ПРОМТЫ",
+        "margin": 164.45,
+        "hasClient": true,
+        "provider": "yookassa"
+      },
+      {
+        "creditedAt": "2026-09-17T03:07:29.589075+00:00",
+        "day": "2026-09-17",
+        "plan": "trial",
+        "amount": 99,
+        "credits": 30,
+        "campaign": "ПРОМТЫ",
+        "margin": 73.83,
+        "hasClient": true,
+        "provider": "yookassa"
+      }
+    ],
+    "ads": {
+      "source": "direct_api",
+      "mediaRub": 24389.08,
+      "withVatRub": 29754.68
+    },
+    "realized": -10384.77,
+    "cacMediaRub": 204.95,
+    "cacMaxRub": 82
+  },
+  "weekAds": {
+    "source": "direct_api",
+    "includeVat": false,
+    "dateFrom": "2026-09-15",
+    "dateTo": "2026-09-17",
+    "mediaRub": 1832,
+    "lastDay": "2026-09-17",
+    "campaigns": [
+      {
+        "id": "713781017",
+        "name": "ПРОМТЫ-ДР",
+        "mediaRub": 1832,
+        "clicks": 362,
+        "impressions": 1381
+      }
+    ],
+    "days": [
+      {
+        "date": "2026-09-15",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 589,
+        "clicks": 166,
+        "mediaRub": 458
+      },
+      {
+        "date": "2026-09-16",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 744,
+        "clicks": 187,
+        "mediaRub": 1374
+      },
+      {
+        "date": "2026-09-17",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 48,
+        "clicks": 9,
+        "mediaRub": 0
+      }
+    ]
+  },
+  "prevWeekAds": {
+    "source": "direct_api",
+    "includeVat": false,
+    "dateFrom": "2026-09-08",
+    "dateTo": "2026-09-14",
+    "mediaRub": 6374,
+    "lastDay": "2026-09-14",
+    "campaigns": [
+      {
+        "id": "713781017",
+        "name": "ПРОМТЫ-ДР",
+        "mediaRub": 6374,
+        "clicks": 1276,
+        "impressions": 5034
+      }
+    ],
+    "days": [
+      {
+        "date": "2026-09-08",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 870,
+        "clicks": 188,
+        "mediaRub": 1145
+      },
+      {
+        "date": "2026-09-09",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 680,
+        "clicks": 174,
+        "mediaRub": 687
+      },
+      {
+        "date": "2026-09-10",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 710,
+        "clicks": 206,
+        "mediaRub": 916
+      },
+      {
+        "date": "2026-09-11",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 716,
+        "clicks": 203,
+        "mediaRub": 1603
+      },
+      {
+        "date": "2026-09-12",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 725,
+        "clicks": 150,
+        "mediaRub": 191
+      },
+      {
+        "date": "2026-09-13",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 706,
+        "clicks": 179,
+        "mediaRub": 0
+      },
+      {
+        "date": "2026-09-14",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 627,
+        "clicks": 176,
+        "mediaRub": 1832
+      }
+    ]
+  },
+  "cumAds": {
+    "source": "direct_api",
+    "includeVat": false,
+    "dateFrom": "2026-08-23",
+    "dateTo": "2026-09-17",
+    "mediaRub": 24389.08,
+    "lastDay": "2026-09-17",
+    "campaigns": [
+      {
+        "id": "713780805",
+        "name": "ГЕНЕРАЦИЯ-ДР",
+        "mediaRub": 4693.6,
+        "clicks": 521,
+        "impressions": 3384
+      },
+      {
+        "id": "713781017",
+        "name": "ПРОМТЫ-ДР",
+        "mediaRub": 19695.48,
+        "clicks": 4222,
+        "impressions": 16179
+      }
+    ],
+    "days": [
+      {
+        "date": "2026-08-23",
+        "campaignId": "713780805",
+        "campaignName": "ГЕНЕРАЦИЯ-ДР",
+        "impressions": 69,
+        "clicks": 16,
+        "mediaRub": 286.51
+      },
+      {
+        "date": "2026-08-23",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 138,
+        "clicks": 41,
+        "mediaRub": 392.25
+      },
+      {
+        "date": "2026-08-24",
+        "campaignId": "713780805",
+        "campaignName": "ГЕНЕРАЦИЯ-ДР",
+        "impressions": 390,
+        "clicks": 97,
+        "mediaRub": 699.87
+      },
+      {
+        "date": "2026-08-24",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 769,
+        "clicks": 282,
+        "mediaRub": 652.17
+      },
+      {
+        "date": "2026-08-25",
+        "campaignId": "713780805",
+        "campaignName": "ГЕНЕРАЦИЯ-ДР",
+        "impressions": 431,
+        "clicks": 80,
+        "mediaRub": 406.63
+      },
+      {
+        "date": "2026-08-25",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 807,
+        "clicks": 288,
+        "mediaRub": 768.19
+      },
+      {
+        "date": "2026-08-26",
+        "campaignId": "713780805",
+        "campaignName": "ГЕНЕРАЦИЯ-ДР",
+        "impressions": 164,
+        "clicks": 24,
+        "mediaRub": 167
+      },
+      {
+        "date": "2026-08-26",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 700,
+        "clicks": 104,
+        "mediaRub": 612.09
+      },
+      {
+        "date": "2026-08-27",
+        "campaignId": "713780805",
+        "campaignName": "ГЕНЕРАЦИЯ-ДР",
+        "impressions": 205,
+        "clicks": 35,
+        "mediaRub": 286.3
+      },
+      {
+        "date": "2026-08-27",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 493,
+        "clicks": 141,
+        "mediaRub": 750.74
+      },
+      {
+        "date": "2026-08-28",
+        "campaignId": "713780805",
+        "campaignName": "ГЕНЕРАЦИЯ-ДР",
+        "impressions": 381,
+        "clicks": 44,
+        "mediaRub": 357.89
+      },
+      {
+        "date": "2026-08-28",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 622,
+        "clicks": 195,
+        "mediaRub": 866.81
+      },
+      {
+        "date": "2026-08-29",
+        "campaignId": "713780805",
+        "campaignName": "ГЕНЕРАЦИЯ-ДР",
+        "impressions": 358,
+        "clicks": 38,
+        "mediaRub": 358.38
+      },
+      {
+        "date": "2026-08-29",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 586,
+        "clicks": 160,
+        "mediaRub": 548.3
+      },
+      {
+        "date": "2026-08-30",
+        "campaignId": "713780805",
+        "campaignName": "ГЕНЕРАЦИЯ-ДР",
+        "impressions": 394,
+        "clicks": 60,
+        "mediaRub": 547.38
+      },
+      {
+        "date": "2026-08-30",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 673,
+        "clicks": 199,
+        "mediaRub": 801.7
+      },
+      {
+        "date": "2026-08-31",
+        "campaignId": "713780805",
+        "campaignName": "ГЕНЕРАЦИЯ-ДР",
+        "impressions": 315,
+        "clicks": 40,
+        "mediaRub": 433.27
+      },
+      {
+        "date": "2026-08-31",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 1111,
+        "clicks": 327,
+        "mediaRub": 1540.13
+      },
+      {
+        "date": "2026-09-01",
+        "campaignId": "713780805",
+        "campaignName": "ГЕНЕРАЦИЯ-ДР",
+        "impressions": 502,
+        "clicks": 57,
+        "mediaRub": 665.72
+      },
+      {
+        "date": "2026-09-01",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 826,
+        "clicks": 207,
+        "mediaRub": 975.52
+      },
+      {
+        "date": "2026-09-02",
+        "campaignId": "713780805",
+        "campaignName": "ГЕНЕРАЦИЯ-ДР",
+        "impressions": 175,
+        "clicks": 30,
+        "mediaRub": 484.65
+      },
+      {
+        "date": "2026-09-02",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 434,
+        "clicks": 89,
+        "mediaRub": 397.41
+      },
+      {
+        "date": "2026-09-03",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 420,
+        "clicks": 64,
+        "mediaRub": 236.17
+      },
+      {
+        "date": "2026-09-04",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 383,
+        "clicks": 69,
+        "mediaRub": 200
+      },
+      {
+        "date": "2026-09-05",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 506,
+        "clicks": 128,
+        "mediaRub": 916
+      },
+      {
+        "date": "2026-09-06",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 530,
+        "clicks": 121,
+        "mediaRub": 1374
+      },
+      {
+        "date": "2026-09-07",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 766,
+        "clicks": 169,
+        "mediaRub": 458
+      },
+      {
+        "date": "2026-09-08",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 870,
+        "clicks": 188,
+        "mediaRub": 1145
+      },
+      {
+        "date": "2026-09-09",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 680,
+        "clicks": 174,
+        "mediaRub": 687
+      },
+      {
+        "date": "2026-09-10",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 710,
+        "clicks": 206,
+        "mediaRub": 916
+      },
+      {
+        "date": "2026-09-11",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 716,
+        "clicks": 203,
+        "mediaRub": 1603
+      },
+      {
+        "date": "2026-09-12",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 725,
+        "clicks": 150,
+        "mediaRub": 191
+      },
+      {
+        "date": "2026-09-13",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 706,
+        "clicks": 179,
+        "mediaRub": 0
+      },
+      {
+        "date": "2026-09-14",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 627,
+        "clicks": 176,
+        "mediaRub": 1832
+      },
+      {
+        "date": "2026-09-15",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 589,
+        "clicks": 166,
+        "mediaRub": 458
+      },
+      {
+        "date": "2026-09-16",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 744,
+        "clicks": 187,
+        "mediaRub": 1374
+      },
+      {
+        "date": "2026-09-17",
+        "campaignId": "713781017",
+        "campaignName": "ПРОМТЫ-ДР",
+        "impressions": 48,
+        "clicks": 9,
+        "mediaRub": 0
+      }
+    ]
+  }
+}

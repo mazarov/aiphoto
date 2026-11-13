@@ -1,0 +1,27 @@
+{
+  "path": "/stil/glam",
+  "fetched_at": "2026-09-24T22:34:13+03:00",
+  "rows": [
+    {
+      "query": "промт для фото в клубе",
+      "shows": 2.0,
+      "clicks": 1.0,
+      "ctr": 0.5,
+      "position": 6.5
+    },
+    {
+      "query": "glam генерация",
+      "shows": 1.0,
+      "clicks": 0.0,
+      "ctr": 0.0,
+      "position": 8.0
+    },
+    {
+      "query": "глэм рамка для рантов",
+      "shows": 1.0,
+      "clicks": 0.0,
+      "ctr": 0.0,
+      "position": 5.0
+    }
+  ]
+}

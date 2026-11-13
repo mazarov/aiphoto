@@ -1,0 +1,62 @@
+{
+  "pulledAt": "2026-09-17T04:37:42.686Z",
+  "prevWeek": {
+    "from": "2026-09-08",
+    "to": "2026-09-14"
+  },
+  "thisWeek": {
+    "from": "2026-09-15",
+    "to": "2026-09-17"
+  },
+  "prevWeekCohort": {
+    "users": 34,
+    "payments": 54,
+    "revenue": 9187,
+    "newDirectUsers": 32,
+    "returningFromEarlier": 2
+  },
+  "repeatToThisWeek": {
+    "users": 0,
+    "rateAmongPrevWeek": 0,
+    "payments": 0,
+    "revenue": 0,
+    "newLastWeekReturned": {
+      "users": 0,
+      "rateAmongNew": 0
+    },
+    "repeatFromBeforeReturned": {
+      "users": 0,
+      "rateAmongRepeat": 0
+    }
+  },
+  "thisWeekComposition": {
+    "totalUsers": 10,
+    "totalPayments": 16,
+    "totalRevenue": 2060,
+    "brandNew": {
+      "users": 10,
+      "payments": 16,
+      "revenue": 2060
+    },
+    "fromPrevWeek": {
+      "users": 0,
+      "payments": 0,
+      "revenue": 0
+    },
+    "fromOlderCohorts": {
+      "users": 0,
+      "payments": 0,
+      "revenue": 0
+    }
+  },
+  "planMixPrevWeek": {
+    "trial 99": 35,
+    "trial 79": 6,
+    "pro 469": 5,
+    "start 299": 4,
+    "start 239": 3,
+    "max 990": 1
+  },
+  "returnedDetails": [],
+  "notReturnedCount": 34
+}
