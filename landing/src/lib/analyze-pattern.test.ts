@@ -182,3 +182,65 @@ test("router flag is true only for the exact token", () => {
   assert.equal(isAnalyzePatternRouterFlagValue(null), false);
   assert.equal(isAnalyzePatternRouterFlagValue("1"), false);
 });
+
+test("router and locked prompts unwrap screenshots, filter social UI text, and preserve multi-panel person collages", () => {
+  const routerPrompt = buildRouterExtractPrompt("ru");
+  const lockedPersonPrompt = buildLockedExtractPrompt("person", "photo", "ru");
+
+  // Both router and locked prompts include the viewport unwrap header
+  assert.match(routerPrompt, /VIEWPORT \/ SCREENSHOT UNWRAP/);
+  assert.match(lockedPersonPrompt, /VIEWPORT \/ SCREENSHOT UNWRAP/);
+
+  // Decision order guards against false layout/graphic on TikTok/Instagram/phone screenshots
+  assert.match(
+    routerPrompt,
+    /Never choose layout merely because a photograph, photo collage, illustration, product, or scene was captured inside TikTok/,
+  );
+  assert.match(
+    routerPrompt,
+    /photographic collage \(even when captured inside a phone screenshot\) is photo/,
+  );
+
+  // Text spec keeps in-world garment prints and bans OS/social UI strings
+  assert.match(routerPrompt, /garment prints like RED FLAG/);
+  assert.match(
+    routerPrompt,
+    /NEVER include OS status-bar clocks, battery\/carrier labels, social-media usernames, post captions/,
+  );
+
+  // Multi-panel person collage rules are present in Pose, Composition, and Avoid
+  assert.match(routerPrompt, /multi-panel photo collage or photo-booth strip of the same subject/);
+  assert.match(routerPrompt, /panel count, stack or grid arrangement/);
+  assert.match(routerPrompt, /forbid merging the panels into a single frame/);
+  assert.match(routerPrompt, /forbid adding phone status bars, social-media icons/);
+
+  // Section order invariants remain intact for all 4 patterns
+  assert.deepEqual(sectionOrderFor("person"), [
+    "Visual Hook",
+    "Scene",
+    "Genre",
+    "Rendering",
+    "Appearance",
+    "Pose",
+    "Lighting",
+    "Camera",
+    "Mood",
+    "Color",
+    "Clothing",
+    "Makeup",
+    "Composition",
+    "Text",
+    "Avoid",
+  ]);
+  assert.deepEqual(sectionOrderFor("layout"), [
+    "Visual Hook",
+    "Rendering",
+    "Canvas",
+    "Regions",
+    "Text",
+    "Icons",
+    "Color",
+    "Composition",
+    "Avoid",
+  ]);
+});

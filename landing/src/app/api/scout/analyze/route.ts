@@ -25,6 +25,7 @@ import {
   ANALYZE_REQUEST_MAX_BYTES,
   analyzeImageSettings,
   resolveAnalyzeImageFromBody,
+  unwrapAnalyzeScreenshotImage,
 } from "@/lib/image-prompt-analyze-image";
 import { noteMemoryRoute } from "@/lib/runtime-memory";
 import { isPayloadTooLarge, readRequestJson } from "@/lib/request-byte-limit";
@@ -267,10 +268,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   };
 
   const routerEnabled = await isAnalyzePatternRouterEnabled(supabase);
+  let unwrapped: Awaited<ReturnType<typeof unwrapAnalyzeScreenshotImage>>;
   let generated: Awaited<ReturnType<typeof generateAnalyzePrompt>>;
   try {
+    unwrapped = await unwrapAnalyzeScreenshotImage(image);
     generated = await generateAnalyzePrompt({
-      image,
+      image: unwrapped.image,
       locale,
       supabase,
       apiKey,
@@ -294,7 +297,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return fail("fetch_failed", 503);
   }
 
-  const settingsPromise = analyzeImageSettings(image.data);
+  const settingsPromise = analyzeImageSettings(unwrapped.image.data);
   let finalSession = reservedSession;
   try {
     finalSession = await confirmAnalyzeQuota(supabase, reservedSession);
@@ -341,6 +344,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     attempts: generated.attempts,
     remainingFree: finalSession.remainingFree,
     missingSections: generated.missing,
+    screenshotCropped: unwrapped.screenshotCropped,
+    ...(unwrapped.screenshotCropped
+      ? {
+          originalHeight: unwrapped.originalHeight,
+          croppedHeight: unwrapped.croppedHeight,
+        }
+      : {}),
     ...generated.summary,
   });
 
