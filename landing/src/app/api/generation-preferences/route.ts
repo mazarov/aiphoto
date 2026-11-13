@@ -6,11 +6,15 @@ import {
   parseEnabledGenerationModels,
   parseEnabledVideoGenerationModels,
 } from "@/lib/generation-model-labels";
+import { FALLBACK_COMPOSER_DEFAULTS } from "@/lib/generation-preferences";
 import {
-  FALLBACK_COMPOSER_DEFAULTS,
-  parseStoredGenerationPreferences,
-  type StoredGenerationPreferences,
-} from "@/lib/generation-preferences";
+  isMissingPreferencesTable,
+  isMissingPreserveOutfitColumn,
+  isMissingVideoPreferenceColumns,
+  loadPreferencesRow,
+  mapPreferencesRow,
+} from "@/lib/generation-preferences-server";
+import { readGenerationConfigMap } from "@/lib/generation-config-cache";
 import {
   clampImageSizeForModel,
   isImageAspectRatio,
@@ -22,36 +26,8 @@ import {
   resolveVideoModelId,
 } from "@/lib/video-generation-contract";
 
-function isMissingPreferencesTable(error: unknown): boolean {
-  const serialized = serializeUnknownError(error);
-  return /does not exist|42P01|PGRST205/i.test(
-    `${serialized.message} ${serialized.code} ${serialized.details}`
-  );
-}
-
-function isMissingVideoPreferenceColumns(error: unknown): boolean {
-  const serialized = serializeUnknownError(error);
-  return /video_model|video_aspect_ratio|video_duration_seconds|42703|PGRST204/i.test(
-    `${serialized.message} ${serialized.code} ${serialized.details}`
-  );
-}
-
-function isMissingPreserveOutfitColumn(error: unknown): boolean {
-  const serialized = serializeUnknownError(error);
-  return /preserve_outfit/i.test(
-    `${serialized.message} ${serialized.code} ${serialized.details}`
-  );
-}
-
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-const PREFS_SELECT_FULL =
-  "model,aspect_ratio,image_size,selected_photo_ids,video_model,video_aspect_ratio,video_duration_seconds,preserve_outfit,updated_at";
-const PREFS_SELECT_VIDEO =
-  "model,aspect_ratio,image_size,selected_photo_ids,video_model,video_aspect_ratio,video_duration_seconds,updated_at";
-const PREFS_SELECT_CORE =
-  "model,aspect_ratio,image_size,selected_photo_ids,updated_at";
 
 type PreferencesBody = {
   model?: unknown;
@@ -63,60 +39,6 @@ type PreferencesBody = {
   videoDurationSeconds?: unknown;
   preserveOutfit?: unknown;
 };
-
-type PreferencesTableRow = Record<string, unknown>;
-
-function asPreferencesTableRow(row: object | null): PreferencesTableRow | null {
-  return row ? ({ ...row } as PreferencesTableRow) : null;
-}
-
-function mapRow(data: PreferencesTableRow | null): StoredGenerationPreferences | null {
-  if (!data) return null;
-  return parseStoredGenerationPreferences({
-    model: data.model,
-    aspectRatio: data.aspect_ratio,
-    imageSize: data.image_size,
-    selectedPhotoIds: data.selected_photo_ids,
-    videoModel: data.video_model,
-    videoAspectRatio: data.video_aspect_ratio,
-    videoDurationSeconds: data.video_duration_seconds,
-    preserveOutfit: data.preserve_outfit,
-    updatedAt: data.updated_at,
-  });
-}
-
-async function loadPreferencesRow(
-  supabase: ReturnType<typeof createSupabaseServer>,
-  authUserId: string
-) {
-  const full = await supabase
-    .from("landing_generation_preferences")
-    .select(PREFS_SELECT_FULL)
-    .eq("auth_user_id", authUserId)
-    .maybeSingle();
-  if (!full.error) {
-    return { data: asPreferencesTableRow(full.data), error: full.error };
-  }
-  if (isMissingPreserveOutfitColumn(full.error)) {
-    const video = await supabase
-      .from("landing_generation_preferences")
-      .select(PREFS_SELECT_VIDEO)
-      .eq("auth_user_id", authUserId)
-      .maybeSingle();
-    if (!video.error || !isMissingVideoPreferenceColumns(video.error)) {
-      return { data: asPreferencesTableRow(video.data), error: video.error };
-    }
-  } else if (!isMissingVideoPreferenceColumns(full.error)) {
-    return { data: asPreferencesTableRow(full.data), error: full.error };
-  }
-
-  const core = await supabase
-    .from("landing_generation_preferences")
-    .select(PREFS_SELECT_CORE)
-    .eq("auth_user_id", authUserId)
-    .maybeSingle();
-  return { data: asPreferencesTableRow(core.data), error: core.error };
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -137,7 +59,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "preferences_failed" }, { status: 500 });
     }
 
-    return NextResponse.json({ preferences: mapRow(data) });
+    return NextResponse.json({ preferences: mapPreferencesRow(data) });
   } catch (err) {
     console.error("[generation-preferences] read error", err);
     return NextResponse.json({ error: "preferences_failed" }, { status: 500 });
@@ -167,41 +89,27 @@ export async function PUT(req: NextRequest) {
     }
 
     const supabase = createSupabaseServer();
-    const [
-      { data: imageConfigRow, error: imageConfigError },
-      { data: videoConfigRow, error: videoConfigError },
-      { data: ownedPhotos, error: photosError },
-    ] = await Promise.all([
-      supabase
-        .from("landing_generation_config")
-        .select("value")
-        .eq("key", "models")
-        .maybeSingle(),
-      supabase
-        .from("landing_generation_config")
-        .select("value")
-        .eq("key", "video_models")
-        .maybeSingle(),
-      requestedPhotoIds.length
-        ? supabase
-            .from("landing_user_photos")
-            .select("id")
-            .eq("auth_user_id", user.id)
-            .in("id", requestedPhotoIds)
-        : Promise.resolve({ data: [], error: null }),
-    ]);
+    const [configMap, { data: ownedPhotos, error: photosError }] =
+      await Promise.all([
+        readGenerationConfigMap(supabase),
+        requestedPhotoIds.length
+          ? supabase
+              .from("landing_user_photos")
+              .select("id")
+              .eq("auth_user_id", user.id)
+              .in("id", requestedPhotoIds)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
 
-    if (imageConfigError || videoConfigError || photosError) {
+    if (photosError) {
       console.error("[generation-preferences] validation lookup failed", {
-        imageConfigError: imageConfigError?.message ?? null,
-        videoConfigError: videoConfigError?.message ?? null,
-        photosError: photosError?.message ?? null,
+        photosError: photosError.message,
       });
       return NextResponse.json({ error: "preferences_failed" }, { status: 500 });
     }
 
-    const imageModels = parseEnabledGenerationModels(imageConfigRow?.value);
-    const videoModels = parseEnabledVideoGenerationModels(videoConfigRow?.value);
+    const imageModels = parseEnabledGenerationModels(configMap.models);
+    const videoModels = parseEnabledVideoGenerationModels(configMap.video_models);
     const imageIds = imageModels.map((item) => item.id);
     const videoIds = videoModels.map((item) => item.id);
     const ownedIdSet = new Set((ownedPhotos ?? []).map((photo) => photo.id));

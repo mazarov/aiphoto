@@ -17,6 +17,7 @@ export type PendingGenerateDockSurface =
   | "model"
   | "example"
   | "tool"
+  | "auth"
   | null;
 
 export type PendingGenerateDock = {
@@ -41,6 +42,7 @@ const INTENTS = new Set<GenerateDockComposeIntent>([
   "text",
   "photo_prompt",
   "photoshoot",
+  "sticker",
   "animate",
   "result",
 ]);
@@ -64,7 +66,8 @@ function isSurface(value: unknown): value is PendingGenerateDockSurface {
     value === "photos" ||
     value === "model" ||
     value === "example" ||
-    value === "tool"
+    value === "tool" ||
+    value === "auth"
   );
 }
 
@@ -121,7 +124,7 @@ export function stripPendingGenerateDock(pending: PendingGenerateDock): PendingG
         pending.seed.examplePreviewUrl,
       ),
     },
-    dockSurface: pending.dockSurface,
+    dockSurface: pending.dockSurface === "auth" ? null : pending.dockSurface,
   };
 }
 

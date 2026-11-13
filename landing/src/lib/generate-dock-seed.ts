@@ -195,9 +195,9 @@ export function isRestorableLastDockResult(
 export function resolveDockSurfaceForComposeEntry(input: {
   intent: GenerateDockComposeIntent;
   entrySource?: string | null;
-  explicit?: "prompt" | "photos" | "model" | "example" | "tool" | null;
+  explicit?: "prompt" | "photos" | "model" | "example" | "tool" | "auth" | null;
   hasRestorableLastResult?: boolean;
-}): "prompt" | "photos" | "model" | "example" | "tool" | null {
+}): "prompt" | "photos" | "model" | "example" | "tool" | "auth" | null {
   if (input.explicit !== undefined) return input.explicit;
   /**
    * Tab / FAB reopen the dock — last completed frame stays on the plate.

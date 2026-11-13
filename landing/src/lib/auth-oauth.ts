@@ -3,6 +3,11 @@ import {
   captureAuthReturnScreen,
   rememberAuthReturnScreen,
 } from "@/lib/auth-return-screen";
+import {
+  AUTH_POPUP_WINDOW_NAME,
+  buildOAuthPopupWindowFeatures,
+  isEmbeddedInAppWebView,
+} from "@/lib/auth-popup";
 import { captureBrowserAcquisitionContext } from "@/lib/traffic-source-attribution-browser";
 
 export const YANDEX_OAUTH_PROVIDER = "custom:yandex" as const;
@@ -35,7 +40,7 @@ export function getOAuthCallbackUrl(): string {
   return `${window.location.origin}/auth/callback`;
 }
 
-/** @deprecated use getOAuthCallbackUrl */
+/** @deprecated use getOAuthReturnUrl */
 export function getOAuthReturnUrl(): string {
   return getOAuthCallbackUrl();
 }
@@ -62,4 +67,76 @@ export async function signInWithOAuthProvider(provider: OAuthSignInProvider) {
       queryParams: getOAuthQueryParams(provider),
     },
   });
+}
+
+export type PopupOrRedirectSignInResult =
+  | { mode: "popup"; popup: Window }
+  | { mode: "redirect" };
+
+/**
+ * Attempt OAuth inside a centered popup so the generation control keeps its
+ * in-memory state (`data:` selfie, prompt, picked example) without page reload.
+ * Automatically falls back to top-level redirect if popups are blocked or in WebViews.
+ */
+export async function signInWithOAuthPopupOrRedirect(
+  provider: OAuthSignInProvider,
+): Promise<PopupOrRedirectSignInResult> {
+  captureBrowserAcquisitionContext();
+
+  if (
+    typeof window === "undefined" ||
+    isEmbeddedInAppWebView(window.navigator?.userAgent)
+  ) {
+    await signInWithOAuthProvider(provider);
+    return { mode: "redirect" };
+  }
+
+  const features = buildOAuthPopupWindowFeatures(
+    window.screen as {
+      width?: number;
+      height?: number;
+      availLeft?: number;
+      availTop?: number;
+    },
+  );
+  let popup: Window | null = null;
+  try {
+    popup = window.open("about:blank", AUTH_POPUP_WINDOW_NAME, features);
+  } catch {
+    popup = null;
+  }
+
+  if (!popup) {
+    await signInWithOAuthProvider(provider);
+    return { mode: "redirect" };
+  }
+
+  try {
+    popup.focus?.();
+  } catch {
+    /* ignore */
+  }
+
+  const supabase = createSupabaseBrowser();
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options: {
+      redirectTo: getOAuthCallbackUrl(),
+      queryParams: getOAuthQueryParams(provider),
+      skipBrowserRedirect: true,
+    },
+  });
+
+  if (error || !data?.url) {
+    try {
+      popup.close();
+    } catch {
+      /* ignore */
+    }
+    await signInWithOAuthProvider(provider);
+    return { mode: "redirect" };
+  }
+
+  popup.location.replace(data.url);
+  return { mode: "popup", popup };
 }

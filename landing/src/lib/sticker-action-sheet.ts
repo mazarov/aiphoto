@@ -78,6 +78,9 @@ export const STICKER_ACTION_FREE_DETAIL = "бесплатно";
 export const STICKER_ACTION_EXIT = "Выйти";
 
 export const STICKER_FROM_RESULT_TITLE = "Стиль стикера";
+export const STICKER_STYLE_PICKER_TITLE = "Стиль стикера";
+export const STICKER_STYLE_PICKER_CONFIRM_CTA = "Выбрать";
+export const STICKER_PACK_SET_PICKER_TITLE = "Набор";
 export const STICKER_FROM_RESULT_LEAD =
   "Стикер сделаем из этого кадра: фон уберём, останется PNG 512";
 export const STICKER_FROM_RESULT_CTA = "Сделать стикер";

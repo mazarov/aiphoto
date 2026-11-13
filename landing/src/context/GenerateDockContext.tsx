@@ -58,7 +58,14 @@ export {
 } from "@/lib/generate-dock-path";
 
 /** Blank dock editor surface — mutual exclusion SSOT for shell stretch. */
-export type GenerateDockSurface = "prompt" | "photos" | "model" | "example" | "tool" | null;
+export type GenerateDockSurface =
+  | "prompt"
+  | "photos"
+  | "model"
+  | "example"
+  | "tool"
+  | "auth"
+  | null;
 
 export type GenerateDockEntrySource =
   | "tab"

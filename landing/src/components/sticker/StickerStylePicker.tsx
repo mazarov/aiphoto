@@ -2,10 +2,13 @@
 
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
 import type { StickerStyle } from "@/lib/sticker";
+import {
+  STICKER_STYLE_PICKER_CONFIRM_CTA,
+  STICKER_STYLE_PICKER_TITLE,
+} from "@/lib/sticker-action-sheet";
 import { StickerExampleStrip } from "./StickerExampleStrip";
 
-export const STICKER_STYLE_PICKER_TITLE = "Стиль стикера";
-export const STICKER_STYLE_PICKER_CONFIRM_CTA = "Выбрать";
+export { STICKER_STYLE_PICKER_CONFIRM_CTA, STICKER_STYLE_PICKER_TITLE };
 
 type Props = {
   styles: readonly StickerStyle[];

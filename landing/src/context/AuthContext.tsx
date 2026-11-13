@@ -31,7 +31,14 @@ import {
   shouldAttemptClientAttributionPersist,
   toAttributionPersistPayload,
 } from "@/lib/traffic-source-attribution";
+import { rememberLastKnownAuthUser } from "@/lib/generate-bootstrap-client";
+import {
+  AUTH_POPUP_CHANNEL_NAME,
+  AUTH_POPUP_MESSAGE_TYPE,
+} from "@/lib/auth-popup";
 import type { User } from "@supabase/supabase-js";
+
+export { AUTH_POPUP_CHANNEL_NAME, AUTH_POPUP_MESSAGE_TYPE };
 
 export type AuthModalReason = "default" | "analyze_quota";
 
@@ -117,6 +124,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       userRef.current = nextUser;
       setUser(nextUser);
       setLoading(false);
+      rememberLastKnownAuthUser(
+        nextUser
+          ? { id: nextUser.id, isAnonymous: nextUser.is_anonymous === true }
+          : null,
+      );
       persistAttributionForUser(nextUser, persistedAttributionUserIdRef);
       if (nextUser && nextUser.is_anonymous !== true) {
         setShowAuthModal(false);
@@ -219,14 +231,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       void hydrateUser();
     };
+    const onPopupMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === AUTH_POPUP_MESSAGE_TYPE) {
+        void hydrateUser();
+      }
+    };
+    let popupChannel: BroadcastChannel | null = null;
+    if (typeof BroadcastChannel !== "undefined") {
+      try {
+        popupChannel = new BroadcastChannel(AUTH_POPUP_CHANNEL_NAME);
+        popupChannel.onmessage = (event: MessageEvent) => {
+          if (event.data?.type === AUTH_POPUP_MESSAGE_TYPE) {
+            void hydrateUser();
+          }
+        };
+      } catch {
+        popupChannel = null;
+      }
+    }
+
     window.addEventListener("pageshow", onPageShow);
     document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("message", onPopupMessage);
 
     return () => {
       cancelled = true;
       subscription.unsubscribe();
+      popupChannel?.close();
       window.removeEventListener("pageshow", onPageShow);
       document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("message", onPopupMessage);
     };
   }, []);
 
@@ -235,6 +270,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     persistedAttributionUserIdRef.current = null;
     userRef.current = null;
+    rememberLastKnownAuthUser(null);
     setUser(null);
   }, []);
 

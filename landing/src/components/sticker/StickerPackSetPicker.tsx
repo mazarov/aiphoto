@@ -1,10 +1,11 @@
 "use client";
 
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
+import { STICKER_PACK_SET_PICKER_TITLE } from "@/lib/sticker-action-sheet";
 import { stickerExampleThumbUrl } from "@/lib/sticker-examples";
 import type { StickerPackExampleClient } from "@/lib/sticker-pack-examples-client";
 
-export const STICKER_PACK_SET_PICKER_TITLE = "Набор";
+export { STICKER_PACK_SET_PICKER_TITLE };
 
 type Props = {
   packs: readonly StickerPackExampleClient[] | null;

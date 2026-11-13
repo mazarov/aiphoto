@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -11,7 +11,12 @@ import {
   isGenerateDockSeoPagePath,
   useGenerateDock,
 } from "@/context/GenerateDockContext";
-import { isAdminGenerateDockPath } from "@/lib/generate-dock-path";
+import {
+  isAdminGenerateDockPath,
+  listingComposeExampleInitialFilter,
+  listingGenerateIdleDockSurface,
+  listingGenerateIdleIntent,
+} from "@/lib/generate-dock-path";
 import { useListingScrollActivity } from "@/hooks/useListingScrollActivity";
 import { useListingIsMobile } from "@/hooks/useListingIsMobile";
 import { setListingChromeAutoHideBlocked } from "@/hooks/useListingChromeAutoHide";
@@ -19,15 +24,19 @@ import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
 import { isPrimaryOverlayDismissPointer } from "@/lib/generate-compose-job";
 import { COMPOSE_BUY_CREDITS_CTA } from "@/lib/generate-compose-mode";
 import {
-  listingGenerateIdleDockSurface,
-  listingGenerateIdleIntent,
-} from "@/lib/generate-dock-path";
-import { scheduleGenerateDockPrefetch } from "@/lib/generate-dock-prefetch";
+  prefetchGenerateDockWarmup,
+  scheduleGenerateDockPrefetch,
+} from "@/lib/generate-dock-prefetch";
+import { peekOptimisticAuthUserId } from "@/lib/generate-bootstrap-client";
 import { listingGenerateIdleCta } from "@/lib/promty-dlya-ii-fotosessii-cluster";
 import {
   reachYandexMetrikaGoal,
   YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
 } from "@/lib/yandex-metrika";
+import {
+  GenerateHostAdapterProvider,
+  type GenerateHostAdapter,
+} from "@/components/generate/host-adapter";
 
 const DOCK_MOTION =
   "motion-safe:transition-[opacity,transform,max-height] motion-safe:duration-300 motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none";
@@ -82,7 +91,10 @@ export function GenerateListingDockHost() {
   const [heroCtaInView, setHeroCtaInView] = useState(true);
   const [portalEl, setPortalEl] = useState<HTMLElement | null>(null);
 
-  const isAuthed = Boolean(user && user.is_anonymous !== true);
+  const effectiveUserId = peekOptimisticAuthUserId({ user, authLoading });
+  const isAuthed = Boolean(
+    (user && user.is_anonymous !== true) || effectiveUserId,
+  );
   const halfOpenCompose =
     plateOpen &&
     !isMobile &&
@@ -95,13 +107,26 @@ export function GenerateListingDockHost() {
     minDeltaPx: 160,
   });
 
+  const hostAdapter = useMemo<GenerateHostAdapter>(
+    () => ({
+      apiBaseUrl: "",
+      credentialsMode: "include",
+      openPricing,
+      trackGoal: (goal, params) => reachYandexMetrikaGoal(goal, params),
+      resolveInitialIntent: () => listingGenerateIdleIntent(pathname),
+      resolveInitialExampleFilter: () =>
+        listingComposeExampleInitialFilter(pathname),
+    }),
+    [openPricing, pathname],
+  );
+
   useEffect(() => {
     setPortalEl(document.body);
   }, []);
 
   useEffect(
-    () => scheduleGenerateDockPrefetch(pathname, isAuthed ? user?.id ?? null : null),
-    [isAuthed, pathname, user?.id],
+    () => scheduleGenerateDockPrefetch(pathname, effectiveUserId),
+    [effectiveUserId, pathname],
   );
 
   useEffect(() => {
@@ -163,6 +188,10 @@ export function GenerateListingDockHost() {
     setPlateLocked(false);
   }, [setPlateOpen, setDockSurface]);
 
+  const handleFabPrefetch = useCallback(() => {
+    prefetchGenerateDockWarmup(effectiveUserId);
+  }, [effectiveUserId]);
+
   const handleFabClick = useCallback(() => {
     if (needsCredits) {
       reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING);
@@ -196,12 +225,11 @@ export function GenerateListingDockHost() {
 
   if (!isGenerateDockListingPath(pathname) && !adminDock) return null;
 
-  const collapsed = authLoading || !plateOpen;
+  const collapsed = !plateOpen;
   const showFab =
     !adminDock && !isMobile && collapsed && !(seoPage && heroCtaInView);
   const keepPanelMounted =
-    !authLoading &&
-    (plateOpen || runBusy || plateLocked || dockSurface !== null);
+    plateOpen || runBusy || plateLocked || dockSurface !== null;
   const editorOpen = dockSurface !== null;
   /** Mobile tab open = always fullscreen; desktop tall for editor / result. */
   const mobileFullscreen =
@@ -211,8 +239,6 @@ export function GenerateListingDockHost() {
     keepPanelMounted &&
     (mobileFullscreen || editorOpen || plateLocked);
   const layout = isMobile ? "mobile" : "desktop";
-
-  if (isMobile && authLoading) return null;
 
   /**
    * Mobile compose host X — hide while editor sheet is open so it doesn't sit
@@ -235,7 +261,7 @@ export function GenerateListingDockHost() {
       : "pointer-events-none fixed inset-x-0 bottom-0 z-[52] px-3 pb-4 pt-2 lg:left-72 lg:px-5";
 
   const overlay = (
-    <>
+    <GenerateHostAdapterProvider value={hostAdapter}>
       {showResultScrim ? (
         <button
           type="button"
@@ -310,7 +336,7 @@ export function GenerateListingDockHost() {
                 }
               >
                 <CardInlineGeneratePanel
-                  key={seedToken}
+                  seedToken={seedToken}
                   source={seed.source}
                   chrome="dock"
                   generationSurface={seoPage ? "seo_page" : undefined}
@@ -333,6 +359,9 @@ export function GenerateListingDockHost() {
             >
               <button
                 type="button"
+                onPointerEnter={handleFabPrefetch}
+                onPointerDown={handleFabPrefetch}
+                onTouchStart={handleFabPrefetch}
                 onClick={handleFabClick}
                 aria-busy={runBusy || undefined}
                 aria-valuemin={runBusy ? 0 : undefined}
@@ -371,7 +400,7 @@ export function GenerateListingDockHost() {
           ) : null}
         </div>
       </div>
-    </>
+    </GenerateHostAdapterProvider>
   );
 
   if (isMobile && portalEl) {

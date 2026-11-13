@@ -33,6 +33,8 @@ import {
   listingGenerateIdleDockSurface,
   listingGenerateIdleIntent,
 } from "@/lib/generate-dock-path";
+import { prefetchGenerateDockTrigger } from "@/lib/generate-dock-prefetch";
+import { peekOptimisticAuthUserId } from "@/lib/generate-bootstrap-client";
 import { isListingCatalogHubGenerateCta } from "@/lib/listing-catalog-hub";
 import {
   PROMTY_DLYA_II_FOTOSESSII_GENERATE_CTA,
@@ -70,8 +72,16 @@ export function MobileTabBar() {
     runProgress: generateRunProgress,
     needsCredits: generateNeedsCredits,
   } = useGenerateDock();
-  const { user } = useAuth();
-  const isAuthed = Boolean(user && user.is_anonymous !== true);
+  const { user, loading: authLoading } = useAuth();
+  const optimisticUserId = peekOptimisticAuthUserId({ user, authLoading });
+  const isAuthed = Boolean(
+    (user && user.is_anonymous !== true) || optimisticUserId,
+  );
+  const handleGenerateTabPrefetch = useCallback(() => {
+    prefetchGenerateDockTrigger(
+      user && user.is_anonymous !== true ? user.id : optimisticUserId,
+    );
+  }, [optimisticUserId, user]);
   const generateIdleLabel = listingGenerateIdleCta({
     pathname,
     isAuthed: true,
@@ -258,6 +268,9 @@ export function MobileTabBar() {
             <div className="flex min-w-0 flex-1 flex-col items-center justify-end pb-0.5">
                 <button
                   type="button"
+                  onPointerEnter={handleGenerateTabPrefetch}
+                  onPointerDown={handleGenerateTabPrefetch}
+                  onTouchStart={handleGenerateTabPrefetch}
                   onClick={handleGenerateTab}
                   aria-label={
                     generateRunBusy

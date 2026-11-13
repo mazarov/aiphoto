@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
@@ -21,7 +22,10 @@ import {
   type AnalyzeQuotaPayload,
 } from "@/lib/image-prompt-analyze-client";
 import { noticeForUploadError, prepareUploadFile } from "@/lib/image-upload-prepare";
-import { persistPendingGenerateDock } from "@/lib/generate-dock-pending";
+import {
+  clearPendingGenerateDock,
+  persistPendingGenerateDock,
+} from "@/lib/generate-dock-pending";
 import {
   PHOTO_PROMPT_EPHEMERAL_ID,
   PHOTO_PROMPT_NEEDS_PHOTO,
@@ -46,10 +50,7 @@ import {
 } from "@/lib/generate-photo-prompt";
 import { copyTextUniversal } from "@/lib/copy-text-to-clipboard";
 import { browserAcquisitionHeaders } from "@/lib/acquisition-client-events";
-import {
-  GenerationCardMenu,
-  type GenerationMenuAction,
-} from "@/components/GenerationCardMenu";
+import type { GenerationMenuAction } from "@/components/GenerationCardMenu";
 import {
   downloadGenerationResult,
   downloadStickerPackZip,
@@ -86,7 +87,6 @@ import {
   type GenerateDockSurface,
 } from "@/context/GenerateDockContext";
 import { GenerationResultBackdrop } from "@/components/generate/GenerationResultBackdrop";
-import { ComposeExamplePicker } from "@/components/generate/ComposeExamplePicker";
 import {
   prefetchComposeExampleAudience,
   prefetchComposeExampleListing,
@@ -102,13 +102,10 @@ import {
   ComposeToolPickerTile,
 } from "@/components/generate/ComposeModeToolTile";
 import { ComposeToolGuide, StickerPickerGuide } from "@/components/generate/ComposeToolGuide";
+import { ComposeSheetShell } from "@/components/generate/ComposeSheetShell";
+import type { ComposeAuthSheetReason } from "@/components/generate/ComposeAuthSheet";
 import { GenerationResultActionRail } from "@/components/generate/GenerationResultActionRail";
 import { LowBalanceUpgradeOfferCard } from "@/components/LowBalanceUpgradeOfferCard";
-import {
-  PhotoshootFrameFilm,
-  PhotoshootOverlay,
-} from "@/components/generate/PhotoshootOverlay";
-import { PricingEntryLink } from "@/components/PricingEntryLink";
 import {
   reachYandexMetrikaGoal,
   YM_GOAL_PHOTOSHOOT_BUSY,
@@ -209,27 +206,9 @@ import {
 import { splitVideoCatalogPrompt } from "@/lib/video-catalog-prompt";
 import { LISTING_VIDEO_REPEAT_KIND } from "@/lib/listing-video-repeat";
 import {
-  extractVideoMotionSection,
-  looksLikeStructuredPhotoPrompt,
-} from "@/lib/video-motion-prompt";
-import {
   calculateVideoCreditCost,
   videoDurationExtraCredits,
 } from "@/lib/video-generation-contract";
-import {
-  readCachedVideoAnimateEnabled,
-  writeCachedVideoAnimateEnabled,
-} from "@/lib/video-animate-availability";
-import {
-  optimisticPhotoshootEnabled,
-  readCachedPhotoshootEnabled,
-  writeCachedPhotoshootEnabled,
-} from "@/lib/photoshoot-availability";
-import {
-  optimisticStickerEnabled,
-  readCachedStickerEnabled,
-  writeCachedStickerEnabled,
-} from "@/lib/sticker-availability";
 import {
   STICKER_PACK_DEFAULT_CREDIT_COST,
   STICKER_PACK_EDIT_KIND,
@@ -259,19 +238,17 @@ import {
   STICKER_FROM_RESULT_RAIL,
   STICKER_FROM_RESULT_RAIL_DETAIL,
   STICKER_FROM_RESULT_RESTYLE,
+  STICKER_PACK_SET_PICKER_TITLE,
+  STICKER_STYLE_PICKER_CONFIRM_CTA,
+  STICKER_STYLE_PICKER_TITLE,
   type StickerResultAction,
 } from "@/lib/sticker-action-sheet";
-import { StickerPackSetPicker, STICKER_PACK_SET_PICKER_TITLE } from "@/components/sticker/StickerPackSetPicker";
-import { StickerStylePicker, STICKER_STYLE_PICKER_CONFIRM_CTA, STICKER_STYLE_PICKER_TITLE } from "@/components/sticker/StickerStylePicker";
 import {
   loadStickerPackExamplesClient,
   peekStickerPackExamples,
   type StickerPackExampleClient,
 } from "@/lib/sticker-pack-examples-client";
-import { StickerActionSheet } from "@/components/sticker/StickerActionSheet";
-import { StickerFromResultSheet } from "@/components/sticker/StickerFromResultSheet";
-import { StickerBorderSheet } from "@/components/sticker/StickerBorderSheet";
-import { StickerDownloadSheet, type StickerDownloadTarget } from "@/components/sticker/StickerDownloadSheet";
+import type { StickerDownloadTarget } from "@/components/sticker/StickerDownloadSheet";
 import {
   PHOTOSHOOT_CTA_LABEL,
   PHOTOSHOOT_CREDIT_COST,
@@ -310,6 +287,15 @@ import {
   warmupPhotoPreviewImages,
   writeCachedUserGenerationPhotos,
 } from "@/lib/user-generation-photos-cache";
+import {
+  fetchGenerateBootstrap,
+  peekOptimisticAuthUserId,
+  readFrameZeroGenerateState,
+  snapshotFromBootstrapPayload,
+  updateCachedGenerateUserCredits,
+} from "@/lib/generate-bootstrap-client";
+import { computeSeedSyncTransition } from "@/lib/generate-panel-seed-sync";
+import { useGenerateHostAdapter } from "@/components/generate/host-adapter";
 import { isStickerGenerateDockPath, listingComposeExampleInitialFilter } from "@/lib/generate-dock-path";
 import {
   composePhotosPreviewUrls,
@@ -330,7 +316,6 @@ import {
   COMPOSE_PICK_IMAGE_MODEL_CTA,
   composeNeedsImageModelPick,
   composeShouldAutoOpenModelSheet,
-  hasCompletedImageGenerationFromList,
   readSessionChosenImageModel,
   writeSessionChosenImageModel,
 } from "@/lib/compose-image-model";
@@ -339,6 +324,144 @@ import {
   composeToolGuideHidesPromptStrip,
   composeToolGuideVisible,
 } from "@/lib/compose-tool-guide";
+
+const ComposeExamplePicker = dynamic(
+  () =>
+    import("@/components/generate/ComposeExamplePicker").then(
+      (mod) => mod.ComposeExamplePicker,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        className="flex min-h-0 flex-1 items-center justify-center text-[13px] opacity-60"
+        aria-busy="true"
+      >
+        Загружаем образы…
+      </div>
+    ),
+  },
+);
+
+const StickerPackSetPicker = dynamic(
+  () =>
+    import("@/components/sticker/StickerPackSetPicker").then(
+      (mod) => mod.StickerPackSetPicker,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="min-h-[8rem] w-full rounded-2xl bg-white/5" aria-busy="true" />
+    ),
+  },
+);
+
+const StickerStylePicker = dynamic(
+  () =>
+    import("@/components/sticker/StickerStylePicker").then(
+      (mod) => mod.StickerStylePicker,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        className="flex min-h-0 flex-1 items-center justify-center text-[13px] opacity-60"
+        aria-busy="true"
+      >
+        Загружаем стили…
+      </div>
+    ),
+  },
+);
+
+const StickerActionSheet = dynamic(
+  () =>
+    import("@/components/sticker/StickerActionSheet").then(
+      (mod) => mod.StickerActionSheet,
+    ),
+  { ssr: false },
+);
+
+const StickerFromResultSheet = dynamic(
+  () =>
+    import("@/components/sticker/StickerFromResultSheet").then(
+      (mod) => mod.StickerFromResultSheet,
+    ),
+  { ssr: false },
+);
+
+const StickerBorderSheet = dynamic(
+  () =>
+    import("@/components/sticker/StickerBorderSheet").then(
+      (mod) => mod.StickerBorderSheet,
+    ),
+  { ssr: false },
+);
+
+const StickerDownloadSheet = dynamic(
+  () =>
+    import("@/components/sticker/StickerDownloadSheet").then(
+      (mod) => mod.StickerDownloadSheet,
+    ),
+  { ssr: false },
+);
+
+const PhotoshootOverlay = dynamic(
+  () =>
+    import("@/components/generate/PhotoshootOverlay").then(
+      (mod) => mod.PhotoshootOverlay,
+    ),
+  { ssr: false },
+);
+
+const PhotoshootFrameFilm = dynamic(
+  () =>
+    import("@/components/generate/PhotoshootOverlay").then(
+      (mod) => mod.PhotoshootFrameFilm,
+    ),
+  { ssr: false },
+);
+
+const GenerationCardMenu = dynamic(
+  () =>
+    import("@/components/GenerationCardMenu").then(
+      (mod) => mod.GenerationCardMenu,
+    ),
+  { ssr: false },
+);
+
+const ComposeAuthSheet = dynamic(
+  () =>
+    import("@/components/generate/ComposeAuthSheet").then(
+      (mod) => mod.ComposeAuthSheet,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        className="flex min-h-0 flex-1 items-center justify-center text-[13px] opacity-60"
+        aria-busy="true"
+      >
+        Загружаем вход…
+      </div>
+    ),
+  },
+);
+
+function preloadExampleSheetChunks(stickerMode: boolean, packMode: boolean): void {
+  if (stickerMode) {
+    void import("@/components/sticker/StickerStylePicker");
+    if (packMode) {
+      void import("@/components/sticker/StickerPackSetPicker");
+    }
+    return;
+  }
+  void import("@/components/generate/ComposeExamplePicker");
+}
+
+function preloadGenerationMenuChunk(): void {
+  void import("@/components/GenerationCardMenu");
+}
 
 type ModelOpt = { id: string; label: string; cost: number };
 type RatioOpt = { value: string; label: string };
@@ -357,6 +480,8 @@ type UserPhoto = {
 type Phase = GenerateComposeJobPhase;
 
 type Props = {
+  /** Monotonic seed counter from GenerateDockContext — syncs in-place without unmounting. */
+  seedToken?: number;
   /** card = remix from prompt card; blank = freeform compose (/generate, tab) */
   source?: "card" | "blank";
   /**
@@ -388,6 +513,7 @@ type Props = {
 const POLL_MS = 2500;
 
 export function CardInlineGeneratePanel({
+  seedToken = 0,
   source = "card",
   chrome = "fullscreen",
   promptText = "",
@@ -401,9 +527,16 @@ export function CardInlineGeneratePanel({
   generationSurface,
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { user, openAuthModal } = useAuth();
-  const { open: openPricing } = usePricingModal();
-  const isAuthed = Boolean(user && user.is_anonymous !== true);
+  const hostAdapter = useGenerateHostAdapter();
+  const { user, loading: authLoading } = useAuth();
+  const { open: openPricingModal } = usePricingModal();
+  const openPricing = hostAdapter.openPricing || openPricingModal;
+  const optimisticUserId = peekOptimisticAuthUserId({ user, authLoading });
+  const effectiveUserId =
+    user && user.is_anonymous !== true ? user.id : optimisticUserId;
+  const isAuthed = Boolean(effectiveUserId);
+  const [authSheetReason, setAuthSheetReason] =
+    useState<ComposeAuthSheetReason>("default");
   const {
     setPlateOpen: setDockPlateOpen,
     reportRunProgress,
@@ -421,110 +554,167 @@ export function CardInlineGeneratePanel({
   } = useGenerateDock();
   const isDock = chrome === "dock";
   const isBlank = source === "blank";
+  const pathname = usePathname();
   const resolvedCardIdFromSeed = cardId;
-  const [pickedExampleCardId, setPickedExampleCardId] = useState<string | null>(
-    () => cardId || null,
-  );
-  const [pickedExamplePreviewUrl, setPickedExamplePreviewUrl] = useState<string | null>(
-    () => seed.examplePreviewUrl ?? null,
-  );
-  const resolvedCardId = pickedExampleCardId ?? resolvedCardIdFromSeed ?? null;
   const resolvedGenerationSurface =
     generationSurface || "prompt_card";
   const dockControlled = isDock && typeof onDockSurfaceChange === "function";
 
-  const [models, setModels] = useState<ModelOpt[]>([]);
-  const [aspectRatios, setAspectRatios] = useState<RatioOpt[]>([]);
-  const [imageSizes, setImageSizes] = useState<SizeOpt[]>([]);
-  const [model, setModel] = useState("");
-  const [aspectRatio, setAspectRatio] = useState(DEFAULT_IMAGE_ASPECT_RATIO);
-  const [imageSize, setImageSize] = useState(DEFAULT_IMAGE_SIZE);
+  const initialBootRef = useRef<ReturnType<typeof readFrameZeroGenerateState> | null>(
+    null,
+  );
+  if (initialBootRef.current === null) {
+    initialBootRef.current = readFrameZeroGenerateState({
+      userId: effectiveUserId,
+      pathname:
+        pathname ||
+        (typeof window !== "undefined" ? window.location.pathname : null),
+      preferredModelId,
+      seed,
+    });
+  }
+  const initialBoot = initialBootRef.current;
+
+  const initialSeedSyncRef = useRef<ReturnType<
+    typeof computeSeedSyncTransition
+  > | null>(null);
+  if (initialSeedSyncRef.current === null) {
+    initialSeedSyncRef.current = computeSeedSyncTransition({
+      seed: {
+        ...seed,
+        source,
+        promptText,
+        cardId,
+      },
+      pathname,
+      isDock,
+      isAuthed,
+      lastDockResult,
+      lastDockResultDismissed,
+    });
+  }
+  const initialSeedSync = initialSeedSyncRef.current;
+
+  const [pickedExampleCardId, setPickedExampleCardId] = useState<string | null>(
+    () => initialSeedSync.pickedExampleCardId,
+  );
+  const [pickedExamplePreviewUrl, setPickedExamplePreviewUrl] = useState<
+    string | null
+  >(() => initialSeedSync.pickedExamplePreviewUrl);
+  const resolvedCardId = pickedExampleCardId ?? resolvedCardIdFromSeed ?? null;
+
+  const [models, setModels] = useState<ModelOpt[]>(() => initialBoot.models);
+  const [aspectRatios, setAspectRatios] = useState<RatioOpt[]>(
+    () => initialBoot.aspectRatios,
+  );
+  const [imageSizes, setImageSizes] = useState<SizeOpt[]>(
+    () => initialBoot.imageSizes,
+  );
+  const [model, setModel] = useState(() => initialBoot.model);
+  const [aspectRatio, setAspectRatio] = useState(() => initialBoot.aspectRatio);
+  const [imageSize, setImageSize] = useState(() => initialBoot.imageSize);
   const [configError, setConfigError] = useState("");
-  const [maxPhotos, setMaxPhotos] = useState(10);
-  const pathname = usePathname();
+  const [maxPhotos, setMaxPhotos] = useState(() => initialBoot.maxPhotos);
   /** `/stiker-iz-foto`: dock is the sticker tool for guests and signed-in users. */
-  const [composeMode, setComposeMode] = useState<GenerateComposeMode>(() =>
-    isStickerGenerateDockPath(pathname || "") ? "sticker" : composeModeFromDockIntent(seed.intent)
+  const [composeMode, setComposeMode] = useState<GenerateComposeMode>(
+    () => initialSeedSync.composeMode,
   );
   const [analyzeQuota, setAnalyzeQuota] = useState<AnalyzeQuotaPayload | null>(
-    null
+    null,
   );
   const [videoEnabled, setVideoEnabled] = useState(
-    () => readCachedVideoAnimateEnabled() === true
+    () => initialBoot.videoEnabled,
   );
-  const [listingVideoRepeatEnabled, setListingVideoRepeatEnabled] = useState(false);
-  const [composeExampleMatchEnabled, setComposeExampleMatchEnabled] =
-    useState(false);
+  const [listingVideoRepeatEnabled, setListingVideoRepeatEnabled] = useState(
+    () => initialBoot.listingVideoRepeatEnabled,
+  );
+  const [composeExampleMatchEnabled, setComposeExampleMatchEnabled] = useState(
+    () => initialBoot.composeExampleMatchEnabled,
+  );
   const [photoshootComposeExampleEnabled, setPhotoshootComposeExampleEnabled] =
-    useState(false);
-  const [photoshootEnabled, setPhotoshootEnabled] = useState(() =>
-    optimisticPhotoshootEnabled({
-      pathname: typeof window !== "undefined" ? window.location.pathname : null,
-      cached: readCachedPhotoshootEnabled(),
-    })
+    useState(() => initialBoot.photoshootComposeExampleEnabled);
+  const [photoshootEnabled, setPhotoshootEnabled] = useState(
+    () => initialBoot.photoshootEnabled,
   );
-  const [stickerEnabled, setStickerEnabled] = useState(() =>
-    optimisticStickerEnabled({
-      pathname: typeof window !== "undefined" ? window.location.pathname : null,
-      cached: readCachedStickerEnabled(),
-    })
+  const [stickerEnabled, setStickerEnabled] = useState(
+    () => initialBoot.stickerEnabled,
   );
-  const [stickerFromResultEnabled, setStickerFromResultEnabled] = useState(false);
+  const [stickerFromResultEnabled, setStickerFromResultEnabled] = useState(
+    () => initialBoot.stickerFromResultEnabled,
+  );
   const [stickerFromResultOpen, setStickerFromResultOpen] = useState(false);
-  const [stickerFromResultParentId, setStickerFromResultParentId] = useState<string | null>(null);
+  const [stickerFromResultParentId, setStickerFromResultParentId] = useState<
+    string | null
+  >(null);
   /** «Сменить стиль» cuts the sticker on screen; «Сделать стикер» cuts the photo. */
-  const [stickerStyleSheetMode, setStickerStyleSheetMode] = useState<"photo" | "restyle" | null>(null);
+  const [stickerStyleSheetMode, setStickerStyleSheetMode] = useState<
+    "photo" | "restyle" | null
+  >(null);
   const [stickerStyleId, setStickerStyleId] = useState(DEFAULT_STICKER_STYLE_ID);
-  const [stickerModelId, setStickerModelId] = useState(GPT_IMAGE_25_FLARE_IMAGE_MODEL);
-  const [stickerCost, setStickerCost] = useState<number | null>(GPT_IMAGE_25_FLARE_CREDIT_COST);
+  const [stickerModelId, setStickerModelId] = useState(
+    () => initialBoot.stickerModelId,
+  );
+  const [stickerCost, setStickerCost] = useState<number | null>(
+    () => initialBoot.stickerCost,
+  );
   /** From generation-config: flag on, or this email is on the internal allowlist. */
-  const [stickerPackEnabled, setStickerPackEnabled] = useState(false);
-  const [stickerPackCreditCost, setStickerPackCreditCost] = useState(STICKER_PACK_DEFAULT_CREDIT_COST);
-  const [stickerCatalog, setStickerCatalog] = useState<StickerCatalogClient | null>(() => peekStickerCatalog());
+  const [stickerPackEnabled, setStickerPackEnabled] = useState(
+    () => initialBoot.stickerPackEnabled,
+  );
+  const [stickerPackCreditCost, setStickerPackCreditCost] = useState(
+    () => initialBoot.stickerPackCreditCost,
+  );
+  const [stickerCatalog, setStickerCatalog] =
+    useState<StickerCatalogClient | null>(() => peekStickerCatalog());
   const [stickerCatalogLoading, setStickerCatalogLoading] = useState(false);
-  const [stickerPacks, setStickerPacks] = useState<StickerPackExampleClient[] | null>(() => peekStickerPackExamples());
+  const [stickerPacks, setStickerPacks] = useState<
+    StickerPackExampleClient[] | null
+  >(() => peekStickerPackExamples());
   /** «Стикер» tool: one sticker or a pack. Pack enqueue follows `stickerPackEnabled`. */
   const [stickerKind, setStickerKind] = useState<StickerToolKind>("single");
   const [stickerPackSetId, setStickerPackSetId] = useState<string | null>(null);
   /** Open result action («emotion» / «motion» / «text») on a finished sticker. */
-  const [stickerActionOpen, setStickerActionOpen] = useState<StickerResultAction | null>(null);
+  const [stickerActionOpen, setStickerActionOpen] =
+    useState<StickerResultAction | null>(null);
   const [stickerDownloadOpen, setStickerDownloadOpen] = useState(false);
-  const [stickerDownloadBusy, setStickerDownloadBusy] = useState<StickerDownloadTarget | null>(null);
-  const [stickerDownloadError, setStickerDownloadError] = useState<string | null>(null);
+  const [stickerDownloadBusy, setStickerDownloadBusy] =
+    useState<StickerDownloadTarget | null>(null);
+  const [stickerDownloadError, setStickerDownloadError] = useState<
+    string | null
+  >(null);
   const [stickerTextBusy, setStickerTextBusy] = useState(false);
   const [stickerBorderBusy, setStickerBorderBusy] = useState(false);
   const [stickerBorderOpen, setStickerBorderOpen] = useState(false);
   const stickerStyleTouchedRef = useRef(false);
   const [photoshootOpen, setPhotoshootOpen] = useState(false);
-  const [photoshootSourceId, setPhotoshootSourceId] = useState<string | null>(null);
-  const [photoshootSourceUrl, setPhotoshootSourceUrl] = useState<string | null>(null);
-  const [photoshootLibraryPath, setPhotoshootLibraryPath] = useState<string | null>(null);
+  const [photoshootSourceId, setPhotoshootSourceId] = useState<string | null>(
+    null,
+  );
+  const [photoshootSourceUrl, setPhotoshootSourceUrl] = useState<string | null>(
+    null,
+  );
+  const [photoshootLibraryPath, setPhotoshootLibraryPath] = useState<
+    string | null
+  >(null);
   const [photoshootTileUrls, setPhotoshootTileUrls] = useState<string[] | null>(
-    () =>
-      photoshootTileUrlsFromUnknown(seed.photoshootTileUrls) ||
-      photoshootTileUrlsFromUnknown(lastDockResult?.photoshootTileUrls)
+    () => initialSeedSync.photoshootTileUrls,
   );
   const [resultEditKind, setResultEditKind] = useState<string | null>(
-    () => seed.editKind || lastDockResult?.editKind || null
+    () => initialSeedSync.resultEditKind,
   );
   const photoshootDismissedRef = useRef(false);
   const photoshootPollAbortRef = useRef<AbortController | null>(null);
-  const [videoModels, setVideoModels] = useState<ModelOpt[]>([]);
-  const [videoModel, setVideoModel] = useState(
-    () =>
-      (user?.id ? readCachedGenerationPreferences(user.id)?.videoModel : null) ||
-      DEFAULT_VIDEO_MODEL,
+  const [videoModels, setVideoModels] = useState<ModelOpt[]>(
+    () => initialBoot.videoModels,
   );
-  const [videoAspectRatio, setVideoAspectRatio] = useState(DEFAULT_VIDEO_ASPECT_RATIO);
+  const [videoModel, setVideoModel] = useState(() => initialBoot.videoModel);
+  const [videoAspectRatio, setVideoAspectRatio] = useState(
+    () => initialBoot.videoAspectRatio,
+  );
   const [videoDurationSeconds, setVideoDurationSeconds] = useState(
-    () =>
-      user?.id
-        ? readCachedGenerationPreferences(user.id)?.videoDurationSeconds ??
-          DEFAULT_VIDEO_DURATION_SECONDS
-        : DEFAULT_VIDEO_DURATION_SECONDS,
+    () => initialBoot.videoDurationSeconds,
   );
   const seededResult = isCompletedResultSeed(seed);
-  const seededPhotoPrompt = seed.intent === "photo_prompt" && Boolean(seed.previewUrl);
   const restoredLastResult =
     !seededResult &&
     isDock &&
@@ -539,66 +729,88 @@ export function CardInlineGeneratePanel({
       ? lastDockResult
       : null;
   const [resultModality, setResultModality] = useState<"image" | "video">(
-    seededResult
-      ? seed.resultModality === "video"
-        ? "video"
-        : "image"
-      : restoredLastResult?.modality === "video"
-        ? "video"
-        : "image"
+    () => initialSeedSync.resultModality,
   );
   const [animateParentId, setAnimateParentId] = useState<string | null>(
-    seed.parentGenerationId || null
+    () => initialSeedSync.animateParentId,
   );
   const [animatePreviewUrl, setAnimatePreviewUrl] = useState<string | null>(
-    seed.previewUrl || null
+    () => initialSeedSync.animatePreviewUrl,
   );
-  const [scenarioLoading, setScenarioLoading] = useState(seed.intent === "animate");
+  const [scenarioLoading, setScenarioLoading] = useState(
+    () => initialSeedSync.scenarioLoading,
+  );
   const scenarioRequestRef = useRef(0);
-  const [preferencesHydrated, setPreferencesHydrated] = useState(false);
-  const [hasCompletedImageGeneration, setHasCompletedImageGeneration] = useState(
-    () =>
-      Boolean(restoredLastResult && restoredLastResult.modality !== "video"),
+  const [preferencesHydrated, setPreferencesHydrated] = useState(
+    () => Boolean(effectiveUserId) && initialBoot.libraryHydratedFromCache,
   );
-  const [preserveOutfit, setPreserveOutfit] = useState(false);
-  const [preserveOutfitEnabled, setPreserveOutfitEnabled] = useState(false);
-  const [credits, setCredits] = useState<number | null>(null);
+  const [hasCompletedImageGeneration, setHasCompletedImageGeneration] =
+    useState(
+      () =>
+        initialBoot.hasCompletedImageGeneration ||
+        Boolean(restoredLastResult && restoredLastResult.modality !== "video"),
+    );
+  const [preserveOutfit, setPreserveOutfit] = useState(
+    () => initialBoot.preserveOutfit,
+  );
+  const [preserveOutfitEnabled, setPreserveOutfitEnabled] = useState(
+    () => initialBoot.preserveOutfitEnabled,
+  );
+  const [credits, setCredits] = useState<number | null>(
+    () => initialBoot.credits,
+  );
 
   const [photos, setPhotos] = useState<UserPhoto[]>(() => {
-    if (!isAuthed || !user?.id) return [];
-    return readCachedUserGenerationPhotos(user.id) ?? [];
+    const pendingDataUrl =
+      seed.intent === "photo_prompt" || seed.attachIdentityPhoto
+        ? resolvePhotoPromptAnalyzeSource({
+            seedPreviewUrl: seed.previewUrl,
+          })?.dataUrl || ""
+        : "";
+    const ephemeral = pendingDataUrl
+      ? makeEphemeralPhotoPromptPhoto(pendingDataUrl)
+      : null;
+    return mergeLibraryHydratePhotos({
+      incomingLibrary: initialBoot.photos,
+      current: [],
+      pendingEphemeral: ephemeral,
+    });
   });
-  const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
+  const [hasMorePhotos, setHasMorePhotos] = useState(
+    () => initialBoot.hasMorePhotos,
+  );
+  const loadingMorePhotosRef = useRef(false);
+  const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(() => {
+    const pendingDataUrl =
+      seed.intent === "photo_prompt" || seed.attachIdentityPhoto
+        ? resolvePhotoPromptAnalyzeSource({
+            seedPreviewUrl: seed.previewUrl,
+          })?.dataUrl || ""
+        : "";
+    if (pendingDataUrl) {
+      return new Set([PHOTO_PROMPT_EPHEMERAL_ID]);
+    }
+    return new Set(initialBoot.selectedPhotoIds);
+  });
   const photosRef = useRef(photos);
   photosRef.current = photos;
   const selectedPhotoIdsRef = useRef(selectedPhotoIds);
   selectedPhotoIdsRef.current = selectedPhotoIds;
-  const persistEphemeralInFlightRef = useRef<Promise<UserPhoto | null> | null>(null);
+  const persistEphemeralInFlightRef = useRef<Promise<UserPhoto | null> | null>(
+    null,
+  );
   const prefsDirtyRef = useRef(false);
   const skipNextPrefsPersistRef = useRef(false);
   const seedIntentRef = useRef(seed.intent);
   seedIntentRef.current = seed.intent;
-  const [libraryLoading, setLibraryLoading] = useState(() => {
-    if (!isAuthed || !user?.id) return false;
-    return readCachedUserGenerationPhotos(user.id) === null;
-  });
+  const [libraryLoading, setLibraryLoading] = useState(
+    () => Boolean(effectiveUserId) && !initialBoot.libraryHydratedFromCache,
+  );
   const [libraryUploading, setLibraryUploading] = useState(false);
   const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
 
-  const [phase, setPhase] = useState<Phase>(
-    seededResult || restoredLastResult
-      ? "done"
-      : seededPhotoPrompt
-        ? "generating"
-        : "idle"
-  );
-  const phaseRef = useRef<Phase>(
-    seededResult || restoredLastResult
-      ? "done"
-      : seededPhotoPrompt
-        ? "generating"
-        : "idle"
-  );
+  const [phase, setPhase] = useState<Phase>(() => initialSeedSync.phase);
+  const phaseRef = useRef<Phase>(initialSeedSync.phase);
   const generateInFlightRef = useRef(false);
   const [starting, setStarting] = useState(false);
   /**
@@ -611,23 +823,19 @@ export function CardInlineGeneratePanel({
   const generationIdRef = useRef<string | null>(null);
   const [error, setError] = useState("");
   const [needsCredits, setNeedsCredits] = useState(false);
-  const [progress, setProgress] = useState(restoredLastResult || seededResult ? 100 : 0);
+  const [progress, setProgress] = useState(() => initialSeedSync.progress);
   const [resultUrl, setResultUrl] = useState<string | null>(
-    seededResult || seededPhotoPrompt
-      ? seed.previewUrl || null
-      : restoredLastResult?.resultUrl ?? null
+    () => initialSeedSync.resultUrl,
   );
   const photoPromptDataUrlRef = useRef<string | null>(null);
   const [resultPreviewOpen, setResultPreviewOpen] = useState(false);
   const [generationId, setGenerationId] = useState<string | null>(
-    seededResult
-      ? seed.resultGenerationId || null
-      : restoredLastResult?.generationId ?? null
+    () => initialSeedSync.generationId,
   );
   resultUrlRef.current = resultUrl;
   generationIdRef.current = generationId;
   const [draftPrompt, setDraftPrompt] = useState(
-    promptText || restoredLastResult?.promptText || ""
+    () => initialSeedSync.draftPrompt,
   );
   const draftPromptRef = useRef(draftPrompt);
   draftPromptRef.current = draftPrompt;
@@ -730,26 +938,24 @@ export function CardInlineGeneratePanel({
     [isAuthed]
   );
   const [submittedPrompt, setSubmittedPrompt] = useState(
-    seededResult
-      ? seed.promptText.trim()
-      : restoredLastResult?.promptText.trim() || ""
+    () => initialSeedSync.submittedPrompt,
   );
   const [menuOpen, setMenuOpen] = useState(false);
   const [busyAction, setBusyAction] = useState<GenerationMenuAction | null>(null);
   const [isPublished, setIsPublished] = useState(
-    Boolean(
-      (seededResult && seed.isPublished) || restoredLastResult?.isPublished
-    )
+    () => initialSeedSync.isPublished,
   );
   const [moderationStatus, setModerationStatus] = useState<CardModerationStatus>("none");
   const [publishedSlug, setPublishedSlug] = useState<string | null>(null);
   const [cardRepeatReward, setCardRepeatReward] = useState<CardRepeatRewardConfig>(
-    DEFAULT_CARD_REPEAT_REWARD_CONFIG,
+    () => initialBoot.cardRepeatReward,
   );
-  const [publishHidden, setPublishHidden] = useState(false);
+  const [publishHidden, setPublishHidden] = useState(
+    () => initialBoot.publishHidden,
+  );
   const [toast, setToast] = useState("");
   const [expandedControlLocal, setExpandedControlLocal] = useState<
-    "photos" | "model" | "example" | "tool" | null
+    "photos" | "model" | "example" | "tool" | "auth" | null
   >(null);
   const [promptExpandedLocal, setPromptExpandedLocal] = useState(false);
 
@@ -764,7 +970,8 @@ export function CardInlineGeneratePanel({
     activeDockSurface === "photos" ||
     activeDockSurface === "model" ||
     activeDockSurface === "example" ||
-    activeDockSurface === "tool"
+    activeDockSurface === "tool" ||
+    activeDockSurface === "auth"
       ? activeDockSurface
       : null;
 
@@ -778,7 +985,13 @@ export function CardInlineGeneratePanel({
       if (value === "prompt") {
         setExpandedControlLocal(null);
         setPromptExpandedLocal(true);
-      } else if (value === "photos" || value === "model" || value === "example" || value === "tool") {
+      } else if (
+        value === "photos" ||
+        value === "model" ||
+        value === "example" ||
+        value === "tool" ||
+        value === "auth"
+      ) {
         setPromptExpandedLocal(false);
         setExpandedControlLocal(value);
       } else {
@@ -804,10 +1017,11 @@ export function CardInlineGeneratePanel({
         | "model"
         | "example"
         | "tool"
+        | "auth"
         | null
         | ((
-            prev: "photos" | "model" | "example" | "tool" | null,
-          ) => "photos" | "model" | "example" | "tool" | null)
+            prev: "photos" | "model" | "example" | "tool" | "auth" | null,
+          ) => "photos" | "model" | "example" | "tool" | "auth" | null)
     ) => {
       const prev = expandedControl;
       const value = typeof next === "function" ? next(prev) : next;
@@ -894,6 +1108,21 @@ export function CardInlineGeneratePanel({
     setError("");
   }, [restoreImagePromptFromVideo]);
 
+  const openInlineAuthSheet = useCallback(
+    (reason: ComposeAuthSheetReason = "default") => {
+      setError("");
+      setAuthSheetReason(reason);
+      setDockSurface("auth");
+    },
+    [setDockSurface],
+  );
+
+  useEffect(() => {
+    if (!isAuthed) {
+      void import("@/components/generate/ComposeAuthSheet");
+    }
+  }, [isAuthed]);
+
   const runPhotoPromptAnalyze = useCallback(
     async (dataUrl: string, previewUrl: string) => {
       photoPromptDataUrlRef.current = dataUrl;
@@ -917,8 +1146,13 @@ export function CardInlineGeneratePanel({
         if (!result.ok) {
           if (result.authRequired) {
             reachYandexMetrikaGoal(YM_GOAL_ANALYZE_AUTH_REQUIRED);
-            openAuthModal("analyze_quota");
-          } else if (result.noCredits) {
+            setResultUrl(null);
+            setPhase("idle");
+            phaseRef.current = "idle";
+            openInlineAuthSheet("analyze_quota");
+            return;
+          }
+          if (result.noCredits) {
             reachYandexMetrikaGoal(YM_GOAL_ANALYZE_NO_CREDITS);
             openPricing();
           }
@@ -953,8 +1187,31 @@ export function CardInlineGeneratePanel({
         phaseRef.current = "error";
       }
     },
-    [enterImageCompose, openAuthModal, openPricing, setDockPlateOpen, setDockSurface]
+    [enterImageCompose, openInlineAuthSheet, openPricing, setDockPlateOpen, setDockSurface]
   );
+
+  /**
+   * When inline Popup OAuth completes without page reload, close the auth sheet
+   * and seamlessly resume any pending quota-blocked analyze or model pick.
+   */
+  useEffect(() => {
+    if (!isAuthed || expandedControl !== "auth") return;
+    clearPendingGenerateDock();
+    const reason = authSheetReason;
+    setAuthSheetReason("default");
+    setExpandedControl(null);
+    if (
+      reason === "analyze_quota" &&
+      composeModeRef.current === "photo_prompt" &&
+      photoPromptDataUrlRef.current
+    ) {
+      const dataUrl = photoPromptDataUrlRef.current;
+      void runPhotoPromptAnalyze(dataUrl, dataUrl);
+      return;
+    }
+    maybeOpenImageModelSheet();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run on auth transition while auth sheet is open
+  }, [authSheetReason, expandedControl, isAuthed]);
 
   const [changeRequest, setChangeRequest] = useState("");
   const [remixing, setRemixing] = useState(false);
@@ -1063,6 +1320,142 @@ export function CardInlineGeneratePanel({
     setPickedExamplePreviewUrl(cardId ? seed.examplePreviewUrl ?? null : null);
   }, [cardId, promptText, seed.examplePreviewUrl]);
 
+  /**
+   * In-place seed synchronization when `seedToken` advances without remounting
+   * the panel. Keeps warm models, library photos, credits, and sticker catalog.
+   */
+  const prevSeedTokenRef = useRef(seedToken);
+  useEffect(() => {
+    if (prevSeedTokenRef.current === seedToken) return;
+    prevSeedTokenRef.current = seedToken;
+    if (generateInFlightRef.current) return;
+
+    const transition = computeSeedSyncTransition({
+      seed: {
+        ...seed,
+        source,
+        promptText,
+        cardId,
+      },
+      pathname,
+      isDock,
+      isAuthed,
+      lastDockResult,
+      lastDockResultDismissed,
+    });
+
+    suppressResultHydrateRef.current = false;
+    scenarioRequestRef.current += 1;
+    setError("");
+    setNeedsCredits(false);
+    setMenuOpen(false);
+    setChangeRequest("");
+    setBlankChangeOpen(false);
+    setPendingRemixEdit(null);
+    setStickerFromResultOpen(false);
+    setStickerFromResultParentId(null);
+    setStickerActionOpen(null);
+    setStickerBorderOpen(false);
+    setStickerDownloadOpen(false);
+    setPhotoshootOpen(false);
+    setPhotoshootSourceId(null);
+    setPhotoshootSourceUrl(null);
+    setPhotoshootLibraryPath(null);
+    setResultPreviewOpen(false);
+
+    setComposeMode(transition.composeMode);
+    setPhase(transition.phase);
+    phaseRef.current = transition.phase;
+    setProgress(transition.progress);
+    setDraftPrompt(transition.draftPrompt);
+    setSubmittedPrompt(transition.submittedPrompt);
+    setPickedExampleCardId(transition.pickedExampleCardId);
+    setPickedExamplePreviewUrl(transition.pickedExamplePreviewUrl);
+    setGenerationId(transition.generationId);
+    setResultUrl(transition.resultUrl);
+    setResultModality(transition.resultModality);
+    setIsPublished(transition.isPublished);
+    setModerationStatus("none");
+    setPublishedSlug(null);
+    setResultEditKind(transition.resultEditKind);
+    setPhotoshootTileUrls(transition.photoshootTileUrls);
+    setAnimateParentId(transition.animateParentId);
+    setAnimatePreviewUrl(transition.animatePreviewUrl);
+    setScenarioLoading(transition.scenarioLoading);
+
+    lastImageResultRef.current = rememberCompletedImageResult({
+      generationId: transition.generationId,
+      resultUrl: transition.resultUrl,
+      resultModality: transition.resultModality,
+      previous: lastImageResultRef.current,
+    });
+    promptStashRef.current = emptyComposePromptStash({
+      imagePrompt: seed.intent === "animate" ? "" : transition.draftPrompt,
+      videoPrompt:
+        seed.intent === "animate" &&
+        transition.draftPrompt.trim() &&
+        !isGenericVideoPrompt(transition.draftPrompt)
+          ? transition.draftPrompt
+          : "",
+      lastScenarioKey:
+        seed.intent === "animate"
+          ? composeVideoScenarioKey({
+              parentGenerationId: seed.parentGenerationId,
+            })
+          : null,
+    });
+
+    const pendingDataUrl =
+      seed.intent === "photo_prompt" || seed.attachIdentityPhoto
+        ? resolvePhotoPromptAnalyzeSource({
+            seedPreviewUrl: seed.previewUrl,
+          })?.dataUrl || ""
+        : "";
+    const seedEphemeral = pendingDataUrl
+      ? makeEphemeralPhotoPromptPhoto(pendingDataUrl)
+      : null;
+    const libraryOnly = photosRef.current.filter(
+      (photo) => !isPhotoPromptEphemeralId(photo.id),
+    );
+    const nextPhotos = seedEphemeral
+      ? [seedEphemeral, ...libraryOnly]
+      : libraryOnly;
+    setPhotos(nextPhotos);
+
+    const cachedPrefPhotoIds = effectiveUserId
+      ? readCachedGenerationPreferences(effectiveUserId)?.selectedPhotoIds ?? []
+      : [];
+    const currentLibrarySelection = [...selectedPhotoIdsRef.current].filter(
+      (id) => !isPhotoPromptEphemeralId(id),
+    );
+    setSelectedPhotoIds(
+      new Set(
+        seedEphemeral
+          ? [PHOTO_PROMPT_EPHEMERAL_ID]
+          : shouldAttachLibraryPhotos(seed)
+            ? mergeLibraryHydrateSelection({
+                pendingEphemeralId: null,
+                currentSelectedIds: currentLibrarySelection,
+                mergedPhotoIds: nextPhotos.map((photo) => photo.id),
+                preferencePhotoIds: cachedPrefPhotoIds,
+              })
+            : [],
+      ),
+    );
+  }, [
+    cardId,
+    effectiveUserId,
+    isAuthed,
+    isDock,
+    lastDockResult,
+    lastDockResultDismissed,
+    pathname,
+    promptText,
+    seed,
+    seedToken,
+    source,
+  ]);
+
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -1075,188 +1468,65 @@ export function CardInlineGeneratePanel({
               dismissedLastResult: lastDockResultDismissed,
             })
         );
-        const [configRes, videoConfigRes, photosRes, preferencesRes, meRes, generationsRes] =
-          await Promise.all([
-            fetch(`/api/generation-config?modality=${IMAGE_GENERATION_MODALITY}`),
-            fetch(`/api/generation-config?modality=${VIDEO_GENERATION_MODALITY}`),
-            fetch("/api/user-generation-photos", { credentials: "include" }),
-            fetch("/api/generation-preferences", { credentials: "include" }),
-            fetch("/api/me", { cache: "no-store", credentials: "include" }),
-            isAuthed
-              ? fetch(
-                  `/api/generations?limit=${shouldHydrateLastDockResult ? 12 : 1}`,
-                  { credentials: "include" },
-                )
-              : Promise.resolve(null),
-          ]);
-        if (!configRes.ok) throw new Error("config_failed");
-        const configData = (await configRes.json()) as {
-          models?: ModelOpt[];
-          aspectRatios?: RatioOpt[];
-          imageSizes?: SizeOpt[];
-          defaults?: { model?: string; aspectRatio?: string; imageSize?: string };
-          limits?: { maxPhotos?: number };
-          photoshootEnabled?: boolean;
-          stickerFromResultEnabled?: boolean;
-          photoshootModel?: { id?: string; cost?: number } | null;
-          stickerEnabled?: boolean;
-          stickerModel?: { id?: string; cost?: number } | null;
-          stickerPackEnabled?: boolean;
-          stickerPackCreditCost?: number;
-          listingVideoRepeatEnabled?: boolean;
-          preserveOutfitEnabled?: boolean;
-          composeExampleMatchEnabled?: boolean;
-          photoshootComposeExampleEnabled?: boolean;
-          publishReward?: { enabled?: boolean };
-          cardRepeatReward?: CardRepeatRewardConfig;
-        };
-        const photosData = (await photosRes.json().catch(() => ({}))) as {
-          photos?: UserPhoto[];
-          error?: string;
-        };
-        const preferencesData = preferencesRes.ok
-          ? ((await preferencesRes.json().catch(() => ({}))) as {
-              preferences?: StoredGenerationPreferences | null;
-            })
-          : {};
-        const meData = meRes.ok
-          ? ((await meRes.json().catch(() => ({}))) as {
-              credits?: number;
-              publishHidden?: boolean;
-            })
-          : {};
-        const generationsData =
-          generationsRes && generationsRes.ok
-            ? ((await generationsRes.json().catch(() => ({}))) as {
-                generations?: Array<{
-                  id?: string;
-                  status?: string;
-                  prompt?: string;
-                  model?: string;
-                  aspectRatio?: string;
-                  resultUrl?: string | null;
-                  isPublished?: boolean;
-                  moderationStatus?: string;
-                  modality?: string;
-                  resultMimeType?: string | null;
-                  editKind?: string | null;
-                  photoshootTileUrls?: string[] | null;
-                }>;
-              })
-            : {};
-        // Unauth / blank: photo library is best-effort — do not block composer.
-        if (!photosRes.ok && !isBlank) {
-          throw new Error(photosData.error || "Не удалось загрузить ваши фото");
+        const authHeaders = hostAdapter.getAuthHeaders
+          ? await hostAdapter.getAuthHeaders()
+          : undefined;
+        const bootstrap = await fetchGenerateBootstrap({
+          userIdHint: effectiveUserId,
+          includeLastResult: shouldHydrateLastDockResult,
+          apiBaseUrl: hostAdapter.apiBaseUrl,
+          credentialsMode: hostAdapter.credentialsMode,
+          headers: authHeaders,
+        });
+        if (!bootstrap) {
+          if (!initialBootRef.current?.hasCachedConfig) {
+            throw new Error("config_failed");
+          }
+          if (!cancelled) setLibraryLoading(false);
+          return;
         }
         if (cancelled) return;
-        const videoConfigData = videoConfigRes.ok
-          ? ((await videoConfigRes.json().catch(() => ({}))) as {
-              enabled?: boolean;
-              models?: ModelOpt[];
-              defaults?: { aspectRatio?: string; model?: string };
-            })
-          : {};
-        const nextVideoEnabled = Boolean(videoConfigData.enabled);
-        writeCachedVideoAnimateEnabled(nextVideoEnabled);
-        setVideoEnabled(nextVideoEnabled);
-        const nextPhotoshootEnabled = Boolean(configData.photoshootEnabled);
-        writeCachedPhotoshootEnabled(nextPhotoshootEnabled);
-        setPhotoshootEnabled(nextPhotoshootEnabled);
-        const nextStickerEnabled = Boolean(configData.stickerEnabled);
-        writeCachedStickerEnabled(nextStickerEnabled);
-        setStickerEnabled(nextStickerEnabled);
-        setStickerFromResultEnabled(configData.stickerFromResultEnabled === true);
-        setStickerModelId(
-          typeof configData.stickerModel?.id === "string" && configData.stickerModel.id.trim()
-            ? configData.stickerModel.id.trim()
-            : GPT_IMAGE_25_FLARE_IMAGE_MODEL,
-        );
-        setStickerCost(
-          typeof configData.stickerModel?.cost === "number"
-            ? configData.stickerModel.cost
-            : GPT_IMAGE_25_FLARE_CREDIT_COST,
-        );
-        setStickerPackEnabled(configData.stickerPackEnabled === true);
-        setStickerPackCreditCost(
-          typeof configData.stickerPackCreditCost === "number" &&
-            Number.isFinite(configData.stickerPackCreditCost)
-            ? configData.stickerPackCreditCost
-            : STICKER_PACK_DEFAULT_CREDIT_COST,
-        );
-        setListingVideoRepeatEnabled(Boolean(configData.listingVideoRepeatEnabled));
-        setPreserveOutfitEnabled(Boolean(configData.preserveOutfitEnabled));
-        setComposeExampleMatchEnabled(Boolean(configData.composeExampleMatchEnabled));
+
+        const configSnap = snapshotFromBootstrapPayload(bootstrap);
+        setConfigError("");
+        setVideoEnabled(configSnap.videoEnabled);
+        setPhotoshootEnabled(configSnap.photoshootEnabled);
+        setStickerEnabled(configSnap.stickerEnabled);
+        setStickerFromResultEnabled(configSnap.stickerFromResultEnabled);
+        setStickerModelId(configSnap.stickerModelId);
+        setStickerCost(configSnap.stickerCost);
+        setStickerPackEnabled(configSnap.stickerPackEnabled);
+        setStickerPackCreditCost(configSnap.stickerPackCreditCost);
+        setListingVideoRepeatEnabled(configSnap.listingVideoRepeatEnabled);
+        setPreserveOutfitEnabled(configSnap.preserveOutfitEnabled);
+        setComposeExampleMatchEnabled(configSnap.composeExampleMatchEnabled);
         setPhotoshootComposeExampleEnabled(
-          Boolean(configData.photoshootComposeExampleEnabled),
+          configSnap.photoshootComposeExampleEnabled,
         );
-        if (configData.cardRepeatReward) {
-          setCardRepeatReward({
-            ...DEFAULT_CARD_REPEAT_REWARD_CONFIG,
-            ...configData.cardRepeatReward,
-          });
+        setCardRepeatReward(configSnap.cardRepeatReward);
+        setModels(configSnap.models);
+        setAspectRatios(configSnap.aspectRatios);
+        setImageSizes(configSnap.imageSizes);
+        setVideoModels(configSnap.videoModels);
+        setMaxPhotos(configSnap.limits.maxPhotos);
+
+        const authedPayloadUser =
+          bootstrap.user && !bootstrap.user.isAnonymous && !bootstrap.guestMode
+            ? bootstrap.user
+            : null;
+        setPublishHidden(
+          authedPayloadUser ? bootstrap.publishHidden === true : false,
+        );
+        if (authedPayloadUser && Number.isFinite(bootstrap.credits)) {
+          setCredits(Number(bootstrap.credits));
+        } else if (bootstrap.guestMode && Number.isFinite(bootstrap.credits)) {
+          setCredits(Number(bootstrap.credits));
+        } else if (!authedPayloadUser) {
+          setCredits(null);
         }
-        setPublishHidden(meData.publishHidden === true);
-        const nextVideoModels = Array.isArray(videoConfigData.models)
-          ? videoConfigData.models
-          : [];
-        setVideoModels(nextVideoModels);
-        if (seed.intent === "animate") {
-          setComposeMode("video");
-          setAnimateParentId(seed.parentGenerationId || null);
-          setAnimatePreviewUrl(seed.previewUrl || null);
-          const catalogMotion = extractVideoMotionSection(seed.promptText);
-          if (catalogMotion && !isGenericVideoPrompt(catalogMotion)) {
-            setDraftPrompt(catalogMotion);
-          } else if (
-            looksLikeStructuredPhotoPrompt(seed.promptText) ||
-            isGenericVideoPrompt(seed.promptText)
-          ) {
-            setDraftPrompt("");
-          } else if (seed.promptText.trim()) {
-            setDraftPrompt(seed.promptText);
-          } else {
-            setDraftPrompt("");
-          }
-        } else if (seed.intent === "photoshoot" || seed.intent === "photo_prompt") {
-          setComposeMode(composeModeFromDockIntent(seed.intent));
-        } else if (seed.attachIdentityPhoto) {
-          setComposeMode("image");
-        } else if (isCompletedResultSeed(seed)) {
-          const prompt = seed.promptText.trim();
-          setComposeMode("image");
-          setGenerationId(seed.resultGenerationId!);
-          setResultUrl(seed.previewUrl!);
-          setResultModality(seed.resultModality === "video" ? "video" : "image");
-          lastImageResultRef.current = rememberCompletedImageResult({
-            generationId: seed.resultGenerationId,
-            resultUrl: seed.previewUrl,
-            resultModality: seed.resultModality === "video" ? "video" : "image",
-            previous: lastImageResultRef.current,
-          });
-          setDraftPrompt(prompt);
-          promptStashRef.current = {
-            ...promptStashRef.current,
-            imagePrompt: prompt,
-          };
-          setSubmittedPrompt(prompt);
-          setIsPublished(Boolean(seed.isPublished));
-          setResultEditKind(seed.editKind || null);
-          setStickerFromResultOpen(false);
-          setStickerFromResultParentId(null);
-          setPhotoshootTileUrls(photoshootTileUrlsFromUnknown(seed.photoshootTileUrls));
-          setProgress(100);
-          setPhase("done");
-          phaseRef.current = "done";
-        }
-        const nextModels = Array.isArray(configData.models) ? configData.models : [];
-        const nextRatios = Array.isArray(configData.aspectRatios)
-          ? configData.aspectRatios
-          : [];
-        const nextSizes = Array.isArray(configData.imageSizes) ? configData.imageSizes : [];
-        const libraryPhotos =
-          photosRes.ok && Array.isArray(photosData.photos) ? photosData.photos : [];
+
         const pendingPhotoPromptDataUrl =
-          seed.intent === "photo_prompt" || seed.attachIdentityPhoto
+          seedIntentRef.current === "photo_prompt" || seed.attachIdentityPhoto
             ? resolvePhotoPromptAnalyzeSource({
                 seedPreviewUrl: seed.previewUrl,
               })?.dataUrl || ""
@@ -1264,134 +1534,124 @@ export function CardInlineGeneratePanel({
         const seedEphemeral = pendingPhotoPromptDataUrl
           ? makeEphemeralPhotoPromptPhoto(pendingPhotoPromptDataUrl)
           : null;
+        const incomingLibrary = authedPayloadUser
+          ? readCachedUserGenerationPhotos(authedPayloadUser.id) ??
+            bootstrap.photos ??
+            []
+          : [];
         const nextPhotos = mergeLibraryHydratePhotos({
-          incomingLibrary: libraryPhotos,
+          incomingLibrary,
           current: photosRef.current,
           pendingEphemeral: seedEphemeral,
         });
-        const defaultModel = configData.defaults?.model || nextModels[0]?.id;
-        const defaultRatio = configData.defaults?.aspectRatio || nextRatios[0]?.value;
-        const defaultSize = configData.defaults?.imageSize || nextSizes[0]?.value;
-        setModels(nextModels);
-        setAspectRatios(nextRatios);
-        setImageSizes(nextSizes);
         setPhotos(nextPhotos);
-        if (user?.id) {
-          writeCachedUserGenerationPhotos(
-            user.id,
-            nextPhotos.filter((photo) => !isPhotoPromptEphemeralId(photo.id)),
-          );
-          warmupPhotoPreviewImages(nextPhotos);
-        }
-        if (isAuthed && Number.isFinite(meData.credits)) {
-          setCredits(Number(meData.credits));
-        } else if (!isAuthed) {
-          setCredits(null);
-        }
-        const userId = isAuthed ? user?.id ?? null : null;
+        setHasMorePhotos(
+          authedPayloadUser ? bootstrap.hasMorePhotos === true : false,
+        );
+
+        const userId = authedPayloadUser?.id ?? null;
         const storedPrefs = pickFresherPreferences(
-          parseStoredGenerationPreferences(preferencesData.preferences),
-          userId ? readCachedGenerationPreferences(userId) : null
+          parseStoredGenerationPreferences(bootstrap.preferences),
+          userId ? readCachedGenerationPreferences(userId) : null,
         );
         const preferredModelAvailable =
           preferredModelId &&
-          nextModels.some((item) => item.id === preferredModelId);
+          configSnap.models.some((item) => item.id === preferredModelId);
         const sessionChosenModel = readSessionChosenImageModel();
         const sessionChosenAvailable =
           sessionChosenModel &&
-          nextModels.some((item) => item.id === sessionChosenModel);
-        const completedImageGeneration = hasCompletedImageGenerationFromList(
-          generationsData.generations,
+          configSnap.models.some((item) => item.id === sessionChosenModel);
+        const completedImageGeneration = Boolean(
+          bootstrap.hasCompletedImageGeneration ||
+            hasCompletedImageGenerationRef.current,
         );
-        setHasCompletedImageGeneration((current) => current || completedImageGeneration);
+        setHasCompletedImageGeneration(completedImageGeneration);
+
         const resolvedPrefs = resolveComposerPreferences({
           stored: storedPrefs,
-          imageModelIds: nextModels.map((item) => item.id),
-          videoModelIds: nextVideoModels.map((item) => item.id),
+          imageModelIds: configSnap.models.map((item) => item.id),
+          videoModelIds: configSnap.videoModels.map((item) => item.id),
           availablePhotoIds: nextPhotos.map((photo) => photo.id),
           defaults: {
-            model: defaultModel || undefined,
-            aspectRatio: defaultRatio || undefined,
-            imageSize: defaultSize || undefined,
-            videoModel: videoConfigData.defaults?.model || DEFAULT_VIDEO_MODEL,
+            model: configSnap.defaults.model || undefined,
+            aspectRatio: configSnap.defaults.aspectRatio || undefined,
+            imageSize: configSnap.defaults.imageSize || undefined,
+            videoModel: configSnap.videoDefaults.model || DEFAULT_VIDEO_MODEL,
             videoAspectRatio:
-              videoConfigData.defaults?.aspectRatio || DEFAULT_VIDEO_ASPECT_RATIO,
+              configSnap.videoDefaults.aspectRatio ||
+              DEFAULT_VIDEO_ASPECT_RATIO,
+            videoDurationSeconds: configSnap.videoDefaults.durationSeconds,
           },
-          hasCompletedImageGeneration:
-            completedImageGeneration || hasCompletedImageGenerationRef.current,
+          hasCompletedImageGeneration: completedImageGeneration,
           explicitImageModelId: preferredModelAvailable
             ? preferredModelId
             : sessionChosenAvailable
               ? sessionChosenModel
               : null,
         });
-        const keepSessionModel =
-          !completedImageGeneration &&
-          !preferredModelAvailable &&
-          !sessionChosenAvailable &&
-          Boolean(modelRef.current) &&
-          nextModels.some((item) => item.id === modelRef.current);
-        setModel(keepSessionModel ? modelRef.current : resolvedPrefs.model);
-        setAspectRatio(resolvedPrefs.aspectRatio);
-        setImageSize(resolvedPrefs.imageSize);
-        setVideoModel(resolvedPrefs.videoModel);
-        setVideoAspectRatio(resolvedPrefs.videoAspectRatio);
-        setVideoDurationSeconds(resolvedPrefs.videoDurationSeconds);
-        setPreserveOutfit(resolvedPrefs.preserveOutfit);
-        setSelectedPhotoIds(
-          new Set(
-            mergeLibraryHydrateSelection({
-              pendingEphemeralId: seedEphemeral
-                ? PHOTO_PROMPT_EPHEMERAL_ID
-                : photosRef.current.find((photo) =>
-                    isPhotoPromptEphemeralId(photo.id),
-                  )?.id ?? null,
-              currentSelectedIds: [...selectedPhotoIdsRef.current],
-              mergedPhotoIds: nextPhotos.map((photo) => photo.id),
-              preferencePhotoIds: shouldAttachLibraryPhotos(seed)
-                ? resolvedPrefs.selectedPhotoIds
-                : [],
-            }),
-          ),
-        );
-        if (userId && storedPrefs && resolvedPrefs.model) {
-          writeCachedGenerationPreferences(userId, resolvedPrefs);
-        }
-        skipNextPrefsPersistRef.current = true;
-        prefsDirtyRef.current = false;
-        if (typeof configData.limits?.maxPhotos === "number") {
-          setMaxPhotos(Math.max(1, Math.min(10, configData.limits.maxPhotos)));
+
+        if (!prefsDirtyRef.current) {
+          const keepSessionModel =
+            !completedImageGeneration &&
+            !preferredModelAvailable &&
+            !sessionChosenAvailable &&
+            Boolean(modelRef.current) &&
+            configSnap.models.some((item) => item.id === modelRef.current);
+          setModel(keepSessionModel ? modelRef.current : resolvedPrefs.model);
+          setAspectRatio(resolvedPrefs.aspectRatio);
+          setImageSize(resolvedPrefs.imageSize);
+          setVideoModel(resolvedPrefs.videoModel);
+          setVideoAspectRatio(resolvedPrefs.videoAspectRatio);
+          setVideoDurationSeconds(resolvedPrefs.videoDurationSeconds);
+          setPreserveOutfit(resolvedPrefs.preserveOutfit);
+          setSelectedPhotoIds(
+            new Set(
+              mergeLibraryHydrateSelection({
+                pendingEphemeralId: seedEphemeral
+                  ? PHOTO_PROMPT_EPHEMERAL_ID
+                  : photosRef.current.find((photo) =>
+                      isPhotoPromptEphemeralId(photo.id),
+                    )?.id ?? null,
+                currentSelectedIds: [...selectedPhotoIdsRef.current],
+                mergedPhotoIds: nextPhotos.map((photo) => photo.id),
+                preferencePhotoIds: shouldAttachLibraryPhotos(seed)
+                  ? resolvedPrefs.selectedPhotoIds
+                  : [],
+              }),
+            ),
+          );
+          if (userId && storedPrefs && resolvedPrefs.model) {
+            writeCachedGenerationPreferences(userId, resolvedPrefs);
+          }
+          skipNextPrefsPersistRef.current = true;
+          prefsDirtyRef.current = false;
         }
 
-        /**
-         * Blank listing dock: restore last completed result + prompt only.
-         * Model / ratio / size / photos stay from landing_generation_preferences
-         * (user can change them only via sheets → «Готово»).
-         */
         const lastCompleted =
-          shouldHydrateLastDockResult &&
-          !cancelled &&
-          (generationsData.generations || []).find(
-            (item) =>
-              item.status === "completed" &&
-              Boolean(item.resultUrl) &&
-              Boolean(item.id)
-          );
+          shouldHydrateLastDockResult && !cancelled
+            ? bootstrap.lastCompletedGeneration
+            : null;
         if (
           lastCompleted &&
+          lastCompleted.status === "completed" &&
+          Boolean(lastCompleted.resultUrl) &&
+          Boolean(lastCompleted.id) &&
           !suppressResultHydrateRef.current &&
           phaseRef.current === "idle" &&
           !resultUrlRef.current &&
           !generationIdRef.current
         ) {
           const prompt = (lastCompleted.prompt || "").trim();
-          setGenerationId(lastCompleted.id!);
-          setResultUrl(lastCompleted.resultUrl!);
-          setResultModality(lastCompleted.modality === "video" ? "video" : "image");
+          setGenerationId(lastCompleted.id);
+          setResultUrl(lastCompleted.resultUrl);
+          setResultModality(
+            lastCompleted.modality === "video" ? "video" : "image",
+          );
           lastImageResultRef.current = rememberCompletedImageResult({
             generationId: lastCompleted.id,
             resultUrl: lastCompleted.resultUrl,
-            resultModality: lastCompleted.modality === "video" ? "video" : "image",
+            resultModality:
+              lastCompleted.modality === "video" ? "video" : "image",
             previous: lastImageResultRef.current,
           });
           setDraftPrompt(prompt);
@@ -1401,7 +1661,9 @@ export function CardInlineGeneratePanel({
           };
           setSubmittedPrompt(prompt);
           setIsPublished(Boolean(lastCompleted.isPublished));
-          setModerationStatus(parseCardModerationStatus(lastCompleted.moderationStatus));
+          setModerationStatus(
+            parseCardModerationStatus(lastCompleted.moderationStatus),
+          );
           setResultEditKind(lastCompleted.editKind || null);
           setStickerFromResultOpen(false);
           setStickerFromResultParentId(null);
@@ -1412,20 +1674,19 @@ export function CardInlineGeneratePanel({
           setPhase("done");
           phaseRef.current = "done";
           rememberLastDockResult({
-            generationId: lastCompleted.id!,
-            resultUrl: lastCompleted.resultUrl!,
+            generationId: lastCompleted.id,
+            resultUrl: lastCompleted.resultUrl,
             promptText: prompt,
             modality: lastCompleted.modality === "video" ? "video" : "image",
             isPublished: Boolean(lastCompleted.isPublished),
             editKind: lastCompleted.editKind || null,
             photoshootTileUrls: photoshootTileUrlsFromUnknown(
-              lastCompleted.photoshootTileUrls
+              lastCompleted.photoshootTileUrls,
             ),
           });
         }
 
-        // Persist prefs only for authenticated library sessions.
-        setPreferencesHydrated(isAuthed && photosRes.ok);
+        setPreferencesHydrated(Boolean(authedPayloadUser));
         setLibraryLoading(false);
       } catch (err) {
         if (!cancelled) {
@@ -1441,26 +1702,54 @@ export function CardInlineGeneratePanel({
     return () => {
       cancelled = true;
     };
-    // Hydrate once per mount / auth identity — do not re-fetch on every result change.
+    // Hydrate once per mount / resolved auth identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount hydrate
-  }, [isBlank, isDock, user?.id]);
+  }, [isBlank, isDock, effectiveUserId]);
 
+  /** Lazy expansion beyond top-12 bootstrap photos only when «Ваши фото» opens. */
   useEffect(() => {
-    if (!isAuthed || !user?.id) return;
-    const cached = readCachedUserGenerationPhotos(user.id);
-    if (!cached) return;
-    setPhotos((current) => {
-      if (current.some((photo) => !isPhotoPromptEphemeralId(photo.id))) {
-        return current;
-      }
-      return [
-        ...current.filter((photo) => isPhotoPromptEphemeralId(photo.id)),
-        ...cached,
-      ];
-    });
-    setLibraryLoading(false);
-    warmupPhotoPreviewImages(cached);
-  }, [isAuthed, user?.id]);
+    if (
+      expandedControl !== "photos" ||
+      !isAuthed ||
+      !effectiveUserId ||
+      !hasMorePhotos ||
+      loadingMorePhotosRef.current
+    ) {
+      return;
+    }
+    let cancelled = false;
+    loadingMorePhotosRef.current = true;
+    void fetch("/api/user-generation-photos", { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { photos?: UserPhoto[] } | null) => {
+        if (cancelled || !Array.isArray(data?.photos)) return;
+        const merged = mergeLibraryHydratePhotos({
+          incomingLibrary: data.photos,
+          current: photosRef.current,
+          pendingEphemeral:
+            photosRef.current.find((photo) =>
+              isPhotoPromptEphemeralId(photo.id),
+            ) ?? null,
+        });
+        setPhotos(merged);
+        setHasMorePhotos(false);
+        writeCachedUserGenerationPhotos(
+          effectiveUserId,
+          merged.filter((photo) => !isPhotoPromptEphemeralId(photo.id)),
+          { signedAt: Date.now(), hasMorePhotos: false },
+        );
+        warmupPhotoPreviewImages(merged);
+      })
+      .catch(() => {
+        /* top-12 photos remain usable */
+      })
+      .finally(() => {
+        loadingMorePhotosRef.current = false;
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveUserId, expandedControl, hasMorePhotos, isAuthed]);
 
   useEffect(() => {
     if (seed.intent !== "animate" || !isAuthed) return;
@@ -1501,7 +1790,9 @@ export function CardInlineGeneratePanel({
             credits?: number;
           };
           if (isAuthed && Number.isFinite(payload.credits)) {
-            setCredits(Number(payload.credits));
+            const nextCredits = Number(payload.credits);
+            setCredits(nextCredits);
+            updateCachedGenerateUserCredits(effectiveUserId, nextCredits);
           }
         })
         .catch((error) => {
@@ -1511,11 +1802,10 @@ export function CardInlineGeneratePanel({
     window.addEventListener(CREDIT_BALANCE_REFRESH_EVENT, refreshCredits);
     return () =>
       window.removeEventListener(CREDIT_BALANCE_REFRESH_EVENT, refreshCredits);
-  }, [isAuthed]);
+  }, [effectiveUserId, isAuthed]);
 
   /**
-   * Latest prefs snapshot for flush-on-unmount / sheet-collapse (debounce cancel
-   * otherwise loses edits when seedToken remounts within 300ms).
+   * Latest prefs snapshot for flush-on-unmount / sheet-collapse.
    */
   const prefsSnapshotRef = useRef({
     model,
@@ -1528,7 +1818,7 @@ export function CardInlineGeneratePanel({
     preserveOutfit,
     preferencesHydrated,
     hasCompletedImageGeneration,
-    userId: isAuthed ? (user?.id ?? null) : null,
+    userId: effectiveUserId,
   });
   prefsSnapshotRef.current = {
     model,
@@ -1541,7 +1831,7 @@ export function CardInlineGeneratePanel({
     preserveOutfit,
     preferencesHydrated,
     hasCompletedImageGeneration,
-    userId: isAuthed ? (user?.id ?? null) : null,
+    userId: effectiveUserId,
   };
 
   const persistGenerationPreferences = useCallback(
@@ -1621,7 +1911,9 @@ export function CardInlineGeneratePanel({
    * Any exit from photos/model sheet (Готово, tile toggle, desktop scrim →
    * setDockSurface(null), switch to prompt) must flush — not only «Готово».
    */
-  const prevPrefsSurfaceRef = useRef<"photos" | "model" | "example" | "tool" | null>(null);
+  const prevPrefsSurfaceRef = useRef<
+    "photos" | "model" | "example" | "tool" | "auth" | null
+  >(null);
   useEffect(() => {
     const prev = prevPrefsSurfaceRef.current;
     prevPrefsSurfaceRef.current = expandedControl;
@@ -2424,6 +2716,12 @@ export function CardInlineGeneratePanel({
         message?: string;
       };
       if (!genRes.ok || !genData.id) {
+        if (genRes.status === 401 || genData.error === "unauthorized") {
+          setPhase(resultUrl || isContinuation ? "done" : "idle");
+          phaseRef.current = resultUrl || isContinuation ? "done" : "idle";
+          openInlineAuthSheet("default");
+          return false;
+        }
         if (genData.error === "insufficient_credits") {
           setNeedsCredits(true);
           setError(isStickerFromResult || isStickerRestyle ? "Не хватает кредитов" : "");
@@ -3223,6 +3521,7 @@ export function CardInlineGeneratePanel({
   const dockModelExpanded = dockExpanded && activeDockSurface === "model";
   const dockExampleExpanded = dockExpanded && activeDockSurface === "example";
   const dockToolExpanded = dockExpanded && activeDockSurface === "tool";
+  const dockAuthExpanded = dockExpanded && activeDockSurface === "auth";
   const showComposeToolGuide = composeToolGuideVisible({
     composeMode,
     showResultChrome,
@@ -3238,19 +3537,6 @@ export function CardInlineGeneratePanel({
       composeMode,
       promptExpanded,
     });
-  /**
-   * Dock editor sheets: full plate height, light chrome (no solid black fill).
-   * Underlying tiles/footer are invisible while open — sheet stays transparent so
-   * the plate glass / listing show through; soft bottom fade keeps CTA readable.
-   */
-  const dockSheetPanelBase = isMobile
-    ? "absolute inset-0 z-50 flex h-full min-h-0 flex-col rounded-none bg-transparent bg-[linear-gradient(180deg,transparent_0%,transparent_58%,rgba(9,9,11,0.28)_100%)] p-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] text-zinc-100"
-    : "absolute inset-0 z-50 flex h-full min-h-0 flex-col rounded-[1.75rem] bg-transparent bg-[linear-gradient(180deg,transparent_0%,transparent_58%,rgba(9,9,11,0.28)_100%)] p-3 pb-3 text-zinc-100";
-  const dockSheetPanel = `${dockSheetPanelBase} overflow-y-auto overscroll-contain`;
-  /** Prompt: pin CTA at bottom; fields scroll in an inner region. */
-  const dockPromptSheetPanel = `${dockSheetPanelBase} overflow-hidden`;
-  const dockSheetHandle = "h-1 w-9 rounded-full bg-white/35";
-  const dockSheetCloseBtn = `${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/15`;
   const dockSheetField =
     "rounded-xl border border-white/15 bg-white/10 text-white outline-none transition placeholder:text-white/40 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-400/25 disabled:opacity-60";
   const showPhotoPromptResult =
@@ -3808,6 +4094,8 @@ export function CardInlineGeneratePanel({
                 aria-label="Действия с фото"
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
+                onPointerEnter={preloadGenerationMenuChunk}
+                onTouchStart={preloadGenerationMenuChunk}
                 className={`${OVERLAY_BUTTON_UA_RESET} flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white shadow-lg ring-1 ring-white/25 backdrop-blur-md transition hover:bg-black/65 active:scale-[0.98]`}
                 onClick={() => setMenuOpen((open) => !open)}
               >
@@ -3822,25 +4110,27 @@ export function CardInlineGeneratePanel({
                   <circle cx="12" cy="19" r="1.75" />
                 </svg>
               </button>
-              <GenerationCardMenu
-                open={menuOpen}
-                onClose={() => setMenuOpen(false)}
-                showSelect={false}
-                hasResult
-                hasPrompt={Boolean(activePrompt.trim())}
-                canPublish={!stickerResult}
-                showPublish={!publishHidden && !stickerResult}
-                isPublished={isPublished}
-                allowRepublish={isPhotoshootEditKind(resultEditKind)}
-                canAnimate={videoEnabled && resultModality === "image" && !stickerResult}
-                canSaveToLibrary={resultModality !== "video"}
-                moderationStatus={moderationStatus}
-                publishHint={publishHint}
-                busyAction={busyAction}
-                onAction={(action) => {
-                  void handleResultAction(action);
-                }}
-              />
+              {menuOpen ? (
+                <GenerationCardMenu
+                  open={menuOpen}
+                  onClose={() => setMenuOpen(false)}
+                  showSelect={false}
+                  hasResult
+                  hasPrompt={Boolean(activePrompt.trim())}
+                  canPublish={!stickerResult}
+                  showPublish={!publishHidden && !stickerResult}
+                  isPublished={isPublished}
+                  allowRepublish={isPhotoshootEditKind(resultEditKind)}
+                  canAnimate={videoEnabled && resultModality === "image" && !stickerResult}
+                  canSaveToLibrary={resultModality !== "video"}
+                  moderationStatus={moderationStatus}
+                  publishHint={publishHint}
+                  busyAction={busyAction}
+                  onAction={(action) => {
+                    void handleResultAction(action);
+                  }}
+                />
+              ) : null}
             </div>
           ) : null}
           <button
@@ -4259,7 +4549,11 @@ export function CardInlineGeneratePanel({
                     },
                     dockSurface: null,
                   });
-                  openAuthModal();
+                  setResultUrl(null);
+                  setPhase("idle");
+                  phaseRef.current = "idle";
+                  enterImageCompose();
+                  openInlineAuthSheet("default");
                   return;
                 }
                 enterImageCompose();
@@ -4401,6 +4695,8 @@ export function CardInlineGeneratePanel({
               aria-label="Действия с фото"
               aria-haspopup="menu"
               aria-expanded={menuOpen}
+              onPointerEnter={preloadGenerationMenuChunk}
+              onTouchStart={preloadGenerationMenuChunk}
               className={`${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-black/25 text-white backdrop-blur-md transition hover:bg-black/40`}
               onClick={() => setMenuOpen((open) => !open)}
             >
@@ -4410,25 +4706,27 @@ export function CardInlineGeneratePanel({
                 <circle cx="12" cy="19" r="1.75" />
               </svg>
             </button>
-            <GenerationCardMenu
-              open={menuOpen}
-              onClose={() => setMenuOpen(false)}
-              showSelect={false}
-              hasResult
-              hasPrompt={Boolean(activePrompt.trim())}
-              canPublish={!stickerResult}
-              showPublish={!publishHidden && !stickerResult}
-              isPublished={isPublished}
-              allowRepublish={isPhotoshootEditKind(resultEditKind)}
-              canAnimate={videoEnabled && resultModality === "image" && !stickerResult}
-              canSaveToLibrary={resultModality !== "video"}
-              moderationStatus={moderationStatus}
-              publishHint={publishHint}
-              busyAction={busyAction}
-              onAction={(action) => {
-                void handleResultAction(action);
-              }}
-            />
+            {menuOpen ? (
+              <GenerationCardMenu
+                open={menuOpen}
+                onClose={() => setMenuOpen(false)}
+                showSelect={false}
+                hasResult
+                hasPrompt={Boolean(activePrompt.trim())}
+                canPublish={!stickerResult}
+                showPublish={!publishHidden && !stickerResult}
+                isPublished={isPublished}
+                allowRepublish={isPhotoshootEditKind(resultEditKind)}
+                canAnimate={videoEnabled && resultModality === "image" && !stickerResult}
+                canSaveToLibrary={resultModality !== "video"}
+                moderationStatus={moderationStatus}
+                publishHint={publishHint}
+                busyAction={busyAction}
+                onAction={(action) => {
+                  void handleResultAction(action);
+                }}
+              />
+            ) : null}
           </div>
         ) : (
           <span className="h-11 w-11" aria-hidden />
@@ -4480,88 +4778,93 @@ export function CardInlineGeneratePanel({
           />
         ) : null}
 
-        <section
-          role={promptExpanded && !dockPromptExpanded ? "dialog" : undefined}
-          aria-modal={promptExpanded && !dockPromptExpanded ? "true" : undefined}
-          aria-labelledby={promptExpanded ? "inline-prompt-editor-title" : undefined}
-          aria-hidden={
-            (isDock && dockExpanded && !dockPromptExpanded) ||
-            hideCollapsedPromptStrip
-              ? true
-              : undefined
-          }
-          inert={
-            (isDock && dockExpanded && !dockPromptExpanded) ||
-            hideCollapsedPromptStrip
-              ? true
-              : undefined
-          }
-          className={`shadow-none ${
-            dockPromptExpanded
-              ? dockPromptSheetPanel
-              : promptExpanded
-              ? `${sheetPos} inset-x-0 bottom-0 top-[max(0.75rem,env(safe-area-inset-top))] z-50 flex min-h-0 flex-col rounded-t-3xl border border-transparent bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]`
-              : isDock
-                ? `rounded-none border-0 bg-transparent p-0 text-white${
-                    // Sheets keep height; result chrome (rail / photoshoot / orbit) drops the strip.
-                    dockExpanded
-                      ? " invisible pointer-events-none"
-                      : hideCollapsedPromptStrip
-                        ? " hidden"
-                        : ""
-                  }`
-                : showResultChrome
-                  ? "hidden"
-                  : "rounded-2xl border px-3 py-1 backdrop-blur-md"
-          } ${
-            promptExpanded || isDock
-              ? ""
-              : glassChrome
-              ? "border-white/15 bg-black/15 text-white backdrop-blur-md"
-              : "border-zinc-200 bg-white/95 text-zinc-900"
-          }`}
-        >
-          {promptExpanded ? (
-            useBlankPromptEditor ? (
-              <>
-                {dockPromptExpanded ? (
+        {promptExpanded ? (
+          <ComposeSheetShell
+            title={
+              useBlankPromptEditor
+                ? "Промпт"
+                : resultUrl
+                  ? "Изменить картинку"
+                  : "Промпт"
+            }
+            titleId="inline-prompt-editor-title"
+            collapseAriaLabel="Свернуть промпт"
+            closeAriaLabel="Закрыть"
+            isDock={dockPromptExpanded}
+            isMobile={isMobile}
+            onClose={() => setPromptExpanded(false)}
+            bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
+            footer={
+              useBlankPromptEditor ? (
+                <div className="flex shrink-0 gap-2">
                   <button
                     type="button"
-                    aria-label="Свернуть промпт"
-                    onClick={() => setPromptExpanded(false)}
-                    className={`${OVERLAY_BUTTON_UA_RESET} mx-auto mb-1 flex w-full shrink-0 flex-col items-center gap-1 py-1`}
-                  >
-                    <span className={dockSheetHandle} aria-hidden />
-                  </button>
-                ) : (
-                  <div className="mx-auto mb-2 h-1 w-9 shrink-0 rounded-full bg-zinc-300" aria-hidden />
-                )}
-                <div className="mb-3 flex min-h-11 shrink-0 items-center justify-between gap-3">
-                  <h3 id="inline-prompt-editor-title" className="text-[13px] font-semibold">
-                    Промпт
-                  </h3>
-                  <button
-                    type="button"
-                    aria-label="Закрыть"
-                    onClick={() => setPromptExpanded(false)}
-                    className={
+                    disabled={busy || draftPrompt.trim().length < 8}
+                    onClick={() => {
+                      void copyTextUniversal(draftPrompt).then((ok) => {
+                        setToast(ok ? "Промт скопирован" : "Не удалось скопировать");
+                      });
+                    }}
+                    className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl px-3 py-3 text-[13px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
                       dockPromptExpanded
-                        ? dockSheetCloseBtn
-                        : `${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200`
-                    }
+                        ? "bg-white/10 text-white ring-1 ring-white/20 hover:bg-white/15"
+                        : "bg-zinc-100 text-zinc-900 hover:bg-zinc-200"
+                    }`}
                   >
                     <svg
-                      className="h-5 w-5"
+                      className="h-5 w-5 shrink-0"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
-                      strokeWidth="2"
+                      strokeWidth="1.8"
                       aria-hidden
                     >
-                      <path d="m6 6 12 12M18 6 6 18" />
+                      <rect x="9" y="9" width="11" height="11" rx="2" />
+                      <path d="M5 15V5h10" strokeLinecap="round" />
                     </svg>
+                    <span className="truncate">Скопировать промт</span>
                   </button>
+                  {showBlankPromptRemix && blankChangeOpen ? (
+                    <button
+                      type="button"
+                      disabled={busy || remixing || !changeRequest.trim()}
+                      onClick={() => void applyPromptRemix({ keepEditorOpen: true })}
+                      className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 flex-1 items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 px-3 py-3 text-[13px] font-semibold text-white shadow-lg shadow-indigo-950/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50`}
+                    >
+                      <span className="truncate">
+                        {remixing ? PROMPT_REMIX_COPY.submitting : PROMPT_REMIX_COPY.submit}
+                      </span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={busy || remixing || draftPrompt.trim().length < 8}
+                      onClick={() => setPromptExpanded(false)}
+                      className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 flex-1 items-center justify-center rounded-2xl bg-indigo-600 px-3 py-3 text-[13px] font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50`}
+                    >
+                      Готово
+                    </button>
+                  )}
                 </div>
+              ) : (
+                <button
+                  type="button"
+                  disabled={
+                    controlsBusy ||
+                    draftPrompt.trim().length < 8 ||
+                    !changeRequest.trim() ||
+                    remixing
+                  }
+                  onClick={() => void applyPromptRemix()}
+                  className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-12 w-full shrink-0 items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 px-4 py-3 text-[13px] font-semibold text-white shadow-lg shadow-indigo-950/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50`}
+                >
+                  {remixing ? COMPOSE_SAVING_PROMPT_CTA : COMPOSE_SAVE_PROMPT_CTA}
+                </button>
+              )
+            }
+          >
+            {useBlankPromptEditor ? (
+              <>
                 <label className="flex min-h-0 flex-1 flex-col">
                   <textarea
                     value={draftPrompt}
@@ -4641,97 +4944,8 @@ export function CardInlineGeneratePanel({
                     {error}
                   </p>
                 ) : null}
-                <div className="mt-3 flex shrink-0 gap-2">
-                  <button
-                    type="button"
-                    disabled={busy || draftPrompt.trim().length < 8}
-                    onClick={() => {
-                      void copyTextUniversal(draftPrompt).then((ok) => {
-                        setToast(ok ? "Промт скопирован" : "Не удалось скопировать");
-                      });
-                    }}
-                    className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl px-3 py-3 text-[13px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                      dockPromptExpanded
-                        ? "bg-white/10 text-white ring-1 ring-white/20 hover:bg-white/15"
-                        : "bg-zinc-100 text-zinc-900 hover:bg-zinc-200"
-                    }`}
-                  >
-                    <svg
-                      className="h-5 w-5 shrink-0"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      aria-hidden
-                    >
-                      <rect x="9" y="9" width="11" height="11" rx="2" />
-                      <path d="M5 15V5h10" strokeLinecap="round" />
-                    </svg>
-                    <span className="truncate">Скопировать промт</span>
-                  </button>
-                  {showBlankPromptRemix && blankChangeOpen ? (
-                    <button
-                      type="button"
-                      disabled={busy || remixing || !changeRequest.trim()}
-                      onClick={() => void applyPromptRemix({ keepEditorOpen: true })}
-                      className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 flex-1 items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 px-3 py-3 text-[13px] font-semibold text-white shadow-lg shadow-indigo-950/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50`}
-                    >
-                      <span className="truncate">
-                        {remixing ? PROMPT_REMIX_COPY.submitting : PROMPT_REMIX_COPY.submit}
-                      </span>
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      disabled={busy || remixing || draftPrompt.trim().length < 8}
-                      onClick={() => setPromptExpanded(false)}
-                      className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 flex-1 items-center justify-center rounded-2xl bg-indigo-600 px-3 py-3 text-[13px] font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50`}
-                    >
-                      Готово
-                    </button>
-                  )}
-                </div>
               </>
             ) : (
-            <>
-              {dockPromptExpanded ? (
-                <button
-                  type="button"
-                  aria-label="Свернуть промпт"
-                  onClick={() => setPromptExpanded(false)}
-                  className={`${OVERLAY_BUTTON_UA_RESET} mx-auto mb-1 flex w-full shrink-0 flex-col items-center gap-1 py-1`}
-                >
-                  <span className={dockSheetHandle} aria-hidden />
-                </button>
-              ) : (
-                <div className="mx-auto mb-2 h-1 w-9 shrink-0 rounded-full bg-zinc-300" aria-hidden />
-              )}
-              <div className="mb-3 flex min-h-11 shrink-0 items-center justify-between gap-3">
-                <h3 id="inline-prompt-editor-title" className="text-[13px] font-semibold">
-                  {resultUrl ? "Изменить картинку" : "Промпт"}
-                </h3>
-                <button
-                  type="button"
-                  aria-label="Закрыть"
-                  onClick={() => setPromptExpanded(false)}
-                  className={
-                    dockPromptExpanded
-                      ? dockSheetCloseBtn
-                      : `${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200`
-                  }
-                >
-                  <svg
-                    className="h-5 w-5"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    aria-hidden
-                  >
-                    <path d="m6 6 12 12M18 6 6 18" />
-                  </svg>
-                </button>
-              </div>
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 <label className="flex min-h-0 flex-1 flex-col">
                   <span
@@ -4786,22 +5000,34 @@ export function CardInlineGeneratePanel({
                   </p>
                 ) : null}
               </div>
-              <button
-                type="button"
-                disabled={
-                  controlsBusy ||
-                  draftPrompt.trim().length < 8 ||
-                  !changeRequest.trim() ||
-                  remixing
-                }
-                onClick={() => void applyPromptRemix()}
-                className={`${OVERLAY_BUTTON_UA_RESET} mt-3 flex min-h-12 w-full shrink-0 items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 px-4 py-3 text-[13px] font-semibold text-white shadow-lg shadow-indigo-950/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50`}
-              >
-                {remixing ? COMPOSE_SAVING_PROMPT_CTA : COMPOSE_SAVE_PROMPT_CTA}
-              </button>
-            </>
-            )
-          ) : (
+            )}
+          </ComposeSheetShell>
+        ) : (
+          <section
+            aria-hidden={
+              (isDock && dockExpanded) || hideCollapsedPromptStrip
+                ? true
+                : undefined
+            }
+            inert={
+              (isDock && dockExpanded) || hideCollapsedPromptStrip
+                ? true
+                : undefined
+            }
+            className={`shadow-none ${
+              isDock
+                ? `rounded-none border-0 bg-transparent p-0 text-white${
+                    dockExpanded || hideCollapsedPromptStrip ? " hidden" : ""
+                  }`
+                : showResultChrome
+                  ? "hidden"
+                  : `rounded-2xl border px-3 py-1 backdrop-blur-md ${
+                      glassChrome
+                        ? "border-white/15 bg-black/15 text-white"
+                        : "border-zinc-200 bg-white/95 text-zinc-900"
+                    }`
+            }`}
+          >
             <button
               type="button"
               aria-expanded="false"
@@ -4826,8 +5052,8 @@ export function CardInlineGeneratePanel({
                         : "text-zinc-400"
                   }`}
                 >
-                  {activePrompt.trim()
-                    || (videoCompose && scenarioLoading
+                  {activePrompt.trim() ||
+                    (videoCompose && scenarioLoading
                       ? ANIMATE_SCENARIO_PLACEHOLDER
                       : BLANK_PROMPT_PLACEHOLDER)}
                 </span>
@@ -4843,8 +5069,8 @@ export function CardInlineGeneratePanel({
                 <path d="m6 15 6-6 6 6" />
               </svg>
             </button>
-          )}
-        </section>
+          </section>
+        )}
 
         {expandedControl && !isDock && !showResultChrome ? (
           <button
@@ -4859,97 +5085,55 @@ export function CardInlineGeneratePanel({
         ) : null}
 
         {expandedControl === "photos" && !showResultChrome ? (
-          <div
+          <ComposeSheetShell
             id="inline-generation-photos"
-            role={isDock ? undefined : "dialog"}
-            aria-modal={isDock ? undefined : "true"}
-            aria-label="Выбор фотографий"
-            className={
-              dockPhotosExpanded
-                ? `${dockSheetPanelBase} overflow-hidden`
-                : isMobile
-                  ? `${sheetPos} inset-0 z-50 flex h-full min-h-0 flex-col overflow-hidden bg-white p-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900`
-                  : `${sheetPos} inset-x-0 bottom-0 z-50 max-h-[min(76dvh,38rem)] overflow-y-auto rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]`
+            title={`Ваши фото · ${selectedPhotos.length}/${photoSelectionCap}`}
+            ariaLabel="Выбор фотографий"
+            collapseAriaLabel="Свернуть выбор фотографий"
+            closeAriaLabel="Закрыть выбор фотографий"
+            isDock={dockPhotosExpanded}
+            isMobile={isMobile}
+            onClose={closePrefsSheet}
+            bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
+            footer={
+              <button
+                type="button"
+                onClick={closePrefsSheet}
+                className={`${OVERLAY_BUTTON_UA_RESET} ${composeSheetCta}`}
+              >
+                Готово
+              </button>
             }
           >
-            <div
+            <section
+              aria-labelledby={
+                photoPromptCompose
+                  ? "generation-photo-prompt-guide-title"
+                  : stickerCompose
+                    ? "generation-sticker-picker-guide-title"
+                    : "generation-photo-guide-title"
+              }
               className={
                 isMobile || dockPhotosExpanded
-                  ? "flex h-full min-h-0 w-full flex-col"
-                  : "contents"
+                  ? "flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto overscroll-contain py-3"
+                  : "mb-3 min-h-0 flex-1 overflow-y-auto overscroll-contain"
               }
             >
-            {dockPhotosExpanded ? (
-              <button
-                type="button"
-                aria-label="Свернуть выбор фотографий"
-                onClick={closePrefsSheet}
-                className={`${OVERLAY_BUTTON_UA_RESET} mx-auto mb-1 flex w-full shrink-0 flex-col items-center gap-1 py-1`}
-              >
-                <span className={dockSheetHandle} aria-hidden />
-              </button>
-            ) : (
-              <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-zinc-300" aria-hidden />
-            )}
-            <div className="mb-3 flex min-h-11 shrink-0 items-center justify-between gap-3">
-              <span
-                className={`text-[13px] font-semibold ${
-                  dockPhotosExpanded ? "text-white" : "text-zinc-900"
-                }`}
-              >
-                Ваши фото · {selectedPhotos.length}/{photoSelectionCap}
-              </span>
-              <button
-                type="button"
-                aria-label="Закрыть выбор фотографий"
-                onClick={closePrefsSheet}
-                className={
-                  dockPhotosExpanded
-                    ? dockSheetCloseBtn
-                    : `${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200`
-                }
-              >
-                <svg
-                  className="h-5 w-5"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  aria-hidden
-                >
-                  <path d="m6 6 12 12M18 6 6 18" />
-                </svg>
-              </button>
-            </div>
-              <section
-                aria-labelledby={
-                  photoPromptCompose
-                    ? "generation-photo-prompt-guide-title"
-                    : stickerCompose
-                      ? "generation-sticker-picker-guide-title"
-                      : "generation-photo-guide-title"
-                }
-                className={
-                  isMobile || dockPhotosExpanded
-                    ? "flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto overscroll-contain py-3"
-                    : "mb-3"
-                }
-              >
-                {photoPromptCompose ? (
-                  <ComposeToolGuide
-                    mode="photo_prompt"
-                    glassChrome={dockPhotosExpanded}
-                    className={
-                      isMobile || dockPhotosExpanded ? "" : "items-start"
-                    }
-                  />
-                ) : stickerCompose ? (
-                  <StickerPickerGuide
-                    glassChrome={dockPhotosExpanded}
-                    centered={isMobile || dockPhotosExpanded}
-                    exampleUrl={selectedStickerExampleUrl}
-                  />
-                ) : (
+              {photoPromptCompose ? (
+                <ComposeToolGuide
+                  mode="photo_prompt"
+                  glassChrome={dockPhotosExpanded}
+                  className={
+                    isMobile || dockPhotosExpanded ? "" : "items-start"
+                  }
+                />
+              ) : stickerCompose ? (
+                <StickerPickerGuide
+                  glassChrome={dockPhotosExpanded}
+                  centered={isMobile || dockPhotosExpanded}
+                  exampleUrl={selectedStickerExampleUrl}
+                />
+              ) : (
                 <div
                   className={`flex w-full flex-col ${
                     isMobile || dockPhotosExpanded
@@ -4998,245 +5182,213 @@ export function CardInlineGeneratePanel({
                     Без групп, очков и съёмки издалека
                   </p>
                 </div>
-                )}
-              </section>
-            <div
-              className={
-                isMobile || dockPhotosExpanded
-                  ? `mt-auto flex shrink-0 flex-col ${composeBlockGap}`
-                  : "contents"
-              }
-            >
-            <div className="flex gap-2 overflow-x-auto">
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  fileInputRef.current?.click();
-                }}
-                disabled={controlsBusy}
-                className={`${OVERLAY_BUTTON_UA_RESET} flex h-[4.75rem] w-[4.75rem] shrink-0 flex-col items-center justify-center rounded-xl border border-dashed text-center transition disabled:opacity-50 ${
-                  dockPhotosExpanded
-                    ? "border-white/25 bg-white/10 text-white hover:border-indigo-300 hover:bg-white/15"
-                    : "border-zinc-300 bg-zinc-100 text-zinc-700 hover:border-indigo-400 hover:bg-indigo-50"
-                }`}
-              >
-                <svg
-                  className="h-5 w-5"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  aria-hidden
-                >
-                  <path d="M12 5v14M5 12h14" strokeLinecap="round" />
-                </svg>
-                <span className="mt-1 text-[13px] font-semibold">Добавить</span>
-              </button>
-              {photos.map((photo) => {
-                const selected = selectedPhotoIds.has(photo.id);
-                const deleting = deletingPhotoId === photo.id;
-                return (
-                  <div
-                    key={photo.id}
-                    className={`group relative isolate h-[4.75rem] w-[4.75rem] shrink-0 overflow-hidden rounded-xl ${composeTileFrame} ${
-                      selected
-                        ? "after:border-indigo-300"
+              )}
+            </section>
+            <div className={`mt-auto flex shrink-0 flex-col ${composeBlockGap}`}>
+              {showPreserveOutfitChip ? (
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    aria-pressed={preserveOutfit}
+                    disabled={controlsBusy}
+                    onClick={() => setPreserveOutfit((current) => !current)}
+                    className={`${OVERLAY_BUTTON_UA_RESET} inline-flex min-h-11 items-center gap-2 rounded-full px-3.5 text-[13px] font-semibold transition disabled:opacity-50 ${
+                      preserveOutfit
+                        ? dockPhotosExpanded
+                          ? "bg-indigo-500/30 text-white ring-1 ring-indigo-300"
+                          : "bg-zinc-900 text-white"
                         : dockPhotosExpanded
-                          ? "after:border-white/25"
-                          : "after:border-zinc-300"
+                          ? "bg-white/10 text-white/85 ring-1 ring-white/20 hover:bg-white/15"
+                          : "bg-zinc-100 text-zinc-800 hover:bg-zinc-200"
                     }`}
                   >
-                    <button
-                      type="button"
-                      aria-label={selected ? "Не использовать фото" : "Использовать фото"}
-                      aria-pressed={selected}
-                      disabled={controlsBusy || deleting}
-                      onClick={() => togglePhoto(photo.id)}
-                      className={`${OVERLAY_BUTTON_UA_RESET} absolute inset-0 overflow-hidden rounded-xl bg-zinc-800 disabled:opacity-50`}
+                    <span>Оставить одежду</span>
+                    {preserveOutfit ? (
+                      <span aria-hidden className="text-[12px] leading-none">
+                        ✓
+                      </span>
+                    ) : null}
+                  </button>
+                </div>
+              ) : null}
+              <div className="flex gap-2 overflow-x-auto">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    fileInputRef.current?.click();
+                  }}
+                  disabled={controlsBusy}
+                  className={`${OVERLAY_BUTTON_UA_RESET} flex h-[4.75rem] w-[4.75rem] shrink-0 flex-col items-center justify-center rounded-xl border border-dashed text-center transition disabled:opacity-50 ${
+                    dockPhotosExpanded
+                      ? "border-white/25 bg-white/10 text-white hover:border-indigo-300 hover:bg-white/15"
+                      : "border-zinc-300 bg-zinc-100 text-zinc-700 hover:border-indigo-400 hover:bg-indigo-50"
+                  }`}
+                >
+                  <svg
+                    className="h-5 w-5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    aria-hidden
+                  >
+                    <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+                  </svg>
+                  <span className="mt-1 text-[13px] font-semibold">Добавить</span>
+                </button>
+                {photos.map((photo) => {
+                  const selected = selectedPhotoIds.has(photo.id);
+                  const deleting = deletingPhotoId === photo.id;
+                  return (
+                    <div
+                      key={photo.id}
+                      className={`group relative isolate h-[4.75rem] w-[4.75rem] shrink-0 overflow-hidden rounded-xl ${composeTileFrame} ${
+                        selected
+                          ? "after:border-indigo-300"
+                          : dockPhotosExpanded
+                            ? "after:border-white/25"
+                            : "after:border-zinc-300"
+                      }`}
                     >
-                      {photo.previewUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={photo.previewUrl}
-                          alt={photo.originalFilename || "Сохранённое фото"}
-                          className="absolute inset-0 size-full object-cover object-center"
-                        />
-                      ) : (
-                        <span className="flex h-full items-center justify-center text-[13px] font-medium text-zinc-400">
-                          Фото
-                        </span>
-                      )}
-                      {selected ? (
+                      <button
+                        type="button"
+                        aria-label={selected ? "Не использовать фото" : "Использовать фото"}
+                        aria-pressed={selected}
+                        disabled={controlsBusy || deleting}
+                        onClick={() => togglePhoto(photo.id)}
+                        className={`${OVERLAY_BUTTON_UA_RESET} absolute inset-0 overflow-hidden rounded-xl bg-zinc-800 disabled:opacity-50`}
+                      >
+                        {photo.previewUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={photo.previewUrl}
+                            alt={photo.originalFilename || "Сохранённое фото"}
+                            className="absolute inset-0 size-full object-cover object-center"
+                          />
+                        ) : (
+                          <span className="flex h-full items-center justify-center text-[13px] font-medium text-zinc-400">
+                            Фото
+                          </span>
+                        )}
+                        {selected ? (
+                          <span
+                            aria-hidden
+                            className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-indigo-300 text-[13px] font-bold text-zinc-950 shadow"
+                          >
+                            ✓
+                          </span>
+                        ) : null}
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Удалить фото"
+                        disabled={busy || Boolean(deletingPhotoId)}
+                        onClick={() => void deletePhoto(photo)}
+                        className={`${OVERLAY_BUTTON_UA_RESET} absolute bottom-0 left-0 z-10 flex h-11 w-11 items-end justify-start p-1.5 text-white disabled:opacity-50`}
+                      >
                         <span
                           aria-hidden
-                          className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-indigo-300 text-[13px] font-bold text-zinc-950 shadow"
+                          className="flex h-7 w-7 items-center justify-center rounded-full bg-black/60 backdrop-blur-md"
                         >
-                          ✓
+                          <svg
+                            className="h-4 w-4"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                          >
+                            <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
                         </span>
-                      ) : null}
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Удалить фото"
-                      disabled={busy || Boolean(deletingPhotoId)}
-                      onClick={() => void deletePhoto(photo)}
-                      className={`${OVERLAY_BUTTON_UA_RESET} absolute bottom-0 left-0 z-10 flex h-11 w-11 items-end justify-start p-1.5 text-white disabled:opacity-50`}
-                    >
-                      <span
-                        aria-hidden
-                        className="flex h-7 w-7 items-center justify-center rounded-full bg-black/60 backdrop-blur-md"
-                      >
-                        <svg
-                          className="h-4 w-4"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                        >
-                          <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </span>
-                    </button>
-                  </div>
-                );
-              })}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              {!isMobile && !photos.length ? (
+                <p
+                  className={`shrink-0 text-[13px] font-medium ${
+                    dockPhotosExpanded ? "text-white/65" : "text-zinc-600"
+                  }`}
+                >
+                  {photoPromptCompose
+                    ? PHOTO_PROMPT_NEEDS_PHOTO
+                    : isAuthed
+                      ? "Фото необязательно. Если добавите — сохранится для следующих генераций и внешности."
+                      : "Фото необязательно. Можно выбрать сейчас — генерация после входа."}
+                </p>
+              ) : null}
             </div>
-            {!isMobile && !photos.length ? (
-              <p
-                className={`mt-2 shrink-0 text-[13px] font-medium ${
-                  dockPhotosExpanded ? "text-white/65" : "text-zinc-600"
-                }`}
-              >
-                {photoPromptCompose
-                  ? PHOTO_PROMPT_NEEDS_PHOTO
-                  : isAuthed
-                    ? "Фото необязательно. Если добавите — сохранится для следующих генераций и внешности."
-                    : "Фото необязательно. Можно выбрать сейчас — генерация после входа."}
-              </p>
-            ) : null}
-            <button
-              type="button"
-              onClick={closePrefsSheet}
-              className={`${OVERLAY_BUTTON_UA_RESET} ${
-                isMobile || dockPhotosExpanded ? "" : "mt-3 "
-              }${composeSheetCta}`}
-            >
-              Готово
-            </button>
-            </div>
-            </div>
-          </div>
+          </ComposeSheetShell>
         ) : null}
 
         {expandedControl === "example" && showSeoExampleTool ? (
-          <div
+          <ComposeSheetShell
             id="inline-generation-examples"
-            role={isDock ? undefined : "dialog"}
-            aria-modal={isDock ? undefined : "true"}
-            aria-labelledby="generation-example-picker-title"
-            className={
-              dockExampleExpanded
-                ? `${dockSheetPanelBase} overflow-hidden`
-                : isMobile
-                  ? `${sheetPos} inset-0 z-50 flex h-full min-h-0 flex-col overflow-hidden bg-white p-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900`
-                  : `${sheetPos} inset-x-0 bottom-0 z-50 flex h-[min(82dvh,44rem)] max-h-[min(82dvh,44rem)] flex-col overflow-hidden rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]`
+            title={
+              stickerCompose
+                ? STICKER_STYLE_PICKER_TITLE
+                : SEO_COMPOSE_EXAMPLE_SHEET_TITLE
             }
-          >
-            <div className="flex h-full min-h-0 w-full flex-col">
-            {dockExampleExpanded ? (
-              <button
-                type="button"
-                aria-label={SEO_COMPOSE_EXAMPLE_SHEET_COLLAPSE_LABEL}
-                onClick={closePrefsSheet}
-                className={`${OVERLAY_BUTTON_UA_RESET} mx-auto mb-1 flex w-full shrink-0 flex-col items-center gap-1 py-1`}
-              >
-                <span className={dockSheetHandle} aria-hidden />
-              </button>
-            ) : (
-              <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-zinc-300" aria-hidden />
-            )}
-            <div className="mb-3 flex min-h-11 shrink-0 items-center justify-between gap-3">
-              <h3
-                id="generation-example-picker-title"
-                className={`text-[13px] font-semibold ${
-                  dockExampleExpanded ? "text-white" : "text-zinc-900"
-                }`}
-              >
-                {stickerCompose ? STICKER_STYLE_PICKER_TITLE : SEO_COMPOSE_EXAMPLE_SHEET_TITLE}
-              </h3>
-              <button
-                type="button"
-                aria-label={SEO_COMPOSE_EXAMPLE_SHEET_CLOSE_LABEL}
-                onClick={closePrefsSheet}
-                className={
-                  dockExampleExpanded
-                    ? dockSheetCloseBtn
-                    : `${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200`
-                }
-              >
-                <svg
-                  className="h-5 w-5"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  aria-hidden
-                >
-                  <path d="m6 6 12 12M18 6 6 18" />
-                </svg>
-              </button>
-            </div>
-            {stickerCompose && stickerKind === "pack" ? (
-              <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-                  <p
-                    className={`px-1 pb-2 text-[13px] font-semibold ${
-                      dockExampleExpanded ? "text-white" : "text-zinc-900"
-                    }`}
-                  >
-                    {STICKER_PACK_SET_PICKER_TITLE}
-                  </p>
-                  <StickerPackSetPicker
-                    packs={stickerPacks}
-                    selectedId={stickerPackSetId}
-                    tone={dockExampleExpanded ? "dark" : "light"}
-                    onSelect={(pack) => {
-                      setStickerPackSetId(pack.id);
-                      setError("");
-                    }}
-                  />
-                  <p
-                    className={`px-1 pb-2 pt-4 text-[13px] font-semibold ${
-                      dockExampleExpanded ? "text-white" : "text-zinc-900"
-                    }`}
-                  >
-                    {STICKER_STYLE_PICKER_TITLE}
-                  </p>
-                  <StickerStylePicker
-                    embedded
-                    styles={stickerStyles}
-                    loading={stickerCatalogLoading}
-                    selectedId={stickerStyleId}
-                    tone={dockExampleExpanded ? "dark" : "light"}
-                    confirmCtaClassName={composeSheetCta}
-                    onSelect={(style) => {
-                      stickerStyleTouchedRef.current = true;
-                      setStickerStyleId(style.id);
-                      setError("");
-                    }}
-                  />
-                </div>
+            titleId="generation-example-picker-title"
+            collapseAriaLabel={SEO_COMPOSE_EXAMPLE_SHEET_COLLAPSE_LABEL}
+            closeAriaLabel={SEO_COMPOSE_EXAMPLE_SHEET_CLOSE_LABEL}
+            isDock={dockExampleExpanded}
+            isMobile={isMobile}
+            onClose={closePrefsSheet}
+            bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
+            footer={
+              stickerCompose && stickerKind === "pack" ? (
                 <button
                   type="button"
                   onClick={closePrefsSheet}
-                  className={`${OVERLAY_BUTTON_UA_RESET} ${
-                    isMobile || dockExampleExpanded ? "" : "mt-3 "
-                  }${composeSheetCta}`}
+                  className={`${OVERLAY_BUTTON_UA_RESET} ${composeSheetCta}`}
                 >
                   {STICKER_STYLE_PICKER_CONFIRM_CTA}
                 </button>
+              ) : undefined
+            }
+          >
+            {stickerCompose && stickerKind === "pack" ? (
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                <p
+                  className={`px-1 pb-2 text-[13px] font-semibold ${
+                    dockExampleExpanded ? "text-white" : "text-zinc-900"
+                  }`}
+                >
+                  {STICKER_PACK_SET_PICKER_TITLE}
+                </p>
+                <StickerPackSetPicker
+                  packs={stickerPacks}
+                  selectedId={stickerPackSetId}
+                  tone={dockExampleExpanded ? "dark" : "light"}
+                  onSelect={(pack) => {
+                    setStickerPackSetId(pack.id);
+                    setError("");
+                  }}
+                />
+                <p
+                  className={`px-1 pb-2 pt-4 text-[13px] font-semibold ${
+                    dockExampleExpanded ? "text-white" : "text-zinc-900"
+                  }`}
+                >
+                  {STICKER_STYLE_PICKER_TITLE}
+                </p>
+                <StickerStylePicker
+                  embedded
+                  styles={stickerStyles}
+                  loading={stickerCatalogLoading}
+                  selectedId={stickerStyleId}
+                  tone={dockExampleExpanded ? "dark" : "light"}
+                  confirmCtaClassName={composeSheetCta}
+                  onSelect={(style) => {
+                    stickerStyleTouchedRef.current = true;
+                    setStickerStyleId(style.id);
+                    setError("");
+                  }}
+                />
               </div>
             ) : stickerCompose ? (
               <StickerStylePicker
@@ -5244,9 +5396,7 @@ export function CardInlineGeneratePanel({
                 loading={stickerCatalogLoading}
                 selectedId={stickerStyleId}
                 tone={dockExampleExpanded ? "dark" : "light"}
-                confirmCtaClassName={`${OVERLAY_BUTTON_UA_RESET} ${
-                  isMobile || dockExampleExpanded ? "" : "mt-3 "
-                }${composeSheetCta}`}
+                confirmCtaClassName={`${OVERLAY_BUTTON_UA_RESET} mt-3 ${composeSheetCta}`}
                 onSelect={(style) => {
                   stickerStyleTouchedRef.current = true;
                   setStickerStyleId(style.id);
@@ -5255,100 +5405,60 @@ export function CardInlineGeneratePanel({
                 onConfirmed={closePrefsSheet}
               />
             ) : (
-            <ComposeExamplePicker
-              selectedCardId={resolvedCardId}
-              tone={dockExampleExpanded ? "dark" : "light"}
-              matchEnabled={composeExampleMatchEnabled}
-              matchPhoto={
-                selectedPhotos[0]
-                  ? {
-                      id: selectedPhotos[0].id,
-                      dataUrl: isPhotoPromptEphemeralId(selectedPhotos[0].id)
-                        ? selectedPhotos[0].previewUrl
-                        : null,
-                      audienceTag: selectedPhotos[0].audienceTag ?? null,
-                    }
-                  : null
-              }
-              confirmCtaClassName={`${OVERLAY_BUTTON_UA_RESET} ${
-                isMobile || dockExampleExpanded ? "" : "mt-3 "
-              }${composeSheetCta}`}
-              onSelect={({ cardId: nextCardId, promptText, photoUrl }) => {
-                setPickedExampleCardId(nextCardId);
-                setPickedExamplePreviewUrl(photoUrl);
-                setDraftPrompt(promptText);
-                setError("");
-                applyComposeExamplePick({
-                  cardId: nextCardId,
-                  promptText,
-                  examplePreviewUrl: photoUrl,
-                });
-              }}
-              onConfirmed={closePrefsSheet}
-            />
+              <ComposeExamplePicker
+                selectedCardId={resolvedCardId}
+                tone={dockExampleExpanded ? "dark" : "light"}
+                matchEnabled={composeExampleMatchEnabled}
+                matchPhoto={
+                  selectedPhotos[0]
+                    ? {
+                        id: selectedPhotos[0].id,
+                        dataUrl: isPhotoPromptEphemeralId(selectedPhotos[0].id)
+                          ? selectedPhotos[0].previewUrl
+                          : null,
+                        audienceTag: selectedPhotos[0].audienceTag ?? null,
+                      }
+                    : null
+                }
+                confirmCtaClassName={`${OVERLAY_BUTTON_UA_RESET} mt-3 ${composeSheetCta}`}
+                onSelect={({ cardId: nextCardId, promptText, photoUrl }) => {
+                  setPickedExampleCardId(nextCardId);
+                  setPickedExamplePreviewUrl(photoUrl);
+                  setDraftPrompt(promptText);
+                  setError("");
+                  applyComposeExamplePick({
+                    cardId: nextCardId,
+                    promptText,
+                    examplePreviewUrl: photoUrl,
+                  });
+                }}
+                onConfirmed={closePrefsSheet}
+              />
             )}
-            </div>
-          </div>
+          </ComposeSheetShell>
         ) : null}
 
         {expandedControl === "tool" && !showResultChrome ? (
-          <div
+          <ComposeSheetShell
             id="inline-generation-tools"
-            role={isDock ? undefined : "dialog"}
-            aria-modal={isDock ? undefined : "true"}
-            aria-labelledby="generation-tool-sheet-title"
-            className={
-              dockToolExpanded
-                ? `${dockSheetPanelBase} overflow-hidden`
-                : isMobile
-                  ? `${sheetPos} inset-0 z-50 flex h-full min-h-0 flex-col overflow-hidden bg-white p-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900`
-                  : `${sheetPos} inset-x-0 bottom-0 z-50 flex h-[min(82dvh,44rem)] max-h-[min(82dvh,44rem)] flex-col overflow-hidden rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]`
+            title={COMPOSE_TOOL_SHEET_TITLE}
+            titleId="generation-tool-sheet-title"
+            collapseAriaLabel="Свернуть выбор инструмента"
+            closeAriaLabel="Закрыть выбор инструмента"
+            isDock={dockToolExpanded}
+            isMobile={isMobile}
+            onClose={closePrefsSheet}
+            bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
+            footer={
+              <button
+                type="button"
+                onClick={closePrefsSheet}
+                className={`${OVERLAY_BUTTON_UA_RESET} ${composeSheetCta}`}
+              >
+                {COMPOSE_TOOL_SHEET_DONE_CTA}
+              </button>
             }
           >
-            <div className="flex h-full min-h-0 w-full flex-col">
-            {dockToolExpanded ? (
-              <button
-                type="button"
-                aria-label="Свернуть выбор инструмента"
-                onClick={closePrefsSheet}
-                className={`${OVERLAY_BUTTON_UA_RESET} mx-auto mb-1 flex w-full shrink-0 flex-col items-center gap-1 py-1`}
-              >
-                <span className={dockSheetHandle} aria-hidden />
-              </button>
-            ) : (
-              <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-zinc-300" aria-hidden />
-            )}
-            <div className="mb-3 flex min-h-11 shrink-0 items-center justify-between gap-3">
-              <h3
-                id="generation-tool-sheet-title"
-                className={`text-[13px] font-semibold ${
-                  dockToolExpanded ? "text-white" : "text-zinc-900"
-                }`}
-              >
-                {COMPOSE_TOOL_SHEET_TITLE}
-              </h3>
-              <button
-                type="button"
-                aria-label="Закрыть выбор инструмента"
-                onClick={closePrefsSheet}
-                className={
-                  dockToolExpanded
-                    ? dockSheetCloseBtn
-                    : `${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200`
-                }
-              >
-                <svg
-                  className="h-5 w-5"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  aria-hidden
-                >
-                  <path d="m6 6 12 12M18 6 6 18" />
-                </svg>
-              </button>
-            </div>
             <ComposeToolGuide
               mode={composeMode}
               glassChrome={dockToolExpanded}
@@ -5367,7 +5477,7 @@ export function CardInlineGeneratePanel({
             <div
               role="group"
               aria-label={COMPOSE_TOOL_SHEET_TITLE}
-              className="flex shrink-0 items-start gap-2 overflow-x-auto overscroll-x-contain pb-3 pt-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              className="flex shrink-0 items-start gap-2 overflow-x-auto overscroll-x-contain pb-1 pt-2.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
               {toolOptions.map((mode) => (
                 <ComposeToolChoiceTile
@@ -5384,310 +5494,263 @@ export function CardInlineGeneratePanel({
                 />
               ))}
             </div>
-            <button type="button" onClick={closePrefsSheet} className={composeSheetCta}>
-              {COMPOSE_TOOL_SHEET_DONE_CTA}
-            </button>
-            </div>
-          </div>
+          </ComposeSheetShell>
         ) : null}
 
         {expandedControl === "model" && !showResultChrome ? (
-          <div
+          <ComposeSheetShell
             id="inline-generation-models"
-            role={isDock ? undefined : "dialog"}
-            aria-modal={isDock ? undefined : "true"}
-            aria-label="Выбор модели"
-            className={
-              dockModelExpanded
-                ? `${dockSheetPanelBase} overflow-hidden`
-                : isMobile
-                  ? `${sheetPos} inset-0 z-50 flex h-full min-h-0 flex-col overflow-hidden bg-white p-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900`
-                  : `${sheetPos} inset-x-0 bottom-0 z-50 max-h-[min(82dvh,44rem)] overflow-y-auto rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]`
+            title={videoCompose ? "Модель видео" : "Модель фото"}
+            ariaLabel="Выбор модели"
+            collapseAriaLabel="Свернуть выбор модели"
+            closeAriaLabel="Закрыть выбор модели"
+            isDock={dockModelExpanded}
+            isMobile={isMobile}
+            onClose={closePrefsSheet}
+            bodyClassName={`flex min-h-0 flex-1 flex-col justify-end overflow-y-auto overscroll-contain ${composeBlockGap}`}
+            footer={
+              <button
+                type="button"
+                onClick={closePrefsSheet}
+                disabled={
+                  Boolean(
+                    !videoCompose &&
+                      composeNeedsImageModelPick({
+                        composeMode: "image",
+                        modelId: model,
+                      }),
+                  )
+                }
+                className={`${OVERLAY_BUTTON_UA_RESET} ${composeSheetCta}`}
+              >
+                {!videoCompose &&
+                composeNeedsImageModelPick({
+                  composeMode: "image",
+                  modelId: model,
+                })
+                  ? COMPOSE_PICK_IMAGE_MODEL_CTA
+                  : "Готово"}
+              </button>
             }
           >
-            <div
-              className={
-                isMobile || dockModelExpanded
-                  ? "flex h-full min-h-0 w-full flex-col"
-                  : "contents"
-              }
-            >
-            {dockModelExpanded ? (
-              <button
-                type="button"
-                aria-label="Свернуть выбор модели"
-                onClick={closePrefsSheet}
-                className={`${OVERLAY_BUTTON_UA_RESET} mx-auto mb-1 flex w-full shrink-0 flex-col items-center gap-1 py-1`}
-              >
-                <span className={dockSheetHandle} aria-hidden />
-              </button>
-            ) : (
-              <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-zinc-300" aria-hidden />
-            )}
-            <div className="mb-3 flex min-h-11 shrink-0 items-center justify-between gap-3">
-              <span
-                className={`text-[13px] font-semibold ${
-                  dockModelExpanded ? "text-white" : "text-zinc-900"
-                }`}
-              >
-                {videoCompose ? "Модель видео" : "Модель фото"}
-              </span>
-              <button
-                type="button"
-                aria-label="Закрыть выбор модели"
-                onClick={closePrefsSheet}
-                className={
-                  dockModelExpanded
-                    ? dockSheetCloseBtn
-                    : `${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200`
-                }
-              >
-                <svg
-                  className="h-5 w-5"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  aria-hidden
-                >
-                  <path d="m6 6 12 12M18 6 6 18" />
-                </svg>
-              </button>
-            </div>
-            <div
-              className={
-                isMobile || dockModelExpanded
-                  ? `mt-auto flex min-h-0 shrink-0 flex-col ${composeBlockGap}`
-                  : "contents"
-              }
-            >
             {!videoCompose ? (
-            <div className="grid shrink-0 grid-cols-2 gap-x-2 gap-y-5">
-              {models.map((item) => {
-                const unaffordable =
-                  isAuthed && credits !== null && credits < item.cost;
-                return (
-                  <ComposeModelChoiceCard
-                    key={item.id}
-                    modelId={item.id}
-                    label={displayLabelForGenerationModel(item.id, item.label)}
-                    description={displayDescriptionForGenerationModel(
-                      item.id,
-                      "Генерация изображений"
-                    )}
-                    cost={item.cost}
-                    selected={model === item.id}
-                    unaffordable={unaffordable}
-                    disabled={controlsBusy}
-                    dockChrome={dockModelExpanded}
-                    onClick={() => selectImageModel(item.id)}
-                  />
-                );
-              })}
-            </div>
-            ) : null}
-            {videoCompose ? (
-              <>
-                <div className="grid shrink-0 grid-cols-2 gap-x-2 gap-y-5">
-                  {videoModels.map((item) => {
-                    const itemCost = calculateVideoCreditCost(
-                      item.cost,
-                      videoDurationSeconds,
-                      item.id
-                    );
-                    const unaffordable =
-                      isAuthed && credits !== null && credits < itemCost;
-                    return (
-                      <ComposeModelChoiceCard
-                        key={item.id}
-                        modelId={item.id}
-                        label={displayLabelForGenerationModel(item.id, item.label)}
-                        description={displayDescriptionForGenerationModel(
-                          item.id,
-                          "Видео из фото"
-                        )}
-                        cost={itemCost}
-                        selected={activeVideoModel?.id === item.id}
-                        unaffordable={unaffordable}
-                        disabled={controlsBusy}
-                        dockChrome={dockModelExpanded}
-                        onClick={() => selectVideoModel(item.id)}
-                      />
-                    );
-                  })}
-                </div>
-              </>
-            ) : null}
-            {videoCompose ? (
-              <>
-                <div className={`${isMobile || dockModelExpanded ? "" : "mt-3 "}grid shrink-0 grid-cols-3 gap-2`}>
-                  <label className="block min-w-0">
-                    <span
-                      className={`mb-1 block text-[13px] font-medium ${
-                        dockModelExpanded ? "text-white/65" : "text-zinc-600"
-                      }`}
-                    >
-                      Формат
-                    </span>
-                    <select
-                      value={videoAspectRatio}
-                      onChange={(event) => setVideoAspectRatio(event.target.value)}
+              <div className="grid shrink-0 grid-cols-2 gap-x-2 gap-y-5">
+                {models.map((item) => {
+                  const unaffordable =
+                    isAuthed && credits !== null && credits < item.cost;
+                  return (
+                    <ComposeModelChoiceCard
+                      key={item.id}
+                      modelId={item.id}
+                      label={displayLabelForGenerationModel(item.id, item.label)}
+                      description={displayDescriptionForGenerationModel(
+                        item.id,
+                        "Генерация изображений"
+                      )}
+                      cost={item.cost}
+                      selected={model === item.id}
+                      unaffordable={unaffordable}
                       disabled={controlsBusy}
-                      className={`min-h-11 w-full px-3 text-[13px] font-semibold outline-none transition disabled:opacity-50 ${
-                        dockModelExpanded
-                          ? dockSheetField
-                          : "rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-900 focus:border-indigo-400"
-                      }`}
-                    >
-                      {VIDEO_ASPECT_RATIO_OPTIONS.map((item) => (
-                        <option key={item.value} value={item.value}>
-                          {item.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="block min-w-0">
-                    <span
-                      className={`mb-1 block text-[13px] font-medium ${
-                        dockModelExpanded ? "text-white/65" : "text-zinc-600"
-                      }`}
-                    >
-                      Длительность
-                    </span>
-                    <select
-                      value={String(videoDurationSeconds)}
-                      onChange={(event) =>
-                        setVideoDurationSeconds(Number(event.target.value))
-                      }
-                      disabled={controlsBusy}
-                      className={`min-h-11 w-full px-3 text-[13px] font-semibold outline-none transition disabled:opacity-50 ${
-                        dockModelExpanded
-                          ? dockSheetField
-                          : "rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-900 focus:border-indigo-400"
-                      }`}
-                    >
-                      {videoDurationChoices.map((item) => {
-                        const extra = videoDurationExtraCredits(
-                          item.value,
-                          activeVideoModel?.id
-                        );
-                        return (
-                          <option key={item.value} value={item.value}>
-                            {extra > 0 ? `${item.label} · +${extra}` : item.label}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </label>
-                  <label className="block min-w-0">
-                    <span
-                      className={`mb-1 block text-[13px] font-medium ${
-                        dockModelExpanded ? "text-white/65" : "text-zinc-600"
-                      }`}
-                    >
-                      Качество
-                    </span>
-                    <select
-                      value={DEFAULT_VIDEO_RESOLUTION}
-                      disabled
-                      className={`min-h-11 w-full px-3 text-[13px] font-semibold outline-none transition disabled:opacity-50 ${
-                        dockModelExpanded
-                          ? dockSheetField
-                          : "rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-900 focus:border-indigo-400"
-                      }`}
-                    >
-                      {VIDEO_RESOLUTION_OPTIONS.map((item) => (
-                        <option key={item.value} value={item.value}>
-                          {item.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-              </>
+                      dockChrome={dockModelExpanded}
+                      onClick={() => selectImageModel(item.id)}
+                    />
+                  );
+                })}
+              </div>
             ) : (
-              <>
-            <div className={`${isMobile || dockModelExpanded ? "" : "mt-3 "}grid shrink-0 grid-cols-2 gap-2`}>
-              <label className="block min-w-0">
-                <span
-                  className={`mb-1 block text-[13px] font-medium ${
-                    dockModelExpanded ? "text-white/65" : "text-zinc-600"
-                  }`}
-                >
-                  Формат
-                </span>
-                <select
-                  value={aspectRatio}
-                  onChange={(event) => setAspectRatio(event.target.value)}
-                  disabled={controlsBusy || !aspectRatios.length}
-                  className={`min-h-11 w-full px-3 text-[13px] font-semibold outline-none transition disabled:opacity-50 ${
-                    dockModelExpanded
-                      ? dockSheetField
-                      : "rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-900 focus:border-indigo-400"
-                  }`}
-                >
-                  {aspectRatios.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block min-w-0">
-                <span
-                  className={`mb-1 block text-[13px] font-medium ${
-                    dockModelExpanded ? "text-white/65" : "text-zinc-600"
-                  }`}
-                >
-                  Качество
-                </span>
-                <select
-                  value={imageSize}
-                  onChange={(event) => setImageSize(event.target.value)}
-                  disabled={controlsBusy || !imageSizes.length}
-                  className={`min-h-11 w-full px-3 text-[13px] font-semibold outline-none transition disabled:opacity-50 ${
-                    dockModelExpanded
-                      ? dockSheetField
-                      : "rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-900 focus:border-indigo-400"
-                  }`}
-                >
-                  {visibleImageSizes.map((item) => (
-                    <option key={item.value} value={item.value}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-              </>
+              <div className="grid shrink-0 grid-cols-2 gap-x-2 gap-y-5">
+                {videoModels.map((item) => {
+                  const itemCost = calculateVideoCreditCost(
+                    item.cost,
+                    videoDurationSeconds,
+                    item.id
+                  );
+                  const unaffordable =
+                    isAuthed && credits !== null && credits < itemCost;
+                  return (
+                    <ComposeModelChoiceCard
+                      key={item.id}
+                      modelId={item.id}
+                      label={displayLabelForGenerationModel(item.id, item.label)}
+                      description={displayDescriptionForGenerationModel(
+                        item.id,
+                        "Видео из фото"
+                      )}
+                      cost={itemCost}
+                      selected={activeVideoModel?.id === item.id}
+                      unaffordable={unaffordable}
+                      disabled={controlsBusy}
+                      dockChrome={dockModelExpanded}
+                      onClick={() => selectVideoModel(item.id)}
+                    />
+                  );
+                })}
+              </div>
             )}
-            <button
-              type="button"
-              onClick={closePrefsSheet}
-              disabled={
-                Boolean(
-                  !videoCompose &&
-                    composeNeedsImageModelPick({
-                      composeMode: "image",
-                      modelId: model,
-                    }),
-                )
-              }
-              className={`${OVERLAY_BUTTON_UA_RESET} ${
-                isMobile || dockModelExpanded ? "" : "mt-3 "
-              }${composeSheetCta}`}
-            >
-              {!videoCompose &&
-              composeNeedsImageModelPick({
-                composeMode: "image",
-                modelId: model,
-              })
-                ? COMPOSE_PICK_IMAGE_MODEL_CTA
-                : "Готово"}
-            </button>
-            </div>
-            </div>
-          </div>
+            {videoCompose ? (
+              <div className="grid shrink-0 grid-cols-3 gap-2">
+                <label className="block min-w-0">
+                  <span
+                    className={`mb-1 block text-[13px] font-medium ${
+                      dockModelExpanded ? "text-white/65" : "text-zinc-600"
+                    }`}
+                  >
+                    Формат
+                  </span>
+                  <select
+                    value={videoAspectRatio}
+                    onChange={(event) => setVideoAspectRatio(event.target.value)}
+                    disabled={controlsBusy}
+                    className={`min-h-11 w-full px-3 text-[13px] font-semibold outline-none transition disabled:opacity-50 ${
+                      dockModelExpanded
+                        ? dockSheetField
+                        : "rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-900 focus:border-indigo-400"
+                    }`}
+                  >
+                    {VIDEO_ASPECT_RATIO_OPTIONS.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block min-w-0">
+                  <span
+                    className={`mb-1 block text-[13px] font-medium ${
+                      dockModelExpanded ? "text-white/65" : "text-zinc-600"
+                    }`}
+                  >
+                    Длительность
+                  </span>
+                  <select
+                    value={String(videoDurationSeconds)}
+                    onChange={(event) =>
+                      setVideoDurationSeconds(Number(event.target.value))
+                    }
+                    disabled={controlsBusy}
+                    className={`min-h-11 w-full px-3 text-[13px] font-semibold outline-none transition disabled:opacity-50 ${
+                      dockModelExpanded
+                        ? dockSheetField
+                        : "rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-900 focus:border-indigo-400"
+                    }`}
+                  >
+                    {videoDurationChoices.map((item) => {
+                      const extra = videoDurationExtraCredits(
+                        item.value,
+                        activeVideoModel?.id
+                      );
+                      return (
+                        <option key={item.value} value={item.value}>
+                          {extra > 0 ? `${item.label} · +${extra}` : item.label}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </label>
+                <label className="block min-w-0">
+                  <span
+                    className={`mb-1 block text-[13px] font-medium ${
+                      dockModelExpanded ? "text-white/65" : "text-zinc-600"
+                    }`}
+                  >
+                    Качество
+                  </span>
+                  <select
+                    value={DEFAULT_VIDEO_RESOLUTION}
+                    disabled
+                    className={`min-h-11 w-full px-3 text-[13px] font-semibold outline-none transition disabled:opacity-50 ${
+                      dockModelExpanded
+                        ? dockSheetField
+                        : "rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-900 focus:border-indigo-400"
+                    }`}
+                  >
+                    {VIDEO_RESOLUTION_OPTIONS.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            ) : (
+              <div className="grid shrink-0 grid-cols-2 gap-2">
+                <label className="block min-w-0">
+                  <span
+                    className={`mb-1 block text-[13px] font-medium ${
+                      dockModelExpanded ? "text-white/65" : "text-zinc-600"
+                    }`}
+                  >
+                    Формат
+                  </span>
+                  <select
+                    value={aspectRatio}
+                    onChange={(event) => setAspectRatio(event.target.value)}
+                    disabled={controlsBusy || !aspectRatios.length}
+                    className={`min-h-11 w-full px-3 text-[13px] font-semibold outline-none transition disabled:opacity-50 ${
+                      dockModelExpanded
+                        ? dockSheetField
+                        : "rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-900 focus:border-indigo-400"
+                    }`}
+                  >
+                    {aspectRatios.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block min-w-0">
+                  <span
+                    className={`mb-1 block text-[13px] font-medium ${
+                      dockModelExpanded ? "text-white/65" : "text-zinc-600"
+                    }`}
+                  >
+                    Качество
+                  </span>
+                  <select
+                    value={imageSize}
+                    onChange={(event) => setImageSize(event.target.value)}
+                    disabled={controlsBusy || !imageSizes.length}
+                    className={`min-h-11 w-full px-3 text-[13px] font-semibold outline-none transition disabled:opacity-50 ${
+                      dockModelExpanded
+                        ? dockSheetField
+                        : "rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-900 focus:border-indigo-400"
+                    }`}
+                  >
+                    {visibleImageSizes.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
+          </ComposeSheetShell>
+        ) : null}
+
+        {expandedControl === "auth" && !showResultChrome ? (
+          <ComposeAuthSheet
+            isDock={dockAuthExpanded}
+            isMobile={isMobile}
+            reason={authSheetReason}
+            photoPreviewUrl={
+              selectedPhotos[0]?.previewUrl ?? photoPromptDataUrlRef.current
+            }
+            examplePreviewUrl={pickedExamplePreviewUrl}
+            promptSnippet={draftPrompt}
+            onBeforeRedirect={() => {
+              persistPendingGenerateDock({
+                seed: applyComposeExampleToSeed(seed, {
+                  cardId: resolvedCardId || "",
+                  promptText: draftPrompt,
+                  examplePreviewUrl: pickedExamplePreviewUrl,
+                }),
+                dockSurface: null,
+              });
+            }}
+            onClose={() => setExpandedControl(null)}
+          />
         ) : null}
 
         {!showResultChrome ? (
@@ -5695,7 +5758,7 @@ export function CardInlineGeneratePanel({
           className={`shrink-0 ${
             isDock
               ? `rounded-none border-0 bg-transparent p-0${
-                  dockExpanded ? " invisible pointer-events-none" : ""
+                  dockExpanded ? " hidden" : ""
                 }`
               : `rounded-2xl border p-2 ${
                   glassChrome
@@ -5706,7 +5769,7 @@ export function CardInlineGeneratePanel({
           aria-hidden={isDock && dockExpanded ? true : undefined}
           inert={isDock && dockExpanded ? true : undefined}
         >
-          <div className="flex items-start gap-2 overflow-x-auto overscroll-x-contain pt-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex items-start gap-2 overflow-x-auto overscroll-x-contain pb-1 pt-2.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <ComposeDockToolTile
               edgeLabel={COMPOSE_PHOTOS_TOOL_EDGE_LABEL}
               bodyLabel={
@@ -5726,7 +5789,10 @@ export function CardInlineGeneratePanel({
                     )
                   : null
               }
-              icon={<ComposeLibraryPhotosIcon className="h-3.5 w-3.5" />}
+              statusBadge={
+                showPreserveOutfitChip && preserveOutfit ? "Одежда" : null
+              }
+              icon={<ComposeLibraryPhotosIcon className="h-4 w-4" />}
               selected={expandedControl === "photos"}
               expanded={expandedControl === "photos"}
               disabled={controlsBusy}
@@ -5776,7 +5842,7 @@ export function CardInlineGeneratePanel({
                       : composePreviewImageUrls([pickedExamplePreviewUrl])
                 }
                 previewPlate={stickerCompose && stickerKind !== "pack" ? "clear" : "photo"}
-                icon={<ComposeExampleToolIcon className="h-5 w-5" />}
+                icon={<ComposeExampleToolIcon className="h-4 w-4" />}
                 selected={expandedControl === "example"}
                 expanded={expandedControl === "example"}
                 disabled={controlsBusy}
@@ -5786,6 +5852,12 @@ export function CardInlineGeneratePanel({
                 )}`}
                 controlsId="inline-generation-examples"
                 ariaLabel={SEO_COMPOSE_EXAMPLE_TOOL_LABEL}
+                onPrefetch={() =>
+                  preloadExampleSheetChunks(
+                    stickerCompose,
+                    stickerKind === "pack",
+                  )
+                }
                 onClick={toggleSeoExampleSheet}
               />
             ) : null}
@@ -5830,27 +5902,6 @@ export function CardInlineGeneratePanel({
               />
             ) : null}
           </div>
-          {showPreserveOutfitChip ? (
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                aria-pressed={preserveOutfit}
-                disabled={controlsBusy}
-                onClick={() => setPreserveOutfit((current) => !current)}
-                className={`${OVERLAY_BUTTON_UA_RESET} inline-flex min-h-11 items-center rounded-full px-3 text-[13px] font-medium transition disabled:opacity-50 ${
-                  preserveOutfit
-                    ? isDock || glassChrome
-                      ? "bg-white/20 text-white ring-1 ring-white/35"
-                      : "bg-zinc-900 text-white"
-                    : isDock || glassChrome
-                      ? "bg-white/10 text-white/85 ring-1 ring-white/15"
-                      : "bg-zinc-100 text-zinc-800"
-                }`}
-              >
-                Оставить одежду
-              </button>
-            </div>
-          ) : null}
         </section>
         ) : null}
 
@@ -5876,7 +5927,7 @@ export function CardInlineGeneratePanel({
             className={`rounded-xl border p-3 ${
               isDock
                 ? `border-rose-300/25 bg-rose-950/35${
-                    dockExpanded ? " invisible pointer-events-none" : ""
+                    dockExpanded ? " hidden" : ""
                   }`
                 : glassChrome
                   ? "border-white/15 bg-black/15 backdrop-blur-md"
@@ -5917,17 +5968,6 @@ export function CardInlineGeneratePanel({
         }`}
       >
         <div className="flex min-w-0 gap-2">
-        {showCreditsCta ? (
-          <PricingEntryLink
-            href="/pricing"
-            onClick={() =>
-              reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING)
-            }
-            className="flex min-h-12 min-w-0 w-full items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 px-4 py-3 text-center text-[15px] font-semibold leading-snug text-white shadow-lg shadow-indigo-950/35 transition hover:brightness-110"
-          >
-            {COMPOSE_BUY_CREDITS_CTA}
-          </PricingEntryLink>
-        ) : (
           <button
             type="button"
             aria-busy={busy}
@@ -5935,23 +5975,32 @@ export function CardInlineGeneratePanel({
             aria-valuemax={jobBusy ? 100 : undefined}
             aria-valuenow={jobBusy ? Math.round(progress) : undefined}
             disabled={
-              busy ||
-              stickerPackSoon ||
-              (photoPromptCompose
-                ? Boolean(busyAction)
-                : isAuthed &&
-                  (controlsBusy ||
-                    libraryLoading ||
-                    (!photoshootCompose && !stickerCompose && scenarioLoading) ||
-                    Boolean(busyAction) ||
-                    Boolean(configError) ||
-                    (!photoshootCompose &&
-                      !stickerCompose &&
-                      draftPrompt.trim().length < 8 &&
-                      !seoNeedsExamplePick &&
-                      !seoNeedsImageModelPick)))
+              showCreditsCta
+                ? false
+                : busy ||
+                  stickerPackSoon ||
+                  (photoPromptCompose
+                    ? Boolean(busyAction)
+                    : isAuthed &&
+                      (controlsBusy ||
+                        ((photoshootCompose || stickerCompose) &&
+                          !sourcePhotoPicked &&
+                          libraryLoading) ||
+                        (!photoshootCompose && !stickerCompose && scenarioLoading) ||
+                        Boolean(busyAction) ||
+                        Boolean(configError) ||
+                        (!photoshootCompose &&
+                          !stickerCompose &&
+                          draftPrompt.trim().length < 8 &&
+                          !seoNeedsExamplePick &&
+                          !seoNeedsImageModelPick)))
             }
             onClick={() => {
+              if (showCreditsCta) {
+                hostAdapter.trackGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING);
+                openPricing();
+                return;
+              }
               if (stickerPackSoon) return;
               if (photoPromptCompose) {
                 if (busy) return;
@@ -5975,7 +6024,7 @@ export function CardInlineGeneratePanel({
                   }),
                   dockSurface: null,
                 });
-                openAuthModal();
+                openInlineAuthSheet("default");
                 return;
               }
               if (busy) return;
@@ -6040,125 +6089,139 @@ export function CardInlineGeneratePanel({
               void runGenerate({ promptOverride: draftPrompt });
             }}
             className={`${OVERLAY_BUTTON_UA_RESET} relative isolate flex min-h-12 min-w-0 w-full items-center justify-center overflow-hidden rounded-2xl px-4 py-3 text-[15px] font-semibold text-white shadow-lg shadow-indigo-950/35 transition active:scale-[0.99] disabled:cursor-not-allowed ${
-              busy
+              busy && !showCreditsCta
                 ? "opacity-100 disabled:opacity-100"
                 : "bg-gradient-to-r from-indigo-500 to-violet-500 hover:brightness-110 disabled:opacity-50"
             }`}
-            style={jobBusy ? { backgroundColor: "rgba(39,39,42,0.95)" } : undefined}
+            style={
+              jobBusy && !showCreditsCta
+                ? { backgroundColor: "rgba(39,39,42,0.95)" }
+                : undefined
+            }
           >
-          {jobBusy ? (
-            <span
-              className="pointer-events-none absolute inset-y-0 left-0 z-0 origin-left transition-transform duration-300 ease-out"
-              style={{
-                width: "100%",
-                transform: `scaleX(${Math.min(1, Math.max(0.06, progress / 100))})`,
-                background: "linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%)",
-              }}
-              aria-hidden
-            />
-          ) : null}
-          <span className="relative z-10 flex min-w-0 items-center justify-center gap-1.5 drop-shadow-sm">
-            {phase === "done" && resultUrl && !busy ? (
-              <svg
-                className="h-5 w-5 shrink-0"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
+            {jobBusy && !showCreditsCta ? (
+              <span
+                className="pointer-events-none absolute inset-y-0 left-0 z-0 origin-left transition-transform duration-300 ease-out"
+                style={{
+                  width: "100%",
+                  transform: `scaleX(${Math.min(1, Math.max(0.06, progress / 100))})`,
+                  background: "linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%)",
+                }}
                 aria-hidden
-              >
-                <path d="m4 20 4.2-1 10.6-10.6a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="m14.5 6.7 2.8 2.8" />
-              </svg>
+              />
             ) : null}
-            <span
-              className={
-                starting ||
-                stickerPackSoon ||
-                phase === "uploading" ||
-                phase === "generating" ||
-                (photoshootCompose && !sourcePhotoPicked) ||
-                (photoPromptCompose &&
-                  !photoPromptHasSource &&
-                  composeCtaGuestQuota == null) ||
-                (videoCompose && scenarioLoading) ||
-                (phase === "done" && resultUrl && !photoshootCompose && !stickerCompose && !videoCompose && !photoPromptCompose)
-                  ? phase === "done" && resultUrl && !busy
-                    ? "truncate"
-                    : undefined
-                  : "flex min-w-0 w-full items-center justify-between gap-3"
-              }
-            >
-              {stickerPackSoon
-                ? STICKER_PACK_SOON_CTA
-                : starting
-                ? "Запускаем…"
-                : phase === "uploading"
-                ? `Загружаем фото · ${Math.round(progress)}%`
-                : phase === "generating"
-                  ? photoPromptCompose
-                    ? composePhotoPromptBusyLabel(progress)
-                    : `Генерируем · ${Math.round(progress)}%`
-                  : photoshootCompose && !sourcePhotoPicked
-                    ? composeNeedsPhotoCtaLabel("photoshoot", { isAuthed })
-                  : photoPromptCompose && !photoPromptHasSource
-                    ? (
-                      <>
-                        <span className="shrink-0">
-                          {composeNeedsPhotoCtaLabel("photo_prompt", { isAuthed })}
-                        </span>
-                        {composeCtaGuestQuotaPill}
-                      </>
-                    )
-                  : videoCompose && scenarioLoading
-                    ? ANIMATE_SCENARIO_PLACEHOLDER
-                    : phase === "done" && resultUrl && !photoshootCompose && !stickerCompose && !videoCompose && !photoPromptCompose
-                    ? "Что изменить"
-                    : (
-                      <>
-                        <span className="shrink-0">
-                          {stickerCompose && !sourcePhotoPicked
-                            ? composeNeedsPhotoCtaLabel("sticker", { isAuthed })
-                            : stickerCompose && stickerKind === "pack"
-                              ? STICKER_PACK_CREATE_CTA
-                            : seoNeedsExamplePick
+            <span className="relative z-10 flex min-h-6 min-w-0 w-full items-center justify-center gap-1.5 drop-shadow-sm">
+              {!showCreditsCta && phase === "done" && resultUrl && !busy ? (
+                <svg
+                  className="h-5 w-5 shrink-0"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  aria-hidden
+                >
+                  <path d="m4 20 4.2-1 10.6-10.6a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="m14.5 6.7 2.8 2.8" />
+                </svg>
+              ) : null}
+              <span
+                className={
+                  showCreditsCta ||
+                  starting ||
+                  stickerPackSoon ||
+                  phase === "uploading" ||
+                  phase === "generating" ||
+                  (photoshootCompose && !sourcePhotoPicked) ||
+                  (photoPromptCompose &&
+                    !photoPromptHasSource &&
+                    composeCtaGuestQuota == null) ||
+                  (videoCompose && scenarioLoading) ||
+                  (phase === "done" &&
+                    resultUrl &&
+                    !photoshootCompose &&
+                    !stickerCompose &&
+                    !videoCompose &&
+                    !photoPromptCompose)
+                    ? "truncate text-center"
+                    : "flex min-w-0 w-full items-center justify-between gap-3"
+                }
+              >
+                {showCreditsCta ? (
+                  COMPOSE_BUY_CREDITS_CTA
+                ) : stickerPackSoon ? (
+                  STICKER_PACK_SOON_CTA
+                ) : starting ? (
+                  "Запускаем…"
+                ) : phase === "uploading" ? (
+                  `Загружаем фото · ${Math.round(progress)}%`
+                ) : phase === "generating" ? (
+                  photoPromptCompose ? (
+                    composePhotoPromptBusyLabel(progress)
+                  ) : (
+                    `Генерируем · ${Math.round(progress)}%`
+                  )
+                ) : photoshootCompose && !sourcePhotoPicked ? (
+                  composeNeedsPhotoCtaLabel("photoshoot", { isAuthed })
+                ) : photoPromptCompose && !photoPromptHasSource ? (
+                  <>
+                    <span className="shrink-0">
+                      {composeNeedsPhotoCtaLabel("photo_prompt", { isAuthed })}
+                    </span>
+                    {composeCtaGuestQuotaPill}
+                  </>
+                ) : videoCompose && scenarioLoading ? (
+                  ANIMATE_SCENARIO_PLACEHOLDER
+                ) : phase === "done" &&
+                  resultUrl &&
+                  !photoshootCompose &&
+                  !stickerCompose &&
+                  !videoCompose &&
+                  !photoPromptCompose ? (
+                  "Что изменить"
+                ) : (
+                  <>
+                    <span className="shrink-0">
+                      {stickerCompose && !sourcePhotoPicked
+                        ? composeNeedsPhotoCtaLabel("sticker", { isAuthed })
+                        : stickerCompose && stickerKind === "pack"
+                          ? STICKER_PACK_CREATE_CTA
+                          : seoNeedsExamplePick
                             ? SEO_COMPOSE_PICK_EXAMPLE_CTA
                             : seoNeedsImageModelPick
                               ? COMPOSE_PICK_IMAGE_MODEL_CTA
-                            : composeGenerateCtaLabel(composeMode, {
-                                isAuthed,
-                                listingVideoRepeat: listingVideoRepeatCompose,
-                              })}
-                        </span>
-                        {composeCtaModelLabel ||
-                        composeCtaCost != null ||
-                        composeCtaGuestQuotaPill ? (
-                          <span className="flex min-w-0 items-center justify-end gap-1.5">
-                            {composeCtaModelLabel ? (
-                              <span className="min-w-0 truncate text-[13px] font-medium text-white/80">
-                                {composeCtaModelLabel}
-                              </span>
-                            ) : null}
-                            {composeCtaCost != null ? (
-                              <span
-                                className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[13px] font-semibold tabular-nums ${
-                                  cannotAffordSelected
-                                    ? "bg-rose-400/95"
-                                    : "bg-white/20"
-                                }`}
-                              >
-                                {composeCtaCost}✦
-                              </span>
-                            ) : null}
-                            {composeCtaGuestQuotaPill}
+                              : composeGenerateCtaLabel(composeMode, {
+                                  isAuthed,
+                                  listingVideoRepeat: listingVideoRepeatCompose,
+                                })}
+                    </span>
+                    {composeCtaModelLabel ||
+                    composeCtaCost != null ||
+                    composeCtaGuestQuotaPill ? (
+                      <span className="flex min-w-0 items-center justify-end gap-1.5">
+                        {composeCtaModelLabel ? (
+                          <span className="min-w-0 truncate text-[13px] font-medium text-white/80">
+                            {composeCtaModelLabel}
                           </span>
                         ) : null}
-                      </>
-                    )}
+                        {composeCtaCost != null ? (
+                          <span
+                            className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[13px] font-semibold tabular-nums ${
+                              cannotAffordSelected
+                                ? "bg-rose-400/95"
+                                : "bg-white/20"
+                            }`}
+                          >
+                            {composeCtaCost}✦
+                          </span>
+                        ) : null}
+                        {composeCtaGuestQuotaPill}
+                      </span>
+                    ) : null}
+                  </>
+                )}
+              </span>
             </span>
-          </span>
           </button>
-        )}
         </div>
       </footer>
 

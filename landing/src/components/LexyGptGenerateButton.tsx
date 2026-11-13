@@ -15,6 +15,7 @@ import {
   OVERLAY_BUTTON_APPEARANCE_RESET,
   OVERLAY_BUTTON_UA_RESET,
 } from "@/lib/card-overlay-action-pill";
+import { prefetchGenerateDockTrigger } from "@/lib/generate-dock-prefetch";
 
 type Props = {
   promptText: string;
@@ -199,9 +200,18 @@ export function LexyGptGenerateButton({
 
   const showSparkle = variant === "desktop-panel" && phase === "idle";
 
+  const handlePrefetch = useCallback(() => {
+    if (onInternalGenerate) {
+      prefetchGenerateDockTrigger();
+    }
+  }, [onInternalGenerate]);
+
   return (
     <button
       type="button"
+      onPointerEnter={handlePrefetch}
+      onPointerDown={handlePrefetch}
+      onTouchStart={handlePrefetch}
       onClick={onClick}
       disabled={disabled || !promptText.trim() || busy}
       aria-label={ariaLabelDetailed}

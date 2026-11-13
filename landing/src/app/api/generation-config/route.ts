@@ -2,57 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import {
-  parseEnabledGenerationModels,
-  parseEnabledVideoGenerationModels,
-} from "@/lib/generation-model-labels";
-import { isVideoAnimateUnlocked, resolveVideoModelId } from "@/lib/video-generation-contract";
-import { isCameraOrbitUnlocked, resolveCameraOrbitModel } from "@/lib/camera-orbit-access";
-import { PHOTOSHOOT_CREDIT_COST } from "@/lib/photoshoot";
-import { isPhotoshootUnlocked, resolvePhotoshootModel } from "@/lib/photoshoot-access";
+  buildImageGenerationConfigPayload,
+  buildVideoGenerationConfigPayload,
+  readGenerationConfigMap,
+} from "@/lib/generation-config-cache";
 import {
-  STICKER_CONFIG_ENABLED_KEY,
-  STICKER_CONFIG_MODEL_KEY,
-  STICKER_FROM_RESULT_CONFIG_ENABLED_KEY,
-  resolveStickerModel,
-} from "@/lib/sticker";
-import { isStickerFromResultUnlocked, isStickerPackUnlocked, isStickerUnlocked } from "@/lib/sticker-access";
-import {
-  EXTENSION_LITE_GENERATE_CONFIG_KEY,
-  isExtensionLiteGenerateUnlocked,
-} from "@/lib/extension-lite-access";
-import {
-  STICKER_PACK_CONFIG_COST_KEY,
-  STICKER_PACK_CONFIG_ENABLED_KEY,
-  STICKER_PACK_CONFIG_MODEL_KEY,
-  STICKER_PACK_COUNT,
-  parseStickerPackCreditCost,
-} from "@/lib/sticker-pack";
-import { parseCardRepeatRewardConfig, parsePublishRewardConfig } from "@/lib/publish-reward";
-import { LISTING_VIDEO_REPEAT_CONFIG_KEY } from "@/lib/listing-video-repeat";
-import { isListingVideoRepeatUnlocked } from "@/lib/listing-video-repeat-access";
-import { PRESERVE_OUTFIT_CONFIG_KEY } from "@/lib/wardrobe-policy";
-import { isPreserveOutfitUnlocked } from "@/lib/wardrobe-policy-access";
-import { COMPOSE_EXAMPLE_MATCH_CONFIG_KEY } from "@/lib/compose-example-audience";
-import { isComposeExampleMatchUnlocked } from "@/lib/compose-example-match-access";
-import {
-  PHOTOSHOOT_COMPOSE_EXAMPLE_CONFIG_KEY,
-  isPhotoshootComposeExampleUnlocked,
-} from "@/lib/photoshoot-compose-example";
-import {
-  DEFAULT_IMAGE_ASPECT_RATIO,
-  DEFAULT_IMAGE_SIZE,
-  DEFAULT_VIDEO_ASPECT_RATIO,
-  DEFAULT_VIDEO_DURATION_SECONDS,
-  DEFAULT_VIDEO_MODEL,
-  DEFAULT_VIDEO_RESOLUTION,
-  IMAGE_ASPECT_RATIO_OPTIONS,
   IMAGE_GENERATION_MODALITY,
-  IMAGE_SIZE_OPTIONS,
-  VIDEO_ASPECT_RATIO_OPTIONS,
-  VIDEO_DURATION_OPTIONS,
   VIDEO_GENERATION_MODALITY,
-  VIDEO_QUANTITY,
-  VIDEO_RESOLUTION_OPTIONS,
   isGenerationModality,
 } from "@/lib/generation/image-options";
 
@@ -63,183 +19,25 @@ export async function GET(req: NextRequest) {
     if (!isGenerationModality(modality)) {
       return NextResponse.json(
         { error: "unsupported_modality" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    const { user } = await getSupabaseUserForApiRoute(req);
     const supabase = createSupabaseServer();
-    const { data: rows } = await supabase
-      .from("landing_generation_config")
-      .select("key, value")
-      .in("key", [
-        "models",
-        "default_model",
-        "default_aspect_ratio",
-        "default_image_size",
-        "max_photos",
-        "max_file_size_mb",
-        "min_prompt_length",
-        "video_models",
-        "video_animate_enabled",
-        "default_video_model",
-        "camera_orbit_enabled",
-        "camera_orbit_model",
-        "photoshoot_enabled",
-        "photoshoot_model",
-        STICKER_CONFIG_ENABLED_KEY,
-        STICKER_CONFIG_MODEL_KEY,
-        STICKER_FROM_RESULT_CONFIG_ENABLED_KEY,
-        STICKER_PACK_CONFIG_ENABLED_KEY,
-        STICKER_PACK_CONFIG_COST_KEY,
-        STICKER_PACK_CONFIG_MODEL_KEY,
-        "publish_reward_enabled",
-        "publish_reward_photo",
-        "publish_reward_video",
-        "publish_reward_photoshoot",
-        "publish_reward_daily_cap",
-        "card_repeat_reward_enabled",
-        "card_repeat_reward_credits",
-        "card_repeat_reward_max_per_card",
-        LISTING_VIDEO_REPEAT_CONFIG_KEY,
-        PRESERVE_OUTFIT_CONFIG_KEY,
-        COMPOSE_EXAMPLE_MATCH_CONFIG_KEY,
-        PHOTOSHOOT_COMPOSE_EXAMPLE_CONFIG_KEY,
-        EXTENSION_LITE_GENERATE_CONFIG_KEY,
-      ]);
-
-    const config: Record<string, string> = {};
-    for (const row of rows || []) {
-      config[row.key] = row.value;
-    }
-    const publishReward = parsePublishRewardConfig(config);
-    const cardRepeatReward = parseCardRepeatRewardConfig(config);
-    const listingVideoRepeatEnabled = isListingVideoRepeatUnlocked(
-      config[LISTING_VIDEO_REPEAT_CONFIG_KEY],
-      user?.email,
-    );
-    const preserveOutfitEnabled = isPreserveOutfitUnlocked(
-      config[PRESERVE_OUTFIT_CONFIG_KEY],
-      user?.email,
-    );
-    const composeExampleMatchEnabled = isComposeExampleMatchUnlocked(
-      config[COMPOSE_EXAMPLE_MATCH_CONFIG_KEY],
-      user?.email,
-    );
-    const photoshootComposeExampleEnabled = isPhotoshootComposeExampleUnlocked(
-      config[PHOTOSHOOT_COMPOSE_EXAMPLE_CONFIG_KEY],
-      user?.email,
-    );
-    const extensionLiteGenerateEnabled = isExtensionLiteGenerateUnlocked(
-      config[EXTENSION_LITE_GENERATE_CONFIG_KEY],
-      user?.email,
-    );
+    const [{ user }, config] = await Promise.all([
+      getSupabaseUserForApiRoute(req),
+      readGenerationConfigMap(supabase),
+    ]);
 
     if (modality === VIDEO_GENERATION_MODALITY) {
-      const models = parseEnabledVideoGenerationModels(config.video_models);
-      return NextResponse.json({
-        modality: VIDEO_GENERATION_MODALITY,
-        enabled: isVideoAnimateUnlocked(config.video_animate_enabled, user?.email),
-        models,
-        aspectRatios: VIDEO_ASPECT_RATIO_OPTIONS,
-        durations: VIDEO_DURATION_OPTIONS,
-        resolutions: VIDEO_RESOLUTION_OPTIONS,
-        imageSizes: VIDEO_RESOLUTION_OPTIONS,
-        defaults: {
-          model: resolveVideoModelId(
-            DEFAULT_VIDEO_MODEL,
-            models.map((item) => item.id)
-          ),
-          aspectRatio: DEFAULT_VIDEO_ASPECT_RATIO,
-          imageSize: DEFAULT_VIDEO_RESOLUTION,
-          durationSeconds: DEFAULT_VIDEO_DURATION_SECONDS,
-        },
-        limits: {
-          maxPhotos: 1,
-          quantity: VIDEO_QUANTITY,
-          minPromptLength: parseInt(config.min_prompt_length || "8", 10),
-        },
-        listingVideoRepeatEnabled,
-        preserveOutfitEnabled,
-        composeExampleMatchEnabled,
-        photoshootComposeExampleEnabled,
-        extensionLiteGenerateEnabled,
-        publishReward,
-        cardRepeatReward,
-      });
+      return NextResponse.json(
+        buildVideoGenerationConfigPayload(config, user?.email),
+      );
     }
 
-    const models = parseEnabledGenerationModels(config.models);
-    const cameraOrbitModel = resolveCameraOrbitModel(config.camera_orbit_model, models);
-    const photoshootModel = resolvePhotoshootModel(config.photoshoot_model, models);
-    const stickerModel = resolveStickerModel(
-      config[STICKER_CONFIG_MODEL_KEY],
-      config.default_model,
-      models,
+    return NextResponse.json(
+      buildImageGenerationConfigPayload(config, user?.email),
     );
-    const stickerPackCreditCost = parseStickerPackCreditCost(config[STICKER_PACK_CONFIG_COST_KEY]);
-    const stickerPackModel = resolveStickerModel(
-      config[STICKER_PACK_CONFIG_MODEL_KEY] || config[STICKER_CONFIG_MODEL_KEY],
-      config.default_model,
-      models,
-    );
-
-    return NextResponse.json({
-      modality: IMAGE_GENERATION_MODALITY,
-      cameraOrbitEnabled: isCameraOrbitUnlocked(
-        config.camera_orbit_enabled,
-        user?.email,
-      ),
-      cameraOrbitModel,
-      photoshootEnabled: isPhotoshootUnlocked(
-        config.photoshoot_enabled,
-        user?.email,
-      ),
-      photoshootCreditCost: PHOTOSHOOT_CREDIT_COST,
-      photoshootModel: photoshootModel
-        ? { ...photoshootModel, cost: PHOTOSHOOT_CREDIT_COST }
-        : null,
-      stickerEnabled: isStickerUnlocked(
-        config[STICKER_CONFIG_ENABLED_KEY],
-        user?.email,
-      ),
-      stickerFromResultEnabled: isStickerFromResultUnlocked(
-        config[STICKER_FROM_RESULT_CONFIG_ENABLED_KEY],
-        user?.email,
-      ),
-      stickerModel,
-      stickerPackEnabled: isStickerPackUnlocked(
-        config[STICKER_PACK_CONFIG_ENABLED_KEY],
-        user?.email,
-      ),
-      stickerPackCreditCost,
-      stickerPackCount: STICKER_PACK_COUNT,
-      /** Product price, not the picker cost of the sheet model. */
-      stickerPackModel: stickerPackModel
-        ? { ...stickerPackModel, cost: stickerPackCreditCost }
-        : null,
-      models,
-      aspectRatios: IMAGE_ASPECT_RATIO_OPTIONS,
-      imageSizes: IMAGE_SIZE_OPTIONS,
-      defaults: {
-        model: config.default_model || "gemini-2.5-flash-image",
-        aspectRatio:
-          config.default_aspect_ratio || DEFAULT_IMAGE_ASPECT_RATIO,
-        imageSize: config.default_image_size || DEFAULT_IMAGE_SIZE,
-      },
-      limits: {
-        maxPhotos: parseInt(config.max_photos || "4", 10),
-        maxFileSizeMb: parseInt(config.max_file_size_mb || "10", 10),
-        minPromptLength: parseInt(config.min_prompt_length || "8", 10),
-      },
-      listingVideoRepeatEnabled,
-      preserveOutfitEnabled,
-      composeExampleMatchEnabled,
-      photoshootComposeExampleEnabled,
-      extensionLiteGenerateEnabled,
-      publishReward,
-      cardRepeatReward,
-    });
   } catch (err) {
     console.error("generation-config error:", err);
     return NextResponse.json({ error: "config failed" }, { status: 500 });

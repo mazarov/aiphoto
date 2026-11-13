@@ -22,6 +22,8 @@ type DockTileProps = {
   /** Sticker previews are transparent PNGs — do not plate them on black. */
   previewPlate?: "photo" | "clear";
   countBadge?: string | null;
+  /** Optional bottom-left status pill (e.g. outfit lock) that never changes row height. */
+  statusBadge?: string | null;
   icon: ReactNode;
   selected: boolean;
   expanded?: boolean;
@@ -31,6 +33,7 @@ type DockTileProps = {
   controlsId?: string;
   ariaLabel: string;
   title?: string;
+  onPrefetch?: () => void;
   onClick: () => void;
 };
 
@@ -77,7 +80,7 @@ export function ComposeTilePhotoMosaic({
   );
 }
 
-export function ComposeLibraryPhotosIcon({ className = "h-5 w-5" }: { className?: string }) {
+export function ComposeLibraryPhotosIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
     <svg
       className={`${className} text-zinc-800`}
@@ -94,7 +97,7 @@ export function ComposeLibraryPhotosIcon({ className = "h-5 w-5" }: { className?
   );
 }
 
-export function ComposeExampleToolIcon({ className = "h-5 w-5" }: { className?: string }) {
+export function ComposeExampleToolIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
     <svg
       className={`${className} text-zinc-800`}
@@ -116,6 +119,7 @@ export function ComposeDockToolTile({
   previewUrls = null,
   previewPlate = "photo",
   countBadge = null,
+  statusBadge = null,
   icon,
   selected,
   expanded = false,
@@ -125,14 +129,16 @@ export function ComposeDockToolTile({
   controlsId,
   ariaLabel,
   title,
+  onPrefetch,
   onClick,
 }: DockTileProps) {
   const mosaicUrls = composePreviewImageUrls(previewUrls ?? []);
   const filled = mosaicUrls.length > 0;
   const hasBody = Boolean(bodyLabel) && !filled;
-  const logoWrap = `flex items-center justify-center overflow-hidden rounded-full shadow-sm ${
-    hasBody ? "h-5 w-5" : "h-8 w-8"
-  } ${glassChrome ? "bg-white/90" : "bg-white"}`;
+  // Fixed 24px icon container across every tile in the row (zero jump when bodyLabel resolves).
+  const logoWrap = `flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full shadow-sm ${
+    glassChrome ? "bg-white/90" : "bg-white"
+  }`;
 
   return (
     <button
@@ -143,6 +149,8 @@ export function ComposeDockToolTile({
       aria-controls={controlsId}
       disabled={disabled}
       title={title || ariaLabel}
+      onPointerEnter={onPrefetch}
+      onTouchStart={onPrefetch}
       onClick={onClick}
       className={`${OVERLAY_BUTTON_UA_RESET} relative flex shrink-0 flex-col items-center justify-center overflow-visible px-1 pb-1.5 pt-2.5 text-center transition ${className} disabled:opacity-50`}
     >
@@ -155,16 +163,23 @@ export function ComposeDockToolTile({
         {edgeLabel}
       </span>
       {filled ? (
-        countBadge ? (
-          <span className="pointer-events-none absolute bottom-1 right-1 z-[2] rounded-full bg-zinc-900/90 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
-            {countBadge}
-          </span>
-        ) : null
+        <>
+          {statusBadge ? (
+            <span className="pointer-events-none absolute bottom-1 left-1 z-[2] max-w-[3.25rem] truncate rounded-full bg-indigo-500/90 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+              {statusBadge}
+            </span>
+          ) : null}
+          {countBadge ? (
+            <span className="pointer-events-none absolute bottom-1 right-1 z-[2] rounded-full bg-zinc-900/90 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+              {countBadge}
+            </span>
+          ) : null}
+        </>
       ) : (
         <>
           <span className={logoWrap}>{icon}</span>
           {hasBody ? (
-            <span className="mt-0.5 line-clamp-2 w-full px-0.5 text-xs font-semibold leading-tight">
+            <span className="mt-1 line-clamp-2 w-full px-0.5 text-xs font-semibold leading-tight">
               {bodyLabel}
             </span>
           ) : null}
@@ -177,7 +192,7 @@ export function ComposeDockToolTile({
 export function ComposeModeToolIcon({
   mode,
   modelId = null,
-  className = "h-3.5 w-3.5",
+  className = "h-4 w-4",
   colorClass = "text-zinc-800",
 }: {
   mode: GenerateComposeMode;
@@ -281,6 +296,7 @@ type ToolTileProps = {
   glassChrome: boolean;
   className: string;
   controlsId: string;
+  onPrefetch?: () => void;
   onClick: () => void;
 };
 
@@ -294,13 +310,14 @@ export function ComposeToolPickerTile({
   glassChrome,
   className,
   controlsId,
+  onPrefetch,
   onClick,
 }: ToolTileProps) {
   return (
     <ComposeDockToolTile
       edgeLabel={COMPOSE_TOOL_EDGE_LABEL}
       bodyLabel={bodyLabel}
-      icon={<ComposeModeToolIcon mode={composeMode} className="h-3.5 w-3.5" />}
+      icon={<ComposeModeToolIcon mode={composeMode} className="h-4 w-4" />}
       selected={selected}
       expanded={expanded}
       disabled={disabled}
@@ -308,6 +325,7 @@ export function ComposeToolPickerTile({
       className={className}
       controlsId={controlsId}
       ariaLabel={`${COMPOSE_TOOL_EDGE_LABEL}, ${bodyLabel}`}
+      onPrefetch={onPrefetch}
       onClick={onClick}
     />
   );
@@ -335,7 +353,7 @@ export function ComposeToolChoiceTile({
   return (
     <ComposeDockToolTile
       edgeLabel={label}
-      icon={<ComposeModeToolIcon mode={mode} className="h-5 w-5" />}
+      icon={<ComposeModeToolIcon mode={mode} className="h-4 w-4" />}
       selected={selected}
       disabled={disabled}
       glassChrome={glassChrome}
@@ -357,6 +375,7 @@ type ModelTileProps = {
   glassChrome: boolean;
   className: string;
   controlsId: string;
+  onPrefetch?: () => void;
   onClick: () => void;
 };
 
@@ -372,6 +391,7 @@ export function ComposeModelToolTile({
   glassChrome,
   className,
   controlsId,
+  onPrefetch,
   onClick,
 }: ModelTileProps) {
   const bodyLabel = tileLabel || COMPOSE_TOOL_TILE_UNSET_LABEL;
@@ -382,7 +402,7 @@ export function ComposeModelToolTile({
     <ComposeDockToolTile
       edgeLabel={COMPOSE_MODEL_TOOL_EDGE_LABEL}
       bodyLabel={bodyLabel}
-      icon={<ComposeModeToolIcon mode={mode} modelId={modelId} className="h-3.5 w-3.5" />}
+      icon={<ComposeModeToolIcon mode={mode} modelId={modelId} className="h-4 w-4" />}
       selected={selected}
       expanded={expanded}
       disabled={disabled}
@@ -391,6 +411,7 @@ export function ComposeModelToolTile({
       controlsId={controlsId}
       ariaLabel={ariaLabel}
       title={fullLabel?.trim() || ariaLabel}
+      onPrefetch={onPrefetch}
       onClick={onClick}
     />
   );
