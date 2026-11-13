@@ -43,4 +43,4 @@
 - [x] `landing/src/app/api/extension/analyze/route.ts` и `landing/src/app/api/scout/analyze/route.ts`: подключение `unwrapAnalyzeScreenshotImage` и полей логов `screenshotCropped`
 - [x] Unit-тесты в `analyze-pattern.test.ts` и `image-prompt-analyze-image.test.ts` (включая проверку на реальном TikTok-скриншоте с триптихом и анти-регрессию на `3:4`, `1:1`, low-key `9:16` и постерах)
 - [x] Документация `docs/30-09-analyze-pattern-router.md` и `docs/architecture/01-landing.md`
-- [ ] Дословная синхронизация `landing/src/lib/analyze-pattern.ts` во второй репозиторий `mazarov/imageprompt` (`imageprompt.tools`) при его деплое
+- [x] Дословная синхронизация `landing/src/lib/analyze-pattern.ts` во второй репозиторий `mazarov/imageprompt` (`imageprompt.tools`, коммит `f66fafd`)
