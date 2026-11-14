@@ -2,6 +2,7 @@ import {
   primeListingNavigationCardData,
   toListingCardPageData,
   writeListingNavigationContext,
+  type ListingNavigationWriteOptions,
 } from "@/lib/listing-card-navigation-context";
 import { isPhotoshootUgcListing } from "@/lib/photoshoot";
 import type { GeneraciyaSeoFrame } from "@/lib/generaciya-seo-frame";
@@ -68,10 +69,14 @@ export function withGenerationExampleFallbackTitle(
 }
 
 export function writeGenerationExampleNavigation(
-  cards: GenerationExampleCard[]
+  cards: GenerationExampleCard[],
+  options?: ListingNavigationWriteOptions
 ): void {
   primeListingNavigationCardData(cards.map((card) => card.navigationData));
-  writeListingNavigationContext(cards.map((card) => card.slug));
+  writeListingNavigationContext(
+    cards.map((card) => card.slug),
+    options
+  );
 }
 
 export function filterPhotoshootExampleCards(

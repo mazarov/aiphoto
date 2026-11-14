@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { CopyPromptButton } from "@/components/CopyPromptButton";
@@ -12,7 +12,9 @@ import {
   GF_STACK,
 } from "@/components/generate/generaciya-foto-ui";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
+import { useListingNavigationFeed } from "@/hooks/useListingNavigationFeed";
 import { CARD_IMAGE_LISTING_NEXT_QUALITY } from "@/lib/card-image-presets";
+import { primeListingNavigationCards } from "@/lib/listing-card-navigation-context";
 import {
   usableCatalogPrompt,
   visiblePromptTextsForPhoto,
@@ -117,7 +119,7 @@ function FotosessiiPromptExampleCard({ card }: { card: PromptCardFull }) {
             href={`/p/${card.slug}`}
             aria-label={`Открыть пример: ${cardTitle}`}
             className={`absolute inset-0 z-10${photoshootGrid ? " pointer-events-none" : ""}`}
-            prefetch
+            prefetch={false}
             onPointerEnter={() => prefetchCard(card.slug)}
             onTouchStart={() => prefetchCard(card.slug)}
             onClick={(event) => {
@@ -161,13 +163,21 @@ export function FotosessiiPromptsSection({
   title: string;
   lead: string;
 }) {
-  const promptCards = cardsWithRussianPrompts(cards);
+  const promptCards = useMemo(() => cardsWithRussianPrompts(cards), [cards]);
+  const slugs = useMemo(() => promptCards.map((card) => card.slug), [promptCards]);
+  const { navigationContainerProps } = useListingNavigationFeed({
+    slugs,
+    hasMore: false,
+    bindOnMount: false,
+    onPrimeCards: () => primeListingNavigationCards(promptCards),
+  });
 
   return (
     <section
       id="promty"
       className="scroll-mt-20"
       aria-labelledby="fotosessii-prompts-heading"
+      {...navigationContainerProps}
     >
       <div className={GF_BLOCK}>
         <h2 id="fotosessii-prompts-heading" className={GF_H2}>

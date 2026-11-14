@@ -18,7 +18,6 @@ import {
   hasMoreSearchPages,
   resolveListingPageStep,
 } from "@/lib/listing-pagination";
-import { subscribeListingNavigationLoadMore } from "@/lib/listing-card-navigation-context";
 import { omitCardFromPages } from "@/lib/debug-hide-card";
 import { useDebugCardHidden } from "@/hooks/useDebugCardHidden";
 
@@ -187,14 +186,6 @@ export function InfiniteGrid({
   );
   scheduleDrainRef.current = scheduleDrain;
 
-  useEffect(
-    () =>
-      subscribeListingNavigationLoadMore(() => {
-        void loadMore();
-      }),
-    [loadMore]
-  );
-
   useDebugCardHidden(
     useCallback((detail) => {
       setCardPages((pages) => omitCardFromPages(pages, detail.cardId));
@@ -213,6 +204,8 @@ export function InfiniteGrid({
           sort={sort}
           headingAltSlots={headingAltSlots}
           clipToShortestColumn={showFloatingMore}
+          hasMore={hasMore}
+          onLoadMore={loadMore}
         />
         {showFloatingMore ? (
           <>

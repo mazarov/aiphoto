@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ListingMasonry } from "@/components/ListingMasonry";
 import { ListingExplorerSearch } from "@/components/ListingExplorerSearch";
 import { ListingPhotoTile } from "@/components/ListingPhotoTile";
@@ -9,8 +9,9 @@ import {
   type GenerationExampleCard,
   filterExampleCardsByQuery,
   toGenerationExampleCard,
-  writeGenerationExampleNavigation,
 } from "@/lib/generation/example-card";
+import { primeListingNavigationCardData } from "@/lib/listing-card-navigation-context";
+import { useListingNavigationFeed } from "@/hooks/useListingNavigationFeed";
 import { listingPhotoAspectRatio } from "@/lib/listing-masonry";
 import type { PromptCardFull } from "@/lib/supabase";
 import type { GeneraciyaFotoChipNavItem } from "@/lib/generaciya-foto-chip-nav";
@@ -185,13 +186,15 @@ export function GeneraciyaFotoExamplesExplorer({
   const [cardPages, setCardPages] = useState<GenerationExampleCard[][]>(() => [
     initialCards,
   ]);
-  const cards = cardPages.flat();
+  const cards = useMemo(() => cardPages.flat(), [cardPages]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState(false);
   const [galleryRevealed, setGalleryRevealed] = useState(false);
   const [hasMore, setHasMore] = useState(() =>
-    loadMoreListing ? listingHasMore(loadMoreListing) : false
+    loadMoreListing
+      ? listingHasMore(loadMoreListing)
+      : !restrictToInitialCards && initialCards.length >= RESULT_LIMIT
   );
   const [error, setError] = useState("");
   const usesScenarioNavigation = Boolean(scenarioNavigation?.length);
@@ -199,7 +202,7 @@ export function GeneraciyaFotoExamplesExplorer({
   const chipsFilterInPlace = usesScenarioNavigation && filterChipsInPlace;
   const inlineLoadMore = Boolean(loadMoreListing);
   const rankedOffsetRef = useRef(
-    loadMoreListing ? listingStartOffset(loadMoreListing) : 0,
+    loadMoreListing ? listingStartOffset(loadMoreListing) : initialCards.length,
   );
   const totalCountRef = useRef(loadMoreListing?.totalCount ?? 0);
   const hasMoreRef = useRef(hasMore);
@@ -213,10 +216,6 @@ export function GeneraciyaFotoExamplesExplorer({
     setCardPages([omitHiddenCardIds(nextCards, hiddenIdsRef.current)]);
   }, []);
 
-  useEffect(() => {
-    if (cards.length > 0) writeGenerationExampleNavigation(cards);
-  }, [cards]);
-
   useDebugCardHidden(
     useCallback((detail) => {
       hiddenIdsRef.current.add(detail.cardId);
@@ -227,35 +226,74 @@ export function GeneraciyaFotoExamplesExplorer({
   useEffect(() => {
     if (hasExpandedRef.current) return;
     replaceCardPages(initialCards);
-    if (!loadMoreListing) return;
+    if (!loadMoreListing) {
+      rankedOffsetRef.current = initialCards.length;
+      const more = !restrictToInitialCards && initialCards.length >= RESULT_LIMIT;
+      setHasMore(more);
+      hasMoreRef.current = more;
+      return;
+    }
     rankedOffsetRef.current = listingStartOffset(loadMoreListing);
     totalCountRef.current = loadMoreListing.totalCount;
     setGalleryRevealed(false);
     setLoadMoreError(false);
-    setHasMore(listingHasMore(loadMoreListing));
-  }, [initialCards, loadMoreListing, replaceCardPages]);
+    const more = listingHasMore(loadMoreListing);
+    setHasMore(more);
+    hasMoreRef.current = more;
+  }, [initialCards, loadMoreListing, replaceCardPages, restrictToInitialCards]);
 
   const fetchListingPage = useCallback(
-    async (searchQuery: string) => {
-      if (!loadMoreListing) return false;
+    async (searchQuery: string, quickFilter: QuickFilter | null = activeFilter) => {
+      if (restrictToInitialCards) return false;
 
       const trimmed = searchQuery.trim();
+      const oldOffset = rankedOffsetRef.current;
+
+      // Non-inline explorer search mode uses `/api/search` pagination.
+      if (!loadMoreListing && trimmed.length >= 2) {
+        const pageSize = LISTING_SEARCH_PAGE_SIZE;
+        const response = await fetch(
+          `/api/search?q=${encodeURIComponent(trimmed)}&limit=${pageSize}&offset=${oldOffset}`,
+          { cache: "no-store" }
+        );
+        if (!response.ok) throw new Error("search_failed");
+        const payload = (await response.json()) as { cards?: PromptCardFull[] };
+        const rawBatch = payload.cards ?? [];
+        const newCards = omitHiddenCardIds(
+          rawBatch.map(toGenerationExampleCard),
+          hiddenIdsRef.current
+        );
+        rankedOffsetRef.current = oldOffset + rawBatch.length;
+        if (newCards.length > 0) {
+          setCardPages((prev) => appendUniqueCardPage(prev, newCards));
+        }
+        const more = rawBatch.length === pageSize;
+        setHasMore(more);
+        hasMoreRef.current = more;
+        return more;
+      }
+
       const pageSize = trimmed
         ? LISTING_SEARCH_PAGE_SIZE
         : LISTING_INFINITE_PAGE_SIZE;
-      const oldOffset = rankedOffsetRef.current;
       const sp = new URLSearchParams();
       sp.set("limit", String(pageSize));
       sp.set("offset", String(oldOffset));
 
       if (trimmed) {
         sp.set("q", trimmed);
-      } else {
+      } else if (quickFilter) {
+        sp.set(quickFilter.dimension, quickFilter.value);
+        sp.set("strict", "1");
+        sp.set("sort", loadMoreListing?.sort ?? LISTING_DEFAULT_SORT);
+      } else if (loadMoreListing) {
         for (const [key, value] of Object.entries(loadMoreListing.rpcParams)) {
           if (value) sp.set(key, value);
         }
         if (loadMoreListing.strict) sp.set("strict", "1");
         sp.set("sort", loadMoreListing.sort ?? LISTING_DEFAULT_SORT);
+      } else {
+        sp.set("sort", LISTING_DEFAULT_SORT);
       }
 
       const response = await fetch(`/api/listing?${sp.toString()}`, {
@@ -269,24 +307,26 @@ export function GeneraciyaFotoExamplesExplorer({
         ranked_batch_size?: number;
         has_more?: boolean;
       };
-      const newCards = omitHiddenCardIds(
-        (data.cards ?? []).map(toGenerationExampleCard),
-        hiddenIdsRef.current,
-      );
+      const mapped = (data.cards ?? []).map(toGenerationExampleCard);
+      const filteredMapped =
+        !trimmed && quickFilter
+          ? mapped.filter((card) => matchesQuickFilter(card, quickFilter))
+          : mapped;
+      const newCards = omitHiddenCardIds(filteredMapped, hiddenIdsRef.current);
       const rankedSize = Math.max(0, Number(data.ranked_batch_size) || 0);
       const apiTotal = Number(data.total_count);
       if (Number.isFinite(apiTotal) && apiTotal >= 0) {
         totalCountRef.current = apiTotal;
       }
 
-      if (rankedSize === 0 && newCards.length === 0) {
+      if (rankedSize === 0 && mapped.length === 0) {
         setHasMore(false);
         hasMoreRef.current = false;
         return false;
       }
 
       const step = trimmed
-        ? rankedSize || newCards.length
+        ? rankedSize || mapped.length
         : resolveListingPageStep(rankedSize);
       if (newCards.length > 0) {
         setCardPages((prev) => appendUniqueCardPage(prev, newCards));
@@ -296,38 +336,66 @@ export function GeneraciyaFotoExamplesExplorer({
       const more = trimmed
         ? typeof data.has_more === "boolean"
           ? data.has_more
-          : hasMoreSearchPages(rankedSize || newCards.length, pageSize)
-        : hasMoreRankedPages(oldOffset, step, totalCountRef.current);
+          : hasMoreSearchPages(rankedSize || mapped.length, pageSize)
+        : totalCountRef.current > 0
+          ? hasMoreRankedPages(oldOffset, step, totalCountRef.current)
+          : rankedSize >= pageSize;
       setHasMore(more);
       hasMoreRef.current = more;
       return more;
     },
-    [loadMoreListing]
+    [activeFilter, loadMoreListing, restrictToInitialCards]
   );
 
   const loadMoreCards = useCallback(
-    async (searchQuery = query) => {
-      if (!inlineLoadMore || loadingMoreRef.current || !hasMoreRef.current) {
+    async (
+      searchQuery = query,
+      options?: { revealInlineGallery?: boolean }
+    ) => {
+      const revealInline = options?.revealInlineGallery ?? true;
+      if (
+        restrictToInitialCards ||
+        (revealInline && !inlineLoadMore) ||
+        loadingMoreRef.current ||
+        !hasMoreRef.current
+      ) {
         return;
       }
 
       loadingMoreRef.current = true;
       setLoadingMore(true);
       setLoadMoreError(false);
-      setGalleryRevealed(true);
+      if (revealInline && inlineLoadMore) {
+        setGalleryRevealed(true);
+      }
       hasExpandedRef.current = true;
 
       try {
         await fetchListingPage(searchQuery);
       } catch {
-        setLoadMoreError(true);
+        if (revealInline && inlineLoadMore) {
+          setLoadMoreError(true);
+        }
       } finally {
         loadingMoreRef.current = false;
         setLoadingMore(false);
       }
     },
-    [fetchListingPage, inlineLoadMore, query]
+    [fetchListingPage, inlineLoadMore, query, restrictToInitialCards]
   );
+
+  const cardSlugs = useMemo(() => cards.map((card) => card.slug), [cards]);
+  const canPaginateFromCard = !restrictToInitialCards;
+  const { navigationContainerProps } = useListingNavigationFeed({
+    slugs: cardSlugs,
+    hasMore: canPaginateFromCard ? hasMore : false,
+    onLoadMore: canPaginateFromCard
+      ? () => loadMoreCards(query, { revealInlineGallery: inlineLoadMore })
+      : undefined,
+    onPrimeCards: () =>
+      primeListingNavigationCardData(cards.map((card) => card.navigationData)),
+    enabled: cardSlugs.length > 0,
+  });
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -412,9 +480,17 @@ export function GeneraciyaFotoExamplesExplorer({
     }
 
     if (trimmed.length < 2 && !activeFilter) {
-      if (!hasExpandedRef.current) {
-        replaceCardPages(initialCards);
-      }
+      hasExpandedRef.current = false;
+      replaceCardPages(initialCards);
+      rankedOffsetRef.current = loadMoreListing
+        ? listingStartOffset(loadMoreListing)
+        : initialCards.length;
+      totalCountRef.current = loadMoreListing?.totalCount ?? 0;
+      const more = loadMoreListing
+        ? listingHasMore(loadMoreListing)
+        : !restrictToInitialCards && initialCards.length >= RESULT_LIMIT;
+      setHasMore(more);
+      hasMoreRef.current = more;
       setLoading(false);
       setError("");
       return;
@@ -426,13 +502,15 @@ export function GeneraciyaFotoExamplesExplorer({
       () => {
         setLoading(true);
         setError("");
+        hasExpandedRef.current = false;
 
         const endpoint =
           trimmed.length >= 2
-            ? `/api/search?q=${encodeURIComponent(trimmed)}&limit=${RESULT_LIMIT}`
+            ? `/api/search?q=${encodeURIComponent(trimmed)}&limit=${RESULT_LIMIT}&offset=0`
             : `/api/listing?${new URLSearchParams({
                 [activeFilter!.dimension]: activeFilter!.value,
                 limit: String(RESULT_LIMIT),
+                offset: "0",
                 sort: LISTING_DEFAULT_SORT,
                 strict: "1",
               })}`;
@@ -445,19 +523,36 @@ export function GeneraciyaFotoExamplesExplorer({
             if (!response.ok) throw new Error("search_failed");
             const payload = (await response.json()) as {
               cards?: PromptCardFull[];
+              ranked_batch_size?: number;
+              total_count?: number;
+              has_more?: boolean;
             };
-            const nextCards = (payload.cards ?? []).map(
-              toGenerationExampleCard
-            );
-            replaceCardPages(
+            const rawCards = payload.cards ?? [];
+            const nextCards = rawCards.map(toGenerationExampleCard);
+            const initialSlice =
               trimmed.length < 2 && activeFilter
                 ? nextCards
-                    .filter((card) =>
-                      matchesQuickFilter(card, activeFilter)
-                    )
+                    .filter((card) => matchesQuickFilter(card, activeFilter))
                     .slice(0, RESULT_LIMIT)
-                : nextCards.slice(0, RESULT_LIMIT)
-            );
+                : nextCards.slice(0, RESULT_LIMIT);
+            replaceCardPages(initialSlice);
+
+            const step =
+              trimmed.length >= 2
+                ? rawCards.length
+                : Math.max(0, Number(payload.ranked_batch_size) || rawCards.length);
+            rankedOffsetRef.current = step;
+            const apiTotal = Number(payload.total_count);
+            totalCountRef.current =
+              Number.isFinite(apiTotal) && apiTotal >= 0 ? apiTotal : 0;
+            const more =
+              trimmed.length >= 2
+                ? rawCards.length === RESULT_LIMIT
+                : totalCountRef.current > 0
+                  ? hasMoreRankedPages(0, step, totalCountRef.current)
+                  : rawCards.length >= RESULT_LIMIT;
+            setHasMore(more);
+            hasMoreRef.current = more;
           })
           .catch((fetchError: unknown) => {
             if (
@@ -467,6 +562,8 @@ export function GeneraciyaFotoExamplesExplorer({
               return;
             }
             setCardPages([]);
+            setHasMore(false);
+            hasMoreRef.current = false;
             setError("Не удалось загрузить подборку. Попробуйте ещё раз.");
           })
           .finally(() => {
@@ -488,6 +585,7 @@ export function GeneraciyaFotoExamplesExplorer({
     lockedToScenario,
     query,
     replaceCardPages,
+    restrictToInitialCards,
   ]);
 
   const allPromptsHref =
@@ -651,10 +749,16 @@ export function GeneraciyaFotoExamplesExplorer({
         </nav>
       </div>
 
-      <div className={`relative mt-5 ${showTeaserOverlay || (!inlineLoadMore && cards.length > 0 && !restrictToInitialCards) ? "overflow-hidden" : ""}`}>
+      <div
+        className={`relative mt-5 ${showTeaserOverlay || (!inlineLoadMore && cards.length > 0 && !restrictToInitialCards) ? "overflow-hidden" : ""}`}
+        {...navigationContainerProps}
+      >
         <ListingMasonry
           loading={loading}
-          entries={cards.map((card, index) => {
+          entries={(inlineLoadMore || restrictToInitialCards
+            ? cards
+            : cards.slice(0, RESULT_LIMIT)
+          ).map((card, index) => {
             const aspectRatio = listingPhotoAspectRatio(
               card.photoWidth,
               card.photoHeight,

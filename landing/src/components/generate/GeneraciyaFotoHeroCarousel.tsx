@@ -9,8 +9,9 @@ import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import { buildHeroCarouselImageAlt } from "@/lib/hero-carousel-alt";
 import {
   type GenerationExampleCard,
-  writeGenerationExampleNavigation,
 } from "@/lib/generation/example-card";
+import { primeListingNavigationCardData } from "@/lib/listing-card-navigation-context";
+import { useListingNavigationFeed } from "@/hooks/useListingNavigationFeed";
 import { GENERACIYA_FOTO_SEO } from "@/lib/generaciya-foto-seo-copy";
 import { heroMarqueeDurationSeconds, SIZES_HERO_MARQUEE } from "@/lib/hero-marquee";
 
@@ -125,13 +126,18 @@ export function GeneraciyaFotoHeroCarousel({
   const featured = photos[0];
   const canLoop = photos.length >= 2;
 
-  const bindCarouselNav = useCallback(() => {
-    if (photos.length > 0) writeGenerationExampleNavigation(photos);
-  }, [photos]);
-
-  useEffect(() => {
-    bindCarouselNav();
-  }, [bindCarouselNav]);
+  const photoSlugs = useMemo(
+    () => photos.map((card) => card.slug),
+    [photos]
+  );
+  const { bindNavigation: bindCarouselNav, navigationContainerProps } =
+    useListingNavigationFeed({
+      slugs: photoSlugs,
+      hasMore: false,
+      bindOnMount: false,
+      onPrimeCards: () =>
+        primeListingNavigationCardData(photos.map((card) => card.navigationData)),
+    });
 
   if (!featured) return null;
 
@@ -140,7 +146,7 @@ export function GeneraciyaFotoHeroCarousel({
       ref={wrapRef}
       className="group/marquee relative mt-6 -mx-2 overflow-hidden sm:mt-8 sm:-mx-5 xl:-mx-6"
       aria-label={ariaLabel}
-      onPointerDownCapture={bindCarouselNav}
+      {...navigationContainerProps}
     >
       <div
         className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-gradient-to-r from-white to-transparent sm:w-12"

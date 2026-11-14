@@ -1,3 +1,8 @@
+import {
+  CARD_IMAGE_HERO_MAX_WIDTH_PX,
+  CARD_IMAGE_HERO_QUALITY,
+} from "./card-image-presets";
+
 export type MobileCardSnapDirection = "prev" | "current" | "next";
 
 /** Matches Tailwind `lg`. Immersive snap feed is `lg:hidden`, same as the listing shell. */
@@ -8,6 +13,19 @@ export const MOBILE_CARD_SNAP_LAYOUT_SCROLL_IGNORE_MS = 400;
 
 /** Re-pin current slug after layout; CSS snap stays off until this settles. */
 export const MOBILE_CARD_SNAP_LAYOUT_PIN_FRAMES = 12;
+
+/** Virtual slide window `[center - 2 .. center + 3]` (at most 6 slides in DOM). */
+export const VIRTUAL_CARD_SNAP_OVERSCAN_BEFORE = 2;
+export const VIRTUAL_CARD_SNAP_OVERSCAN_AFTER = 3;
+
+/** WebKit caps history.replaceState at 100 calls / 30s; debounce URL sync while flicking. */
+export const CARD_SNAP_URL_SYNC_DEBOUNCE_MS = 200;
+
+/** Count virtual pageviews and card-view beacons only when the user pauses on a swiped card. */
+export const CARD_SNAP_ANALYTICS_DWELL_MS = 600;
+
+/** Upgrade active slide from cached q=60 base layer to 1920w q=100 hero after settle dwell. */
+export const CARD_SNAP_HD_UPGRADE_DWELL_MS = 140;
 
 export function isMobileCardSnapViewportUsable({
   clientHeight,
@@ -35,11 +53,6 @@ export function shouldRecenterMobileCardSnapOnResize({
   return nextUsable && !previousUsable;
 }
 
-/**
- * Prev slides must not exist in the DOM while index assumes they do.
- * First paint is only the current card (`scrollTop=0` is correct). Attach
- * neighbors in the same commit as jumping `scrollTop` to `prevCount * H`.
- */
 export function resolveMobileCardSnapSlideIndex({
   neighborsAttached,
   prevCount,
@@ -261,11 +274,6 @@ export function shouldLockMobileCardSnapInteractiveMatch(
   return !match.hasAttribute("data-swipe-ok");
 }
 
-/**
- * iOS Safari treats a tap with a few px of jitter as a pan on `snap-y`
- * + `touch-action: pan-y`. Interactive chrome must lock that pan so the
- * click (prompt sheet, close, Lexy) can fire.
- */
 export function shouldLockMobileCardSnapGesture(
   target: EventTarget | null
 ): boolean {
@@ -298,16 +306,6 @@ export function resolveActiveMobileCardPhotos({
   return syncedDataId === dataId ? localPhotos : dataPhotoUrls;
 }
 
-/**
- * Whether a `touchEnd` / `pointerUp` on an interactive control (`data-no-swipe`,
- * ↑/↓ arrows, Промпт, ✕) should arm the 400ms layout-scroll ignore window.
- *
- * Only arm it when the gesture actually drifted the snap scroller and had to be
- * clamped back. A clean tap (`scrollTop === lockedScrollTop`) must NOT arm the
- * ignore window, otherwise `scrollToPrev`/`scrollToNext` smooth scroll is
- * ignored by `onScroll`/`onScrollEnd` and leaves `isInteracting=true`
- * (`pointer-events-none` on all action buttons) until the user taps again.
- */
 export function shouldIgnoreLayoutScrollAfterGestureLock({
   currentScrollTop,
   lockedScrollTop,
@@ -317,4 +315,256 @@ export function shouldIgnoreLayoutScrollAfterGestureLock({
 }): boolean {
   if (currentScrollTop === null || lockedScrollTop === null) return false;
   return Math.abs(currentScrollTop - lockedScrollTop) > 0.5;
+}
+
+/* ── V2 Monotonic Virtualized Snap Track Helpers ── */
+
+function dedupeSlugs(slugs: readonly string[] | null | undefined): string[] {
+  if (!slugs || slugs.length === 0) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of slugs) {
+    const trimmed = typeof raw === "string" ? raw.trim() : "";
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    out.push(trimmed);
+  }
+  return out;
+}
+
+/**
+ * Builds the initial monotonic slug track for a mobile viewer session.
+ * When `currentSlug` belongs to the saved listing order, the entire list is
+ * adopted so both backward (`0 .. initialIndex - 1`) and forward slides sit at
+ * fixed offsets `index * slideHeight` from frame 0.
+ */
+export function buildInitialSessionSlugs({
+  currentSlug,
+  listingSlugs,
+}: {
+  currentSlug: string;
+  listingSlugs: readonly string[] | null | undefined;
+}): { slugs: string[]; initialIndex: number } {
+  const cleanCurrent = currentSlug.trim();
+  const deduped = dedupeSlugs(listingSlugs);
+  const foundIndex = deduped.indexOf(cleanCurrent);
+  if (foundIndex >= 0) {
+    return { slugs: deduped, initialIndex: foundIndex };
+  }
+  return { slugs: cleanCurrent ? [cleanCurrent] : [], initialIndex: 0 };
+}
+
+/**
+ * Strictly append-only merge when infinite scroll loads another listing page.
+ *
+ * `localStorage` caps its slug array at 500 items (`capListingSlugList`), dropping
+ * older head items. Dropping head items during an open swipe session would shift
+ * `activeIndex` backward and jump `scrollTop`. Appending only unseen tail slugs
+ * guarantees `index * slideHeight` is immutable for every already-mounted slide.
+ */
+export function mergeSessionListingSlugs({
+  sessionSlugs,
+  incomingSlugs,
+}: {
+  sessionSlugs: readonly string[];
+  incomingSlugs: readonly string[] | null | undefined;
+}): string[] {
+  const cleanIncoming = dedupeSlugs(incomingSlugs);
+  if (cleanIncoming.length === 0) {
+    return [...sessionSlugs];
+  }
+  if (sessionSlugs.length === 0) {
+    return cleanIncoming;
+  }
+
+  // Single-card session that just received a listing context containing that card.
+  if (sessionSlugs.length === 1) {
+    const only = sessionSlugs[0]!;
+    const idx = cleanIncoming.indexOf(only);
+    if (idx === 0 && cleanIncoming.length > 1) {
+      return cleanIncoming;
+    }
+  }
+
+  const seen = new Set(sessionSlugs);
+  const lastExisting = sessionSlugs[sessionSlugs.length - 1]!;
+  const tailAnchorIdx = cleanIncoming.lastIndexOf(lastExisting);
+
+  const candidates =
+    tailAnchorIdx >= 0
+      ? cleanIncoming.slice(tailAnchorIdx + 1)
+      : cleanIncoming.some((slug) => seen.has(slug))
+        ? cleanIncoming
+        : [];
+
+  if (candidates.length === 0) {
+    return sessionSlugs as string[];
+  }
+
+  let appended: string[] | null = null;
+  for (const slug of candidates) {
+    if (seen.has(slug)) continue;
+    seen.add(slug);
+    if (!appended) appended = [...sessionSlugs];
+    appended.push(slug);
+  }
+  return appended ?? (sessionSlugs as string[]);
+}
+
+/**
+ * Handles external slug switches (split-group variant pills `1 / 2 / 3` or OAuth pin).
+ * If `nextSlug` is already in the track, jumps to its index; otherwise replaces
+ * the active slot in place so `prev` (`index - 1`) and `next` (`index + 1`) stay intact
+ * without moving `scrollTop`.
+ */
+export function replaceSessionSlugInPlace({
+  sessionSlugs,
+  activeIndex,
+  nextSlug,
+}: {
+  sessionSlugs: readonly string[];
+  activeIndex: number;
+  nextSlug: string;
+}): {
+  slugs: string[];
+  index: number;
+  mode: "noop" | "jump" | "replace-in-place";
+} {
+  const cleanNext = nextSlug.trim();
+  if (!cleanNext) {
+    return { slugs: [...sessionSlugs], index: activeIndex, mode: "noop" };
+  }
+  if (sessionSlugs.length === 0) {
+    return { slugs: [cleanNext], index: 0, mode: "replace-in-place" };
+  }
+  const safeIndex = Math.min(
+    Math.max(0, activeIndex),
+    sessionSlugs.length - 1
+  );
+  if (sessionSlugs[safeIndex] === cleanNext) {
+    return { slugs: sessionSlugs as string[], index: safeIndex, mode: "noop" };
+  }
+  const existingIndex = sessionSlugs.indexOf(cleanNext);
+  if (existingIndex >= 0) {
+    return {
+      slugs: sessionSlugs as string[],
+      index: existingIndex,
+      mode: "jump",
+    };
+  }
+  const nextSlugs = [...sessionSlugs];
+  nextSlugs[safeIndex] = cleanNext;
+  return { slugs: nextSlugs, index: safeIndex, mode: "replace-in-place" };
+}
+
+export type VirtualCardSnapWindow = {
+  startIndex: number;
+  endIndex: number;
+  centerIndex: number;
+  totalSlides: number;
+};
+
+export function resolveVirtualCardSnapWindow({
+  totalSlides,
+  centerIndex,
+  overscanBefore = VIRTUAL_CARD_SNAP_OVERSCAN_BEFORE,
+  overscanAfter = VIRTUAL_CARD_SNAP_OVERSCAN_AFTER,
+}: {
+  totalSlides: number;
+  centerIndex: number;
+  overscanBefore?: number;
+  overscanAfter?: number;
+}): VirtualCardSnapWindow {
+  const safeTotal = Number.isFinite(totalSlides)
+    ? Math.max(0, Math.floor(totalSlides))
+    : 0;
+  if (safeTotal === 0) {
+    return { startIndex: 0, endIndex: -1, centerIndex: 0, totalSlides: 0 };
+  }
+  const clampedCenter = Math.min(
+    Math.max(0, Math.floor(Number.isFinite(centerIndex) ? centerIndex : 0)),
+    safeTotal - 1
+  );
+  const startIndex = Math.max(0, clampedCenter - Math.max(0, overscanBefore));
+  const endIndex = Math.min(
+    safeTotal - 1,
+    clampedCenter + Math.max(0, overscanAfter)
+  );
+  return {
+    startIndex,
+    endIndex,
+    centerIndex: clampedCenter,
+    totalSlides: safeTotal,
+  };
+}
+
+/**
+ * Resolves the active visual card index at the 50% scroll midpoint (`Math.round`).
+ */
+export function resolveVirtualCardVisualIndex({
+  scrollTop,
+  slideHeight,
+  totalSlides,
+  fallbackIndex = 0,
+}: {
+  scrollTop: number;
+  slideHeight: number;
+  totalSlides: number;
+  fallbackIndex?: number;
+}): number {
+  const safeTotal = Number.isFinite(totalSlides)
+    ? Math.max(0, Math.floor(totalSlides))
+    : 0;
+  if (safeTotal === 0) return 0;
+  const clampedFallback = Math.min(
+    Math.max(0, Math.floor(Number.isFinite(fallbackIndex) ? fallbackIndex : 0)),
+    safeTotal - 1
+  );
+  if (!Number.isFinite(slideHeight) || slideHeight <= 0) {
+    return clampedFallback;
+  }
+  const safeTop = Number.isFinite(scrollTop) ? Math.max(0, scrollTop) : 0;
+  const rounded = Math.round(safeTop / slideHeight);
+  return Math.min(Math.max(0, rounded), safeTotal - 1);
+}
+
+export function isVirtualCardScrollNearSnapPoint({
+  scrollTop,
+  slideHeight,
+  epsilonPx = 2.5,
+}: {
+  scrollTop: number;
+  slideHeight: number;
+  epsilonPx?: number;
+}): boolean {
+  if (!Number.isFinite(slideHeight) || slideHeight <= 0) return false;
+  const safeTop = Number.isFinite(scrollTop) ? Math.max(0, scrollTop) : 0;
+  const nearestSnapTop = Math.round(safeTop / slideHeight) * slideHeight;
+  return Math.abs(safeTop - nearestSnapTop) <= Math.max(0, epsilonPx);
+}
+
+/**
+ * Computes the permanent base image URL (`q=60` on `<Image>`) and the progressive
+ * `1920w` hero URL (`q=100` overlay after settle dwell).
+ *
+ * Listing-primed cards carry `?width=1024&quality=60` on `/storage/v1/render/image/public/...`;
+ * rewriting query params yields the canonical `1920w` hero render URL without extra metadata.
+ */
+export function resolveCardSlideImageUrls(
+  rawPhotoUrl: string | null | undefined
+): {
+  baseUrl: string | null;
+  heroUrl: string | null;
+} {
+  const trimmed = typeof rawPhotoUrl === "string" ? rawPhotoUrl.trim() : "";
+  if (!trimmed) {
+    return { baseUrl: null, heroUrl: null };
+  }
+  if (trimmed.includes("/storage/v1/render/image/public/")) {
+    const qIdx = trimmed.indexOf("?");
+    const basePath = qIdx >= 0 ? trimmed.slice(0, qIdx) : trimmed;
+    const heroUrl = `${basePath}?width=${CARD_IMAGE_HERO_MAX_WIDTH_PX}&quality=${CARD_IMAGE_HERO_QUALITY}`;
+    return { baseUrl: trimmed, heroUrl };
+  }
+  return { baseUrl: trimmed, heroUrl: trimmed };
 }

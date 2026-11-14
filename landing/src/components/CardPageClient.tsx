@@ -16,13 +16,13 @@ import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import { useAuth } from "@/context/AuthContext";
 import {
   beginGuestCardRepeatAuth,
+  CARD_REPEAT_IDLE_ARIA_LABEL,
+  CARD_REPEAT_IDLE_LABEL,
   cardRepeatComposeIntent,
   listingPathForGenerateLeave,
   resolveCardRepeatAction,
 } from "@/lib/card-repeat-auth";
 import { peekLastListingPath } from "@/lib/scroll-preservation";
-import { isDevushkiCopyNudgeEligibleCard } from "@/lib/devushki-copy-nudge";
-import { GIRLS_HUB_GENERATE_CTA } from "@/lib/promty-dlya-foto-devushki-cluster";
 import { isCatalogAdminEmail } from "@/lib/catalog-admin";
 import {
   ADMIN_TECH_INFO_CHANGED_EVENT,
@@ -46,8 +46,11 @@ import { copyTextSyncFallback, copyTextUniversal } from "@/lib/copy-text-to-clip
 import { recordAcquisitionClientEvent } from "@/lib/acquisition-client-events";
 import { buildCardImageAlt, buildBeforeAlt } from "@/lib/image-alt";
 import {
+  canLoadMoreListingNavigation,
+  isListingNavigationLoadingMore,
   requestListingNavigationLoadMore,
   resolveListingNavNeighbors,
+  subscribeListingNavigationLoadMoreSettled,
   subscribeListingNavigationUpdates,
   type ListingCardNavNeighbors,
 } from "@/lib/listing-card-navigation-context";
@@ -55,8 +58,16 @@ import {
   hasSeenCardSwipeOnboarding,
   markCardSwipeOnboardingSeen,
 } from "@/lib/card-swipe-onboarding";
-import { useMobileCardSnapFeed } from "@/hooks/useMobileCardSnapFeed";
-import { resolveActiveMobileCardPhotos } from "@/lib/mobile-card-snap";
+import {
+  useMobileCardSnapFeed,
+  type VirtualMobileCardSlide,
+} from "@/hooks/useMobileCardSnapFeed";
+import {
+  CARD_SNAP_HD_UPGRADE_DWELL_MS,
+  CARD_SNAP_URL_SYNC_DEBOUNCE_MS,
+  resolveActiveMobileCardPhotos,
+  resolveCardSlideImageUrls,
+} from "@/lib/mobile-card-snap";
 import {
   canMutateAuthReturnCardSlug,
   isAuthReturnCardPinned,
@@ -106,11 +117,10 @@ const MOBILE_FS_CHIP_MUTED =
 /** Кнопки поверх фото (промпт / Lexy) — без «полосы», тот же glass. */
 const MOBILE_FS_ACTION = `${MOBILE_FS_CHIP} rounded-xl font-semibold`;
 
-const DEVUSHKI_TRY_LABEL = GIRLS_HUB_GENERATE_CTA;
-const DEVUSHKI_TRY_ARIA = "Повторить этот образ на своём фото";
-/** Full prompt sheet. Opaque: glass (`bg-black/15` + blur) made the text unreadable on light photos. */
+/** Full prompt sheet — same translucent frosted glass (`bg-black/15 backdrop-blur-md`) as the «Промпт» button (`MOBILE_FS_CHIP`). */
+const PROMPT_SHEET_SURFACE = "bg-black/15 backdrop-blur-md";
 const PROMPT_SHEET_TEXT =
-  "select-text whitespace-pre-wrap text-[13px] font-medium leading-relaxed text-white";
+  "select-text whitespace-pre-wrap text-[13px] font-medium leading-relaxed text-white [text-shadow:0_1px_2px_rgb(0_0_0/0.45)]";
 
 /** Mobile has-photos bottom bar: prompt + Lexy only (listing arrows live in the right stack). */
 const MOBILE_PHOTO_ACTIONS_GRID =
@@ -139,6 +149,7 @@ type Props = {
 };
 
 type InnerProps = Props & {
+  onMobileVisualChange: (data: CardPageData) => void;
   onMobileNeighborCommit: (data: CardPageData) => void;
 };
 
@@ -162,10 +173,20 @@ export function CardPageClient(props: Props) {
 function CardPageClientOwned({ data, tagEntries, breadcrumbTag, isModal = false, onListingNeighborGo, onListingNeighborCommit, onCloseModal }: Props) {
   const router = useRouter();
   const [activeData, setActiveData] = useState(data);
+  const routeReplaceTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     setActiveData((current) => (current.id === data.id ? current : data));
   }, [data]);
+
+  useEffect(() => {
+    return () => {
+      if (routeReplaceTimerRef.current !== null) {
+        window.clearTimeout(routeReplaceTimerRef.current);
+        routeReplaceTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const activePresentation = useMemo(() => {
     if (activeData.id === data.id) {
@@ -181,16 +202,34 @@ function CardPageClientOwned({ data, tagEntries, breadcrumbTag, isModal = false,
     };
   }, [activeData, breadcrumbTag, data.id, tagEntries]);
 
+  const handleMobileVisualChange = useCallback(
+    (nextData: CardPageData) => {
+      if (!canMutateAuthReturnCardSlug(nextData.slug)) return;
+      setActiveData((current) => (current.id === nextData.id ? current : nextData));
+      onListingNeighborCommit?.(nextData);
+    },
+    [onListingNeighborCommit]
+  );
+
   const handleMobileNeighborCommit = useCallback(
     (nextData: CardPageData) => {
       if (!canMutateAuthReturnCardSlug(nextData.slug)) return;
-      setActiveData(nextData);
+      setActiveData((current) => (current.id === nextData.id ? current : nextData));
       onListingNeighborCommit?.(nextData);
       if (onListingNeighborGo) {
         onListingNeighborGo(nextData.slug);
       } else if (canNavigateFromSecondaryCardViewer(isClientCardOverlayBlocking())) {
-        // One viewer = one history entry. push() stacks /p pages so ✕ only pops one card.
-        router.replace(`/p/${encodeURIComponent(nextData.slug)}`, { scroll: false });
+        if (routeReplaceTimerRef.current !== null) {
+          window.clearTimeout(routeReplaceTimerRef.current);
+        }
+        routeReplaceTimerRef.current = window.setTimeout(() => {
+          routeReplaceTimerRef.current = null;
+          if (!canNavigateFromSecondaryCardViewer(isClientCardOverlayBlocking())) {
+            return;
+          }
+          // One viewer = one history entry. push() stacks /p pages so ✕ only pops one card.
+          router.replace(`/p/${encodeURIComponent(nextData.slug)}`, { scroll: false });
+        }, CARD_SNAP_URL_SYNC_DEBOUNCE_MS);
       }
     },
     [onListingNeighborCommit, onListingNeighborGo, router]
@@ -206,13 +245,14 @@ function CardPageClientOwned({ data, tagEntries, breadcrumbTag, isModal = false,
         isModal={isModal}
         onListingNeighborGo={onListingNeighborGo}
         onCloseModal={onCloseModal}
+        onMobileVisualChange={handleMobileVisualChange}
         onMobileNeighborCommit={handleMobileNeighborCommit}
       />
     </CardInteractionsProvider>
   );
 }
 
-function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo, onCloseModal, onMobileNeighborCommit }: InnerProps) {
+function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo, onCloseModal, onMobileVisualChange, onMobileNeighborCommit }: InnerProps) {
   const router = useRouter();
   const { seedFromCard } = useGenerateDock();
   const {
@@ -231,7 +271,13 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
   const publishReward = usePublishReward(data.viewerIsOwner);
   const showOwnerPublish =
     data.viewerIsOwner && (!publishReward.publishHidden || publishedLocal);
-  const { reactions, favorites, toggleReaction, toggleFavorite } = useCardInteractions();
+  const {
+    reactions,
+    favorites,
+    toggleReaction,
+    toggleFavorite,
+    loadForCards,
+  } = useCardInteractions();
   const userReaction = reactions.get(data.id) ?? null;
   const isFavorited = favorites.has(data.id);
   const { user, loading: authLoading, openAuthModal } = useAuth();
@@ -314,6 +360,14 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
         : resolveListingNavNeighbors(data.slug),
     [data.slug, listingNavNeighbors, syncedNavSlug]
   );
+  const [listingCanLoadMore, setListingCanLoadMore] = useState(() =>
+    canLoadMoreListingNavigation()
+  );
+  const [listingLoadingMore, setListingLoadingMore] = useState(() =>
+    isListingNavigationLoadingMore()
+  );
+  const [waitingDesktopNextFromSlug, setWaitingDesktopNextFromSlug] =
+    useState<string | null>(null);
   const [authCardPinned, setAuthCardPinned] = useState(isAuthReturnCardPinned);
   const revertedAuthPinRef = useRef(false);
   const [mobilePromptOverlay, setMobilePromptOverlay] = useState(false);
@@ -399,9 +453,24 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
     const refreshNeighbors = () => {
       setSyncedNavSlug(data.slug);
       setListingNavNeighbors(resolveListingNavNeighbors(data.slug));
+      setListingCanLoadMore(canLoadMoreListingNavigation());
+      setListingLoadingMore(isListingNavigationLoadingMore());
+    };
+    const handleLoadMoreSettled = () => {
+      refreshNeighbors();
+      if (resolveListingNavNeighbors(data.slug)?.nextSlug == null) {
+        setWaitingDesktopNextFromSlug(null);
+      }
     };
     refreshNeighbors();
-    return subscribeListingNavigationUpdates(refreshNeighbors);
+    const unsubUpdates = subscribeListingNavigationUpdates(refreshNeighbors);
+    const unsubSettled = subscribeListingNavigationLoadMoreSettled(
+      handleLoadMoreSettled
+    );
+    return () => {
+      unsubUpdates();
+      unsubSettled();
+    };
   }, [data.slug]);
 
   useLayoutEffect(() => {
@@ -512,10 +581,14 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
   useEffect(() => {
     if (!mobilePromptOverlay || typeof window === "undefined") return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setMobilePromptOverlay(false);
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        setMobilePromptOverlay(false);
+      }
     }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [mobilePromptOverlay]);
 
   useEffect(() => {
@@ -534,12 +607,8 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
   );
 
   const hasPrompts = data.promptTexts.length > 0;
-  const girlsGenerateCta = isDevushkiCopyNudgeEligibleCard({
-    seoTags: data.seo_tags,
-    lastListingPath: null,
-  });
-  const generateIdleLabel = girlsGenerateCta ? DEVUSHKI_TRY_LABEL : "Повторить";
-  const generateIdleAria = girlsGenerateCta ? DEVUSHKI_TRY_ARIA : undefined;
+  const generateIdleLabel = CARD_REPEAT_IDLE_LABEL;
+  const generateIdleAria = CARD_REPEAT_IDLE_ARIA_LABEL;
   const hasPhotos = photos.length > 0;
   const videoUrl = data.videoUrl;
   const isPhotoshoot = isPhotoshootUgcListing({
@@ -660,7 +729,10 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
   }
 
   async function handleShare() {
-    const url = window.location.href;
+    const url = new URL(
+      `/p/${encodeURIComponent(data.slug)}`,
+      window.location.origin
+    ).toString();
     if (navigator.share) {
       try {
         await navigator.share({ title, url });
@@ -790,25 +862,127 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
 
   const listingPrev = activeListingNavNeighbors?.prevSlug ?? null;
   const listingNext = activeListingNavNeighbors?.nextSlug ?? null;
-  const hasListingNeighbors = Boolean(listingPrev || listingNext);
+  const canLoadMoreDesktopNext =
+    listingNext === null &&
+    activeListingNavNeighbors !== null &&
+    (listingCanLoadMore || listingLoadingMore);
+  const desktopNextLoading =
+    waitingDesktopNextFromSlug === data.slug &&
+    listingNext === null &&
+    (listingCanLoadMore || listingLoadingMore);
+
+  const handleDesktopPrev = useCallback(() => {
+    setWaitingDesktopNextFromSlug(null);
+    if (listingPrev) {
+      goListingNeighbor(listingPrev);
+    }
+  }, [goListingNeighbor, listingPrev]);
+
+  const handleDesktopNext = useCallback(() => {
+    if (listingNext) {
+      setWaitingDesktopNextFromSlug(null);
+      goListingNeighbor(listingNext);
+      return;
+    }
+    if (
+      activeListingNavNeighbors !== null &&
+      (canLoadMoreListingNavigation() || isListingNavigationLoadingMore())
+    ) {
+      setWaitingDesktopNextFromSlug(data.slug);
+      void requestListingNavigationLoadMore();
+    }
+  }, [activeListingNavNeighbors, data.slug, goListingNeighbor, listingNext]);
 
   useEffect(() => {
-    if (!hasPhotos || activeListingNavNeighbors === null) return;
+    if (waitingDesktopNextFromSlug !== data.slug) return;
+    if (listingNext) {
+      setWaitingDesktopNextFromSlug(null);
+      goListingNeighbor(listingNext);
+    }
+  }, [data.slug, goListingNeighbor, listingNext, waitingDesktopNextFromSlug]);
+
+  useEffect(() => {
+    if (activeListingNavNeighbors === null) return;
     let lookahead = 0;
     let cursor = data.slug;
-    while (lookahead < 16) {
+    while (lookahead < 14) {
       const nextSlug = resolveListingNavNeighbors(cursor)?.nextSlug;
       if (!nextSlug) break;
       lookahead += 1;
       cursor = nextSlug;
     }
-    if (lookahead < 16) {
-      requestListingNavigationLoadMore();
+    if (
+      lookahead < 14 &&
+      canLoadMoreListingNavigation() &&
+      !isListingNavigationLoadingMore()
+    ) {
+      void requestListingNavigationLoadMore();
     }
-  }, [activeListingNavNeighbors, data.slug, hasPhotos]);
+  }, [activeListingNavNeighbors, data.slug, listingCanLoadMore]);
 
   useEffect(() => {
-    if (!hasPhotos || !hasListingNeighbors) {
+    if (mobilePromptOverlay || typeof window === "undefined") return;
+    const onDesktopKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+      if (hasPhotos && !window.matchMedia("(min-width: 1024px)").matches) {
+        return;
+      }
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT")
+      ) {
+        return;
+      }
+      if (event.key === "ArrowDown") {
+        if (listingNext || canLoadMoreDesktopNext) {
+          event.preventDefault();
+          handleDesktopNext();
+        }
+      } else if (event.key === "ArrowUp") {
+        if (listingPrev) {
+          event.preventDefault();
+          handleDesktopPrev();
+        }
+      }
+    };
+    window.addEventListener("keydown", onDesktopKeyDown);
+    return () => window.removeEventListener("keydown", onDesktopKeyDown);
+  }, [
+    canLoadMoreDesktopNext,
+    handleDesktopNext,
+    handleDesktopPrev,
+    hasPhotos,
+    listingNext,
+    listingPrev,
+    mobilePromptOverlay,
+  ]);
+
+  const snapFeed = useMobileCardSnapFeed({
+    currentData: data,
+    enabled: hasPhotos,
+    promptSheetOpen: mobilePromptOverlay,
+    onVisualChange: onMobileVisualChange,
+    onSettledCommit: onMobileNeighborCommit,
+  });
+
+  const mobilePrevSlug = snapFeed.prevSlug;
+  const mobileNextSlug = snapFeed.nextSlug;
+  const hasMobileNeighbors = snapFeed.hasNeighbors;
+
+  useEffect(() => {
+    if (snapFeed.windowCardIds.length > 0) {
+      loadForCards(snapFeed.windowCardIds);
+    }
+  }, [loadForCards, snapFeed.windowCardIds]);
+
+  useEffect(() => {
+    if (!hasPhotos || !hasMobileNeighbors) {
       setShowSwipeOnboarding(false);
       return;
     }
@@ -821,48 +995,35 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
       return;
     }
     setShowSwipeOnboarding(!hasSeenCardSwipeOnboarding());
-  }, [hasPhotos, hasListingNeighbors, data.slug]);
+  }, [hasMobileNeighbors, hasPhotos, data.slug]);
 
   const dismissSwipeOnboarding = useCallback(() => {
     markCardSwipeOnboardingSeen();
     setShowSwipeOnboarding(false);
   }, []);
 
-  const swipeEnabled =
-    hasPhotos && hasListingNeighbors && !mobilePromptOverlay;
-
-  const snapFeed = useMobileCardSnapFeed({
-    currentData: data,
-    prevSlug: listingPrev,
-    nextSlug: listingNext,
-    enabled: swipeEnabled,
-    onCommit: onMobileNeighborCommit,
-  });
-
-  const showSnapNeighbors = snapFeed.neighborsAttached;
-
   useEffect(() => {
     const pin = peekAuthReturnCardPin();
     if (!pin || data.slug !== pin) return;
     const desktop = window.matchMedia("(min-width: 1024px)").matches;
-    if (desktop) {
-      releaseAuthReturnCardPin();
-      if (authCardPinned) setAuthCardPinned(false);
-      return;
-    }
-    if (snapFeed.neighborsAttached && snapFeed.snapScrollEnabled) {
+    if (desktop || !snapFeed.hasNeighbors || snapFeed.snapScrollEnabled) {
       releaseAuthReturnCardPin();
       if (authCardPinned) setAuthCardPinned(false);
     }
   }, [
     authCardPinned,
     data.slug,
-    snapFeed.neighborsAttached,
+    snapFeed.hasNeighbors,
     snapFeed.snapScrollEnabled,
   ]);
-  const mobileChromeClass = snapFeed.isInteracting
-    ? "pointer-events-none"
-    : "";
+
+  const handleExpandMobilePhotoshootFrame = useCallback(
+    (_url: string, index: number) => {
+      setPhotoIndex(index);
+      setPhotoshootExpanded(true);
+    },
+    []
+  );
 
   return (
     <div
@@ -1184,13 +1345,15 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
                     <StickyListingNavButton
                       slug={listingPrev}
                       direction="prev"
-                      onGo={goListingNeighbor}
+                      onGo={handleDesktopPrev}
                       orientation="vertical"
                     />
                     <StickyListingNavButton
                       slug={listingNext}
                       direction="next"
-                      onGo={goListingNeighbor}
+                      canLoadMore={canLoadMoreDesktopNext}
+                      loading={desktopNextLoading}
+                      onGo={handleDesktopNext}
                       orientation="vertical"
                     />
                   </div>
@@ -1226,7 +1389,7 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
                       role="dialog"
                       aria-modal="true"
                       aria-labelledby="desktop-prompt-overlay-title"
-                      className="absolute inset-0 z-40 flex flex-col bg-zinc-950"
+                      className={`absolute inset-0 z-40 flex flex-col ${PROMPT_SHEET_SURFACE}`}
                       onClick={(e) => e.stopPropagation()}
                     >
                       <header className="flex shrink-0 items-center justify-end px-3 pt-3">
@@ -1289,10 +1452,7 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
 
           </div>
 
-          {/* Mobile: fullscreen-карточка (Chrome скрыт через CardPageLayout при наличии фото).
-              This block is rendered both for direct /p/[slug] pages and for the client-side single-instance
-              modal (when opened from a listing or search). The close button inside the photo header
-              respects onCloseModal (client modal), router.back() (soft modal), or category/home fallback (direct entry). */}
+          {/* Mobile: fullscreen-карточка V2 (два соседних слоя: монотонный VirtualSnapTrack + вынесенный CardViewportHud). */}
           {hasPhotos && (
           <div
             data-card-modal-surface={isModal ? "" : undefined}
@@ -1304,7 +1464,7 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
               ref={snapFeed.viewportRef}
               data-card-snap-viewport
               aria-label="Лента карточек промтов"
-              className={`scrollbar-none h-full w-full overscroll-contain ${
+              className={`relative scrollbar-none h-full w-full overscroll-contain ${
                 snapFeed.snapScrollEnabled
                   ? "snap-y snap-mandatory overflow-y-auto [-webkit-overflow-scrolling:touch]"
                   : "overflow-hidden"
@@ -1316,445 +1476,324 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
               onPointerCancel={snapFeed.onPointerCancel}
               onClickCapture={snapFeed.onClickCapture}
             >
-            {showSnapNeighbors
-              ? snapFeed.extraPrevSlides.map((slide) => (
-                  <MobileSnapNeighborSlide
-                    key={slide.slug}
-                    data={slide.data}
-                    direction="prev"
-                    fallbackPhotoUrl={currentPhoto}
-                  />
-                ))
-              : null}
-            {showSnapNeighbors && snapFeed.prevPrevSlug ? (
-              <MobileSnapNeighborSlide
-                data={snapFeed.prevPrevCard}
-                direction="prev"
-                fallbackPhotoUrl={currentPhoto}
+              <div
+                aria-hidden
+                className="pointer-events-none w-full"
+                style={{
+                  height:
+                    snapFeed.slideHeight > 0
+                      ? `${Math.max(1, snapFeed.totalSlides) * snapFeed.slideHeight}px`
+                      : "100%",
+                }}
               />
-            ) : null}
-            {showSnapNeighbors && listingPrev ? (
-              <MobileSnapNeighborSlide
-                data={snapFeed.prevCard}
-                direction="prev"
-                fallbackPhotoUrl={currentPhoto}
-              />
-            ) : null}
-            <div
-              data-card-snap-slide="current"
-              className="relative h-full w-full shrink-0 snap-start snap-always overflow-hidden bg-zinc-950"
-            >
-              {currentPhoto ? (
-              <>
-                <div className="pointer-events-none absolute inset-0 z-[1] bg-zinc-950" aria-hidden />
-
-                {/* Полноэкранное фото (как в референсе), без framed 3:4 */}
-                {photoshootGrid && !photoshootExpanded ? (
-                  <div className="absolute inset-x-3 top-[calc(env(safe-area-inset-top)+4.5rem)] bottom-[calc(env(safe-area-inset-bottom)+8.25rem)] z-[50] overflow-hidden rounded-2xl bg-zinc-900 ring-1 ring-white/10">
-                    <PhotoshootListingGrid
-                      urls={photos}
-                      alt={buildCardImageAlt(title, [], photoIndex)}
-                      priority
-                      selectedIndex={photoIndex}
-                      onSelect={(_url, index) => {
-                        setPhotoIndex(index);
-                        setPhotoshootExpanded(true);
-                      }}
-                    />
-                    <PhotoshootListingBadge />
-                  </div>
-                ) : (
-                  <div className="absolute inset-0 z-[2]">
-                    {videoUrl ? (
-                      <CardHeroVideo
-                        src={videoUrl}
-                        poster={currentPhoto}
-                        className="object-cover object-center"
-                      />
-                    ) : (
-                      <Image
-                        src={currentPhoto}
-                        alt={buildCardImageAlt(title, [], photoIndex)}
-                        fill
-                        sizes="100vw"
-                        quality={CARD_IMAGE_HERO_NEXT_QUALITY}
-                        className="object-cover object-center"
-                        priority
-                        fetchPriority="high"
-                        decoding="async"
-                      />
-                    )}
-                  </div>
-                )}
-
-                <div
-                  className="pointer-events-none absolute inset-x-0 bottom-0 z-[8] h-[70%] bg-gradient-to-t from-black/78 via-black/38 to-transparent"
-                  aria-hidden
+              {snapFeed.virtualSlides.map((slide) => (
+                <MobileSnapMediaSlide
+                  key={slide.slug}
+                  slide={slide}
+                  slideHeight={snapFeed.slideHeight}
+                  activePhotos={photos}
+                  activePhotoMeta={photoMeta}
+                  activeBeforePhotoUrl={beforePhotoUrl}
+                  activePhotoIndex={photoIndex}
+                  activePhotoshootExpanded={photoshootExpanded}
+                  onExpandPhotoshootFrame={handleExpandMobilePhotoshootFrame}
+                  onPrevPhoto={prevPhoto}
+                  onNextPhoto={nextPhoto}
                 />
+              ))}
+              {snapFeed.tailLoaderIndex !== null ? (
+                <MobileSnapTailLoaderSlide
+                  index={snapFeed.tailLoaderIndex}
+                  slideHeight={snapFeed.slideHeight}
+                />
+              ) : null}
+            </div>
 
-                {/* Тап по краям */}
-                {(!photoshootGrid || photoshootExpanded) && photos.length > 1 ? (
-                  <>
-                    <button
-                      type="button"
-                      data-swipe-ok
-                      onClick={prevPhoto}
-                      className={`${OVERLAY_BUTTON_UA_RESET} absolute bottom-[calc(env(safe-area-inset-bottom)+5.875rem)] left-0 top-[calc(env(safe-area-inset-top)+9rem)] z-[58] w-[34%] touch-manipulation ${mobileChromeClass}`}
-                      aria-label="Предыдущее фото"
-                    />
-                    <button
-                      type="button"
-                      data-swipe-ok
-                      onClick={nextPhoto}
-                      className={`${OVERLAY_BUTTON_UA_RESET} absolute bottom-[calc(env(safe-area-inset-bottom)+5.875rem)] right-0 top-[calc(env(safe-area-inset-top)+9rem)] z-[58] w-[34%] touch-manipulation ${mobileChromeClass}`}
-                      aria-label="Следующее фото"
-                    />
-                  </>
-                ) : null}
-
-                {beforePhotoUrl ? (
-                  <div className={`pointer-events-auto absolute left-4 top-[calc(env(safe-area-inset-top)+8.25rem)] z-[61] w-[26%] min-w-[52px] max-w-[92px] ${mobileChromeClass}`}>
-                    <div
-                      className="relative aspect-square overflow-hidden rounded-br-xl bg-zinc-800 shadow-md ring-1 ring-black/35"
-                      aria-label="Фото «было»"
-                    >
-                      <Image
-                        src={beforePhotoUrl}
-                        alt=""
-                        fill
-                        className="object-cover"
-                        sizes={SIZES_CARD_GRID}
-                        quality={CARD_IMAGE_NEXT_QUALITY}
-                      />
+            <div
+              data-card-snap-hud
+              className="pointer-events-none absolute inset-0 z-[70] flex flex-col justify-between"
+            >
+              <header className="pointer-events-none relative z-[60] shrink-0 px-4 pt-[max(12px,env(safe-area-inset-top))]">
+                {!photoshootGrid && photos.length > 1 ? (
+                  <div className="pointer-events-none flex gap-1 px-1 pb-2 pt-0" aria-hidden>
+                    {photos.map((_, idx) => (
                       <div
-                        className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/72 to-transparent py-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-white"
-                        aria-hidden
-                      >
-                        БЫЛО
-                      </div>
+                        key={idx}
+                        className={`h-1 min-h-1 min-w-[12px] flex-1 rounded-full ${idx === photoIndex ? "bg-white shadow-[0_0_12px_rgb(255_255_255/0.55)]" : "bg-white/32"}`}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+                <div className="grid min-h-[2.75rem] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-2 pb-2">
+                  {photoshootGrid && photoshootExpanded ? (
+                    <button
+                      type="button"
+                      aria-label="Все кадры"
+                      onClick={() => setPhotoshootExpanded(false)}
+                      className={`pointer-events-auto ${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 shrink-0 items-center justify-center justify-self-start rounded-full bg-black/15 p-2 text-white/90 backdrop-blur-md transition-colors hover:bg-black/25 active:scale-[0.97]`}
+                    >
+                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                        <rect x="2.5" y="2.5" width="8" height="8" rx="1.75" />
+                        <rect x="13.5" y="2.5" width="8" height="8" rx="1.75" />
+                        <rect x="2.5" y="13.5" width="8" height="8" rx="1.75" />
+                        <rect x="13.5" y="13.5" width="8" height="8" rx="1.75" />
+                      </svg>
+                    </button>
+                  ) : (
+                    <div className="h-11 w-11 shrink-0 justify-self-start" aria-hidden />
+                  )}
+                  <div className="pointer-events-none flex min-h-[2.75rem] shrink-0 items-center justify-center px-1">
+                    <div
+                      className={`inline-flex max-w-[min(100%,18rem)] items-center gap-1.5 rounded-full px-3 py-2 ${MOBILE_FS_CHIP}`}
+                      aria-label={`Просмотров: ${formatCompactCount(viewCount)}`}
+                    >
+                      <EyeIcon size={16} className="shrink-0 text-white/85" aria-hidden />
+                      <span className={`tabular-nums font-semibold tracking-tight ${viewCount > 0 ? "text-white/95" : "text-white/55"}`}>
+                        {formatCompactCount(viewCount)}
+                      </span>
+                      <span className="truncate font-normal text-white/75">просмотров</span>
                     </div>
                   </div>
+                  <div className="flex h-11 items-center justify-end justify-self-end">
+                    <button
+                      type="button"
+                      aria-label="Закрыть"
+                      onClick={handleCloseMobileViewer}
+                      className={`pointer-events-auto ${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-black/15 p-2 text-white/90 backdrop-blur-md shadow-none transition-colors hover:bg-black/25 active:scale-[0.97]`}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                {debugMode ? (
+                  <div className="pointer-events-auto flex justify-start pb-1">
+                    <button
+                      type="button"
+                      onClick={() => handleDebugSetPublished(!publishedLocal)}
+                      disabled={hideSaving}
+                      className="rounded-full bg-zinc-950/80 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm backdrop-blur-md disabled:opacity-50"
+                    >
+                      {hideSaving
+                        ? "Сохраняю…"
+                        : publishedLocal
+                          ? "Скрыть с витрины"
+                          : "Вернуть на витрину"}
+                    </button>
+                  </div>
                 ) : null}
+                {photoshootGrid && photoshootExpanded ? (
+                  <div className="pointer-events-auto flex justify-center pb-2">
+                    <PhotoshootFrameStrip
+                      urls={photos}
+                      activeIndex={photoIndex}
+                      onSelect={setPhotoIndex}
+                    />
+                  </div>
+                ) : null}
+              </header>
 
-                <header className={`pointer-events-none relative z-[60] shrink-0 px-4 pt-[max(12px,env(safe-area-inset-top))] ${mobileChromeClass}`}>
-                  {!photoshootGrid && photos.length > 1 ? (
-                    <div className="pointer-events-none flex gap-1 px-1 pb-2 pt-0" aria-hidden>
-                      {photos.map((_, idx) => (
-                        <div
-                          key={idx}
-                          className={`h-1 min-h-1 min-w-[12px] flex-1 rounded-full ${idx === photoIndex ? "bg-white shadow-[0_0_12px_rgb(255_255_255/0.55)]" : "bg-white/32"}`}
+              {groupCards.length > 1 ? (
+                <aside className="pointer-events-none absolute left-3 top-1/2 z-[73] flex max-h-[min(76svh,100svh-8rem)] -translate-y-1/2 flex-col items-start justify-center">
+                  <nav
+                    className="pointer-events-auto scrollbar-none flex flex-col gap-2 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] py-px"
+                    aria-label="Варианты подборки"
+                  >
+                    {groupCards.map((card) => {
+                      const isActive = card.id === data.id;
+                      return (
+                        <Link
+                          key={card.id}
+                          href={`/p/${card.slug}`}
+                          prefetch={false}
+                          onClick={(e) => handleGroupVariantNav(e, card.slug, isActive)}
+                          className={`flex shrink-0 items-center gap-1 rounded-full px-2.5 py-2 text-[13px] font-semibold transition-colors touch-manipulation ${
+                            isActive
+                              ? "bg-white/30 ring-1 ring-white/45 text-white"
+                              : `${MOBILE_FS_CHIP_MUTED} ring-1 ring-transparent`
+                          }`}
+                        >
+                          {card.mainPhotoUrl ? (
+                            <div className="relative h-4 w-4 shrink-0 overflow-hidden rounded-full ring-1 ring-white/25">
+                              <Image
+                                src={card.mainPhotoUrl}
+                                alt=""
+                                width={16}
+                                height={16}
+                                className="h-full w-full object-cover"
+                                sizes={SIZES_CARD_GRID}
+                                quality={CARD_IMAGE_NEXT_QUALITY}
+                              />
+                            </div>
+                          ) : null}
+                          <span className="tabular-nums font-semibold">{card.card_split_index + 1}</span>
+                        </Link>
+                      );
+                    })}
+                  </nav>
+                </aside>
+              ) : null}
+
+              <aside className="pointer-events-none absolute right-3 top-1/2 z-[73] flex max-h-[min(76svh,100svh-8rem)] -translate-y-1/2 flex-col items-end justify-center gap-2">
+                <div className="pointer-events-auto relative flex flex-col items-center gap-2">
+                  <ReactionButtons
+                    cardId={data.id}
+                    likesCount={data.likesCount}
+                    dislikesCount={data.dislikesCount}
+                    userReaction={userReaction}
+                    onToggle={toggleReaction}
+                    variant="overlay"
+                    stacked
+                  />
+                  <FavoriteButton
+                    cardId={data.id}
+                    isFavorited={isFavorited}
+                    onToggle={toggleFavorite}
+                    variant="overlay"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleShare}
+                    className={`${CARD_OVERLAY_ACTION_PILL} min-w-[2.75rem] text-white/70 transition-colors hover:text-white active:scale-95`}
+                    title="Поделиться"
+                    aria-label="Поделиться ссылкой на карточку"
+                  >
+                    <ShareIcon className="block shrink-0" size={16} />
+                  </button>
+                  {hasMobileNeighbors ? (
+                    <>
+                      <div
+                        className="my-0.5 h-px w-6 bg-white/25"
+                        aria-hidden
+                      />
+                      <div className="relative flex flex-col items-center gap-2">
+                        <StickyListingNavButton
+                          slug={mobilePrevSlug}
+                          direction="prev"
+                          onGo={() => {
+                            dismissSwipeOnboarding();
+                            snapFeed.scrollToPrev();
+                          }}
+                          orientation="vertical"
                         />
-                      ))}
+                        <StickyListingNavButton
+                          slug={mobileNextSlug}
+                          direction="next"
+                          canLoadMore={snapFeed.canLoadMoreNext}
+                          loading={snapFeed.waitingForNextPage}
+                          onGo={() => {
+                            dismissSwipeOnboarding();
+                            snapFeed.scrollToNext();
+                          }}
+                          orientation="vertical"
+                        />
+                        {showSwipeOnboarding ? (
+                          <CardSwipeOnboarding
+                            onDismiss={dismissSwipeOnboarding}
+                          />
+                        ) : null}
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+              </aside>
+
+              {/* Низ: промпт + Lexy — стрелки листинга в правом стеке */}
+              <div className="pointer-events-none relative inset-x-0 bottom-0 z-[99] pb-[max(14px,env(safe-area-inset-bottom))] pt-6">
+                <div className="pointer-events-auto mx-auto flex w-full max-w-lg flex-col gap-2 px-3">
+                  {hasPrompts ? (
+                    <div className={`${MOBILE_PHOTO_ACTIONS_GRID} shadow-none`}>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setMobilePromptOverlay(true);
+                        }}
+                        className={`${OVERLAY_BUTTON_UA_RESET} shadow-none flex min-h-11 flex-1 items-center justify-center gap-1 px-2 py-2 text-white ${MOBILE_FS_ACTION}`}
+                      >
+                        <span className="truncate">Промпт</span>
+                      </button>
+                      <LexyGptGenerateButton
+                        promptText={selectedPrompt}
+                        cardId={data.id}
+                        sourceImageUrl={currentPhoto ?? undefined}
+                        variant="sticky"
+                        className="h-full min-h-11 min-w-0 w-full truncate px-2 text-[13px] shadow-none ring-2 ring-black/35"
+                        idleLabel={generateIdleLabel}
+                        idleAriaLabel={generateIdleAria}
+                        onInternalGenerate={openInlineGenerate}
+                      />
                     </div>
                   ) : null}
-                  <div
-                    data-no-swipe
-                    className="pointer-events-auto grid min-h-[2.75rem] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-2 pb-2"
-                  >
-                    {photoshootGrid && photoshootExpanded ? (
+                </div>
+              </div>
+
+              {hasPrompts && mobilePromptOverlay ? (
+                <div
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="mobile-prompt-overlay-title"
+                  className={`pointer-events-auto absolute inset-0 z-[110] flex flex-col ${PROMPT_SHEET_SURFACE}`}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex min-h-0 flex-1 flex-col px-4 py-0">
+                    <header className="flex shrink-0 items-center justify-end pt-[max(12px,env(safe-area-inset-top))]">
+                      <h2 id="mobile-prompt-overlay-title" className="sr-only">
+                        Промпт
+                      </h2>
                       <button
                         type="button"
-                        aria-label="Все кадры"
-                        onClick={() => setPhotoshootExpanded(false)}
-                        className={`${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 shrink-0 items-center justify-center justify-self-start rounded-full bg-black/15 p-2 text-white/90 backdrop-blur-md transition-colors hover:bg-black/25 active:scale-[0.97]`}
-                      >
-                        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                          <rect x="2.5" y="2.5" width="8" height="8" rx="1.75" />
-                          <rect x="13.5" y="2.5" width="8" height="8" rx="1.75" />
-                          <rect x="2.5" y="13.5" width="8" height="8" rx="1.75" />
-                          <rect x="13.5" y="13.5" width="8" height="8" rx="1.75" />
-                        </svg>
-                      </button>
-                    ) : (
-                      <div className="h-11 w-11 shrink-0 justify-self-start" aria-hidden />
-                    )}
-                    <div className="flex min-h-[2.75rem] shrink-0 items-center justify-center px-1">
-                      <div
-                        className={`inline-flex max-w-[min(100%,18rem)] items-center gap-1.5 rounded-full px-3 py-2 ${MOBILE_FS_CHIP}`}
-                        aria-label={`Просмотров: ${formatCompactCount(viewCount)}`}
-                      >
-                        <EyeIcon size={16} className="shrink-0 text-white/85" aria-hidden />
-                        <span className={`tabular-nums font-semibold tracking-tight ${viewCount > 0 ? "text-white/95" : "text-white/55"}`}>
-                          {formatCompactCount(viewCount)}
-                        </span>
-                        <span className="truncate font-normal text-white/75">просмотров</span>
-                      </div>
-                    </div>
-                    <div className="flex h-11 items-center justify-end justify-self-end">
-                      <button
-                        type="button"
-                        aria-label="Закрыть"
-                        onClick={handleCloseMobileViewer}
+                        aria-label="Закрыть промпт"
+                        onClick={() => setMobilePromptOverlay(false)}
                         className={`${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-black/15 p-2 text-white/90 backdrop-blur-md shadow-none transition-colors hover:bg-black/25 active:scale-[0.97]`}
                       >
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
                           <path d="M18 6L6 18M6 6l12 12"/>
                         </svg>
                       </button>
+                    </header>
+                    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-3 [-webkit-overflow-scrolling:touch]">
+                      <p className={PROMPT_SHEET_TEXT}>
+                        {selectedPrompt}
+                      </p>
                     </div>
-                  </div>
-                  {debugMode ? (
-                    <div data-no-swipe className="pointer-events-auto flex justify-start pb-1">
+                    <div className="shrink-0 pb-[max(14px,env(safe-area-inset-bottom))] pt-3">
                       <button
                         type="button"
-                        onClick={() => handleDebugSetPublished(!publishedLocal)}
-                        disabled={hideSaving}
-                        className="rounded-full bg-zinc-950/80 px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm backdrop-blur-md disabled:opacity-50"
+                        aria-live="polite"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          void handleCopy({ closeOverlay: true });
+                        }}
+                        className={`${OVERLAY_BUTTON_UA_RESET} shadow-none flex min-h-11 w-full items-center justify-center gap-2 px-4 py-3 font-semibold text-white ${MOBILE_FS_ACTION}`}
                       >
-                        {hideSaving
-                          ? "Сохраняю…"
-                          : publishedLocal
-                            ? "Скрыть с витрины"
-                            : "Вернуть на витрину"}
+                        {stickyCopy === "ok" ? (
+                          <>
+                            <CheckIcon size={20} />
+                            <span>Готово</span>
+                          </>
+                        ) : stickyCopy === "fail" ? (
+                          <>
+                            <span className="text-amber-200" aria-hidden>
+                              !
+                            </span>
+                            Не удалось скопировать
+                          </>
+                        ) : (
+                          <>
+                            <CopyIcon size={20} />
+                            {data.promptTexts.length > 1 ? "Скопировать все промпты" : "Скопировать промпт"}
+                          </>
+                        )}
                       </button>
                     </div>
-                  ) : null}
-                  {photoshootGrid && photoshootExpanded ? (
-                    <div className="pointer-events-auto flex justify-center pb-2">
-                      <PhotoshootFrameStrip
-                        urls={photos}
-                        activeIndex={photoIndex}
-                        onSelect={setPhotoIndex}
-                      />
-                    </div>
-                  ) : null}
-                </header>
-
-                {groupCards.length > 1 ? (
-                  <aside className={`pointer-events-none absolute left-3 top-1/2 z-[73] flex max-h-[min(76svh,100svh-8rem)] -translate-y-1/2 flex-col items-start justify-center ${mobileChromeClass}`}>
-                    <nav
-                      data-no-swipe
-                      className="pointer-events-auto scrollbar-none flex flex-col gap-2 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] py-px"
-                      aria-label="Варианты подборки"
-                    >
-                      {groupCards.map((card) => {
-                        const isActive = card.id === data.id;
-                        return (
-                          <Link
-                            key={card.id}
-                            href={`/p/${card.slug}`}
-                            onClick={(e) => handleGroupVariantNav(e, card.slug, isActive)}
-                            className={`flex shrink-0 items-center gap-1 rounded-full px-2.5 py-2 text-[13px] font-semibold transition-colors touch-manipulation ${
-                              isActive
-                                ? "bg-white/30 ring-1 ring-white/45 text-white"
-                                : `${MOBILE_FS_CHIP_MUTED} ring-1 ring-transparent`
-                            }`}
-                          >
-                            {card.mainPhotoUrl ? (
-                              <div className="relative h-4 w-4 shrink-0 overflow-hidden rounded-full ring-1 ring-white/25">
-                                <Image
-                                  src={card.mainPhotoUrl}
-                                  alt=""
-                                  width={16}
-                                  height={16}
-                                  className="h-full w-full object-cover"
-                                  sizes={SIZES_CARD_GRID}
-                                  quality={CARD_IMAGE_NEXT_QUALITY}
-                                />
-                              </div>
-                            ) : null}
-                            <span className="tabular-nums font-semibold">{card.card_split_index + 1}</span>
-                          </Link>
-                        );
-                      })}
-                    </nav>
-                  </aside>
-                ) : null}
-
-                <aside className={`pointer-events-none absolute right-3 top-1/2 z-[73] flex max-h-[min(76svh,100svh-8rem)] -translate-y-1/2 flex-col items-end justify-center gap-2 ${mobileChromeClass}`}>
-                  <div
-                    data-no-swipe
-                    className="pointer-events-auto relative flex flex-col items-center gap-2"
-                  >
-                    <ReactionButtons
-                      cardId={data.id}
-                      likesCount={data.likesCount}
-                      dislikesCount={data.dislikesCount}
-                      userReaction={userReaction}
-                      onToggle={toggleReaction}
-                      variant="overlay"
-                      stacked
-                    />
-                    <FavoriteButton
-                      cardId={data.id}
-                      isFavorited={isFavorited}
-                      onToggle={toggleFavorite}
-                      variant="overlay"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleShare}
-                      className={`${CARD_OVERLAY_ACTION_PILL} min-w-[2.75rem] text-white/70 transition-colors hover:text-white active:scale-95`}
-                      title="Поделиться"
-                      aria-label="Поделиться ссылкой на карточку"
-                    >
-                      <ShareIcon className="block shrink-0" size={16} />
-                    </button>
-                    {hasListingNeighbors ? (
-                      <>
-                        <div
-                          className="my-0.5 h-px w-6 bg-white/25"
-                          aria-hidden
-                        />
-                        <div className="relative flex flex-col items-center gap-2">
-                          <StickyListingNavButton
-                            slug={listingPrev}
-                            direction="prev"
-                            onGo={() => {
-                              dismissSwipeOnboarding();
-                              snapFeed.scrollToPrev();
-                            }}
-                            orientation="vertical"
-                          />
-                          <StickyListingNavButton
-                            slug={listingNext}
-                            direction="next"
-                            onGo={() => {
-                              dismissSwipeOnboarding();
-                              snapFeed.scrollToNext();
-                            }}
-                            orientation="vertical"
-                          />
-                          {showSwipeOnboarding ? (
-                            <CardSwipeOnboarding
-                              onDismiss={dismissSwipeOnboarding}
-                            />
-                          ) : null}
-                        </div>
-                      </>
-                    ) : null}
-                  </div>
-                </aside>
-                {/* Низ: промпт + Lexy — стрелки листинга в правом стеке */}
-                <div className={`pointer-events-none absolute inset-x-0 bottom-0 z-[99] pb-[max(14px,env(safe-area-inset-bottom))] pt-6 ${mobileChromeClass}`}>
-                  <div
-                    data-no-swipe
-                    className="pointer-events-auto mx-auto flex w-full max-w-lg flex-col gap-2 px-3"
-                  >
-                    {hasPrompts ? (
-                      <div className={`${MOBILE_PHOTO_ACTIONS_GRID} shadow-none`}>
-                        <button
-                          type="button"
-                          data-no-swipe
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setMobilePromptOverlay(true);
-                          }}
-                          className={`${OVERLAY_BUTTON_UA_RESET} shadow-none flex min-h-11 flex-1 items-center justify-center gap-1 px-2 py-2 text-white ${MOBILE_FS_ACTION}`}
-                        >
-                          <span className="truncate">Промпт</span>
-                        </button>
-                        <LexyGptGenerateButton
-                          promptText={selectedPrompt}
-                          cardId={data.id}
-                          sourceImageUrl={currentPhoto ?? undefined}
-                          variant="sticky"
-                          className="h-full min-h-11 min-w-0 w-full truncate px-2 text-[13px] shadow-none ring-2 ring-black/35"
-                          idleLabel={generateIdleLabel}
-                          idleAriaLabel={generateIdleAria}
-                          onInternalGenerate={openInlineGenerate}
-                        />
-                      </div>
-                    ) : null}
                   </div>
                 </div>
-
-                {hasPrompts && mobilePromptOverlay ? (
-                  <div
-                    role="dialog"
-                    aria-modal="true"
-                    aria-labelledby="mobile-prompt-overlay-title"
-                    data-no-swipe
-                    className="absolute inset-0 z-[110] flex flex-col bg-zinc-950"
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="flex min-h-0 flex-1 flex-col px-4 py-0">
-                      <header className="flex shrink-0 items-center justify-end pt-[max(12px,env(safe-area-inset-top))]">
-                        <h2 id="mobile-prompt-overlay-title" className="sr-only">
-                          Промпт
-                        </h2>
-                        <button
-                          type="button"
-                          aria-label="Закрыть промпт"
-                          onClick={() => setMobilePromptOverlay(false)}
-                          className={`${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-black/15 p-2 text-white/90 backdrop-blur-md shadow-none transition-colors hover:bg-black/25 active:scale-[0.97]`}
-                        >
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
-                            <path d="M18 6L6 18M6 6l12 12"/>
-                          </svg>
-                        </button>
-                      </header>
-                      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-3 [-webkit-overflow-scrolling:touch]">
-                        <p className={PROMPT_SHEET_TEXT}>
-                          {selectedPrompt}
-                        </p>
-                      </div>
-                      <div className="shrink-0 pb-[max(14px,env(safe-area-inset-bottom))] pt-3">
-                        <button
-                          type="button"
-                          aria-live="polite"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            void handleCopy({ closeOverlay: true });
-                          }}
-                          className={`${OVERLAY_BUTTON_UA_RESET} shadow-none flex min-h-11 w-full items-center justify-center gap-2 px-4 py-3 font-semibold text-white ${MOBILE_FS_ACTION}`}
-                        >
-                          {stickyCopy === "ok" ? (
-                            <>
-                              <CheckIcon size={20} />
-                              <span>Готово</span>
-                            </>
-                          ) : stickyCopy === "fail" ? (
-                            <>
-                              <span className="text-amber-200" aria-hidden>
-                                !
-                              </span>
-                              Не удалось скопировать
-                            </>
-                          ) : (
-                            <>
-                              <CopyIcon size={20} />
-                              {data.promptTexts.length > 1 ? "Скопировать все промпты" : "Скопировать промпт"}
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-
-              </>
-              ) : (
-                <div className="flex h-full items-center justify-center px-6 text-zinc-500">Нет фото</div>
-              )}
-            </div>
-            {showSnapNeighbors && listingNext ? (
-              <MobileSnapNeighborSlide
-                data={snapFeed.nextCard}
-                direction="next"
-                fallbackPhotoUrl={currentPhoto}
-              />
-            ) : null}
-            {showSnapNeighbors && snapFeed.nextNextSlug ? (
-              <MobileSnapNeighborSlide
-                data={snapFeed.nextNextCard}
-                direction="next"
-                fallbackPhotoUrl={currentPhoto}
-              />
-            ) : null}
-            {showSnapNeighbors
-              ? snapFeed.extraNextSlides.map((slide) => (
-                  <MobileSnapNeighborSlide
-                    key={slide.slug}
-                    data={slide.data}
-                    direction="next"
-                    fallbackPhotoUrl={currentPhoto}
-                  />
-                ))
-              : null}
+              ) : null}
             </div>
           </div>
           )}
@@ -1895,7 +1934,7 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
                   <StickyListingNavButton
                     slug={listingPrev}
                     direction="prev"
-                    onGo={goListingNeighbor}
+                    onGo={handleDesktopPrev}
                     floatingGlass
                   />
                   <button
@@ -1940,7 +1979,9 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
                   <StickyListingNavButton
                     slug={listingNext}
                     direction="next"
-                    onGo={goListingNeighbor}
+                    canLoadMore={canLoadMoreDesktopNext}
+                    loading={desktopNextLoading}
+                    onGo={handleDesktopNext}
                     floatingGlass
                   />
                 </div>
@@ -1954,46 +1995,274 @@ function CardPageClientInner({ data, breadcrumbTag, isModal, onListingNeighborGo
   );
 }
 
-function MobileSnapNeighborSlide({
-  data,
-  direction,
-  fallbackPhotoUrl,
-}: {
-  data: CardPageData | null;
-  direction: "prev" | "next";
-  fallbackPhotoUrl: string | null;
-}) {
-  const photoUrl = data?.photoUrls?.[0] ?? null;
+type MobileSnapMediaSlideProps = {
+  slide: VirtualMobileCardSlide;
+  slideHeight: number;
+  activePhotos: string[];
+  activePhotoMeta: CardPageData["photoMeta"];
+  activeBeforePhotoUrl: string | null;
+  activePhotoIndex: number;
+  activePhotoshootExpanded: boolean;
+  onExpandPhotoshootFrame: (url: string, index: number) => void;
+  onPrevPhoto: () => void;
+  onNextPhoto: () => void;
+};
+
+function MobileSnapMediaSlide({
+  slide,
+  slideHeight,
+  activePhotos,
+  activePhotoMeta,
+  activeBeforePhotoUrl,
+  activePhotoIndex,
+  activePhotoshootExpanded,
+  onExpandPhotoshootFrame,
+  onPrevPhoto,
+  onNextPhoto,
+}: MobileSnapMediaSlideProps) {
+  const { isActive, isSettled, data, index } = slide;
+  const isActiveRef = useRef(isActive);
+  isActiveRef.current = isActive;
+
+  const slidePhotos = isActive ? activePhotos : (data?.photoUrls ?? []);
+  const slidePhotoMeta = isActive ? activePhotoMeta : (data?.photoMeta ?? []);
+  const slideBeforeUrl = isActive
+    ? activeBeforePhotoUrl
+    : (data?.beforePhotoUrl ?? null);
+  const frameIndex = isActive
+    ? Math.min(activePhotoIndex, Math.max(0, slidePhotos.length - 1))
+    : 0;
+  const expanded = isActive ? activePhotoshootExpanded : false;
+  const slideTitle = data?.title_ru || data?.title_en || "";
+  const slideVideoUrl = isActive ? (data?.videoUrl ?? null) : null;
+
+  const slideIsPhotoshoot = isPhotoshootUgcListing({
+    datasetSlug: data?.source_dataset_slug ?? null,
+    photoCount: slidePhotos.length,
+    storagePaths: slidePhotoMeta.map((media) => media.path),
+  });
+  const slidePhotoshootGrid = slideIsPhotoshoot && slidePhotos.length === 4;
+  const showCollapsedPhotoshootGrid = slidePhotoshootGrid && !expanded;
+
+  const currentFrameRawUrl = slidePhotos[frameIndex] ?? null;
+  const { baseUrl, heroUrl } = useMemo(
+    () => resolveCardSlideImageUrls(currentFrameRawUrl),
+    [currentFrameRawUrl]
+  );
+
+  const [hdArmed, setHdArmed] = useState(false);
+  const [hdDecodedUrl, setHdDecodedUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (
+      !isActive ||
+      !isSettled ||
+      !heroUrl ||
+      Boolean(data?.videoUrl) ||
+      showCollapsedPhotoshootGrid
+    ) {
+      setHdArmed(false);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setHdArmed(true);
+    }, CARD_SNAP_HD_UPGRADE_DWELL_MS);
+    return () => window.clearTimeout(timer);
+  }, [
+    data?.videoUrl,
+    heroUrl,
+    isActive,
+    isSettled,
+    showCollapsedPhotoshootGrid,
+  ]);
+
+  const handleGridFrameSelect = useCallback(
+    (url: string, frameIdx: number) => {
+      if (!isActiveRef.current) return;
+      onExpandPhotoshootFrame(url, frameIdx);
+    },
+    [onExpandPhotoshootFrame]
+  );
+
+  const slideStyle =
+    slideHeight > 0
+      ? {
+          top: `${index * slideHeight}px`,
+          height: `${slideHeight}px`,
+        }
+      : {
+          top: 0,
+          height: "100%",
+        };
+
   return (
     <div
-      data-card-snap-slide={direction}
-      className="pointer-events-none relative h-full w-full shrink-0 snap-start snap-always overflow-hidden bg-zinc-950"
-      aria-hidden
+      data-card-snap-slide={isActive ? "current" : "neighbor"}
+      data-card-snap-index={index}
+      aria-hidden={!isActive || undefined}
+      style={slideStyle}
+      className="absolute inset-x-0 w-full snap-start snap-always overflow-hidden bg-zinc-950"
     >
-      {photoUrl ? (
-        <Image
-          src={photoUrl}
-          alt=""
-          fill
-          sizes="100vw"
-          quality={CARD_IMAGE_NEXT_QUALITY}
-          className="object-cover object-center"
-        />
-      ) : fallbackPhotoUrl ? (
-        <Image
-          src={fallbackPhotoUrl}
-          alt=""
-          fill
-          sizes="100vw"
-          quality={CARD_IMAGE_NEXT_QUALITY}
-          className="scale-105 object-cover object-center opacity-45 blur-sm"
+      <div className="pointer-events-none absolute inset-0 z-[1] bg-zinc-950" aria-hidden />
+
+      {showCollapsedPhotoshootGrid ? (
+        <div
+          className={`absolute inset-x-3 top-[calc(env(safe-area-inset-top)+4.5rem)] bottom-[calc(env(safe-area-inset-bottom)+8.25rem)] z-[50] overflow-hidden rounded-2xl bg-zinc-900 ring-1 ring-white/10 ${
+            isActive ? "" : "pointer-events-none"
+          }`}
+        >
+          <PhotoshootListingGrid
+            urls={slidePhotos}
+            alt={isActive ? buildCardImageAlt(slideTitle, [], frameIndex) : ""}
+            priority={isActive}
+            selectedIndex={frameIndex}
+            onSelect={handleGridFrameSelect}
+          />
+          <PhotoshootListingBadge />
+        </div>
+      ) : baseUrl ? (
+        <div className="absolute inset-0 z-[2]">
+          <Image
+            src={baseUrl}
+            alt={isActive ? buildCardImageAlt(slideTitle, [], frameIndex) : ""}
+            fill
+            sizes="100vw"
+            quality={CARD_IMAGE_NEXT_QUALITY}
+            className="object-cover object-center"
+            loading="eager"
+            decoding="async"
+          />
+          {hdArmed && heroUrl && !slideVideoUrl ? (
+            <Image
+              key={heroUrl}
+              src={heroUrl}
+              alt=""
+              aria-hidden
+              fill
+              sizes="100vw"
+              quality={CARD_IMAGE_HERO_NEXT_QUALITY}
+              decoding="async"
+              onLoad={(event) => {
+                const img = event.currentTarget;
+                if (typeof img.decode === "function") {
+                  img
+                    .decode()
+                    .then(() => setHdDecodedUrl(heroUrl))
+                    .catch(() => setHdDecodedUrl(heroUrl));
+                } else {
+                  setHdDecodedUrl(heroUrl);
+                }
+              }}
+              className={`pointer-events-none object-cover object-center transition-opacity duration-150 motion-reduce:transition-none ${
+                hdDecodedUrl === heroUrl ? "opacity-100" : "opacity-0"
+              }`}
+            />
+          ) : null}
+          {isActive && slideVideoUrl ? (
+            <div className="absolute inset-0 z-[3]">
+              <CardHeroVideo
+                src={slideVideoUrl}
+                poster={baseUrl}
+                className="object-cover object-center"
+              />
+            </div>
+          ) : null}
+        </div>
+      ) : data === null ? (
+        <div
+          className="pointer-events-none absolute inset-0 z-[2] animate-pulse bg-zinc-900/55"
+          aria-hidden
         />
       ) : (
-        <div className="flex h-full items-center justify-center text-3xl text-white/35">
-          {direction === "next" ? "↑" : "↓"}
+        <div className="flex h-full items-center justify-center px-6 text-zinc-500">
+          Нет фото
         </div>
       )}
-      <div className="absolute inset-x-0 bottom-0 h-[45%] bg-gradient-to-t from-black/55 to-transparent" />
+
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-[8] h-[70%] bg-gradient-to-t from-black/78 via-black/38 to-transparent"
+        aria-hidden
+      />
+
+      {isActive && (!slidePhotoshootGrid || expanded) && slidePhotos.length > 1 ? (
+        <>
+          <button
+            type="button"
+            data-swipe-ok
+            onClick={onPrevPhoto}
+            className={`${OVERLAY_BUTTON_UA_RESET} absolute bottom-[calc(env(safe-area-inset-bottom)+5.875rem)] left-0 top-[calc(env(safe-area-inset-top)+9rem)] z-[58] w-[34%] touch-manipulation`}
+            aria-label="Предыдущее фото"
+          />
+          <button
+            type="button"
+            data-swipe-ok
+            onClick={onNextPhoto}
+            className={`${OVERLAY_BUTTON_UA_RESET} absolute bottom-[calc(env(safe-area-inset-bottom)+5.875rem)] right-0 top-[calc(env(safe-area-inset-top)+9rem)] z-[58] w-[34%] touch-manipulation`}
+            aria-label="Следующее фото"
+          />
+        </>
+      ) : null}
+
+      {slideBeforeUrl ? (
+        <div className="pointer-events-none absolute left-4 top-[calc(env(safe-area-inset-top)+8.25rem)] z-[61] w-[26%] min-w-[52px] max-w-[92px]">
+          <div
+            className="relative aspect-square overflow-hidden rounded-br-xl bg-zinc-800 shadow-md ring-1 ring-black/35"
+            aria-label="Фото «было»"
+          >
+            <Image
+              src={slideBeforeUrl}
+              alt=""
+              fill
+              className="object-cover"
+              sizes={SIZES_CARD_GRID}
+              quality={CARD_IMAGE_NEXT_QUALITY}
+            />
+            <div
+              className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/72 to-transparent py-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-white"
+              aria-hidden
+            >
+              БЫЛО
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function MobileSnapTailLoaderSlide({
+  index,
+  slideHeight,
+}: {
+  index: number;
+  slideHeight: number;
+}) {
+  const slideStyle =
+    slideHeight > 0
+      ? {
+          top: `${index * slideHeight}px`,
+          height: `${slideHeight}px`,
+        }
+      : {
+          top: 0,
+          height: "100%",
+        };
+
+  return (
+    <div
+      data-card-snap-slide="tail-loader"
+      data-card-snap-index={index}
+      aria-live="polite"
+      style={slideStyle}
+      className="pointer-events-none absolute inset-x-0 flex w-full snap-start snap-always flex-col items-center justify-center gap-3 overflow-hidden bg-zinc-950 px-6 text-center"
+    >
+      <span
+        className="block h-7 w-7 animate-spin rounded-full border-2 border-white/20 border-t-white/90"
+        aria-hidden
+      />
+      <span className="text-[13px] font-medium text-white/75">
+        Загружаем следующие промты…
+      </span>
     </div>
   );
 }
@@ -2045,23 +2314,29 @@ function CardSwipeOnboarding({ onDismiss }: { onDismiss: () => void }) {
   );
 }
 
-/** Предыдущая / следующая карточка листинга (localStorage контекст). */
+/** Предыдущая / следующая карточка листинга (localStorage + пагинация активной ленты). */
 function StickyListingNavButton({
   slug,
   direction,
   onGo,
+  canLoadMore = false,
+  loading = false,
   floatingGlass = false,
   orientation = "horizontal",
 }: {
   slug: string | null;
   direction: "prev" | "next";
-  onGo: (slug: string) => void;
+  onGo: (slug: string | null) => void;
+  /** Когда карточка последняя в загруженной порции, но у выдачи есть ещё страницы. */
+  canLoadMore?: boolean;
+  /** Пока ждём ответ следующей страницы после клика / свайпа в конце списка. */
+  loading?: boolean;
   /** Мобила fullscreen над фото: круг-пилюля без «полосы-дока» (как тег‑glass). */
   floatingGlass?: boolean;
   /** Desktop split: ↑/↓ between photo and panel. */
   orientation?: "horizontal" | "vertical";
 }) {
-  const enabled = slug != null;
+  const enabled = slug != null || canLoadMore || loading;
   const vertical = orientation === "vertical";
   const bar = `${OVERLAY_BUTTON_UA_RESET} flex h-auto min-h-12 w-full items-center justify-center rounded-xl bg-zinc-800 text-white shadow-lg transition-colors motion-reduce:transition-none`;
   const chip = `${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black/15 text-white/88 backdrop-blur-md shadow-none transition-colors motion-reduce:transition-none`;
@@ -2076,16 +2351,35 @@ function StickyListingNavButton({
     <button
       type="button"
       disabled={!enabled}
+      aria-busy={loading || undefined}
       className={`${base} ${enabled ? accent : "opacity-35"}`}
       aria-label={
-        direction === "prev"
-          ? "Предыдущая карточка из листинга"
-          : "Следующая карточка из листинга"
+        loading
+          ? "Загружаем следующую карточку"
+          : direction === "prev"
+            ? "Предыдущая карточка из листинга"
+            : "Следующая карточка из листинга"
       }
-      title={direction === "prev" ? "Предыдущая в ленте" : "Следующая в ленте"}
-      onClick={() => slug && onGo(slug)}
+      title={
+        loading
+          ? "Загружаем следующие карточки…"
+          : direction === "prev"
+            ? "Предыдущая в ленте"
+            : "Следующая в ленте"
+      }
+      onClick={() => {
+        if (loading) return;
+        if (slug != null || canLoadMore) {
+          onGo(slug);
+        }
+      }}
     >
-      {vertical ? (
+      {loading ? (
+        <span
+          className="block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/25 border-t-white"
+          aria-hidden
+        />
+      ) : vertical ? (
         direction === "prev" ? (
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden>
             <path d="M18 15l-6-6-6 6" />

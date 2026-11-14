@@ -25,8 +25,9 @@ import { HOMEPAGE_SEO } from "@/lib/homepage-seo-copy";
 import {
   type GenerationExampleCard,
   toGenerationExampleCard,
-  writeGenerationExampleNavigation,
 } from "@/lib/generation/example-card";
+import { primeListingNavigationCardData } from "@/lib/listing-card-navigation-context";
+import { useListingNavigationFeed } from "@/hooks/useListingNavigationFeed";
 import {
   HOME_ALL_FEED,
   homeFeedQuery,
@@ -151,10 +152,6 @@ export function HomepageExamplesExplorer({
     setHasMore(next.hasMore);
   }, []);
 
-  useEffect(() => {
-    if (cards.length > 0) writeGenerationExampleNavigation(cards);
-  }, [cards]);
-
   useDebugCardHidden(
     useCallback((detail) => {
       hiddenIdsRef.current.add(detail.cardId);
@@ -246,6 +243,16 @@ export function HomepageExamplesExplorer({
     }
   }, [setCursor]);
 
+  const cardSlugs = useMemo(() => cards.map((card) => card.slug), [cards]);
+  const { navigationContainerProps } = useListingNavigationFeed({
+    slugs: cardSlugs,
+    hasMore,
+    onLoadMore: loadMore,
+    onPrimeCards: () =>
+      primeListingNavigationCardData(cards.map((card) => card.navigationData)),
+    enabled: cardSlugs.length > 0,
+  });
+
   const selectChip = (chip: HomepageExplorerChip | null) => {
     setQuery("");
     setActiveFilter((current) =>
@@ -312,7 +319,10 @@ export function HomepageExamplesExplorer({
         })}
       </nav>
 
-      <div className={`relative mt-5${showTeaser ? " overflow-hidden" : ""}`}>
+      <div
+        className={`relative mt-5${showTeaser ? " overflow-hidden" : ""}`}
+        {...navigationContainerProps}
+      >
         <ListingMasonry
           loading={loading}
           entries={cards.map((card, index) => {
