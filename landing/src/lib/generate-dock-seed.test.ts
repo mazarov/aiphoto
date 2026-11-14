@@ -32,7 +32,8 @@ test("isResumeComposeSeed is true only for default blank resume", () => {
   assert.equal(isResumeComposeSeed(seed({ promptText: "   " })), true);
 });
 
-test("upload-first entries open the photos sheet for photoshoot and photo_prompt", () => {
+test("compose entry dockSurface matches v1 (flag off) and v2 (flag on)", () => {
+  // V1 (default / flag off)
   assert.equal(isUploadFirstDockEntry("tab"), true);
   assert.equal(isUploadFirstDockEntry("fab"), true);
   assert.equal(isUploadFirstDockEntry("howto"), true);
@@ -40,8 +41,16 @@ test("upload-first entries open the photos sheet for photoshoot and photo_prompt
   assert.equal(isUploadFirstDockEntry("route"), false);
   assert.equal(defaultDockSurfaceForComposeEntry("photoshoot", "tab"), "photos");
   assert.equal(defaultDockSurfaceForComposeEntry("photo_prompt", "fab"), "photos");
-  assert.equal(defaultDockSurfaceForComposeEntry("photoshoot", "route"), null);
   assert.equal(defaultDockSurfaceForComposeEntry("resume", "tab"), null);
+  assert.equal(defaultDockSurfaceForComposeEntry("text", "fab"), null);
+
+  // V2 (flag on): hub-first on tab/fab, upload-first on howto/hero
+  assert.equal(isUploadFirstDockEntry("tab", { dockV2: true }), false);
+  assert.equal(isUploadFirstDockEntry("fab", { dockV2: true }), false);
+  assert.equal(isUploadFirstDockEntry("howto", { dockV2: true }), true);
+  assert.equal(defaultDockSurfaceForComposeEntry("photoshoot", "tab", { dockV2: true }), null);
+  assert.equal(defaultDockSurfaceForComposeEntry("photoshoot", "howto", { dockV2: true }), "photos");
+  assert.equal(defaultDockSurfaceForComposeEntry("resume", "tab", { dockV2: true }), null);
   assert.equal(
     resolveDockSurfaceForComposeEntry({
       intent: "photoshoot",

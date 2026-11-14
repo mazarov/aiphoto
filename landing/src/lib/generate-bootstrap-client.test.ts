@@ -77,6 +77,7 @@ function sampleBootstrapPayload(
     video_animate_enabled: "true",
     sticker_generation_enabled: "true",
     preserve_outfit_enabled: "true",
+    generate_dock_v2_enabled: "true",
   };
   return {
     user: { id: "user-1", email: "u@example.com", isAnonymous: false },
@@ -137,6 +138,7 @@ test("readFrameZeroGenerateState hydrates model, photos, credits, and flags sync
     assert.equal(frame0.photoshootEnabled, true);
     assert.equal(frame0.videoEnabled, true);
     assert.equal(frame0.stickerEnabled, true);
+    assert.equal(frame0.generateDockV2Enabled, true);
   });
 });
 

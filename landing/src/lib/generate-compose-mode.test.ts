@@ -31,6 +31,9 @@ import {
   COMPOSE_STYLE_TOOL_EDGE_LABEL,
   COMPOSE_MODEL_TOOL_EDGE_LABEL,
   COMPOSE_TOOL_SHEET_DONE_CTA,
+  COMPOSE_DONE_STEP_CTA,
+  COMPOSE_NEXT_STEP_CTA,
+  resolveDockStepCta,
   COMPOSE_TOOL_ORDER,
   composeToolOptions,
   composeSecondaryTools,
@@ -452,3 +455,110 @@ test("sticker footer prices GPT Image 2.5 at 5 wherever the tool is picked", () 
     cost: 5,
   });
 });
+
+test("resolveDockStepCta always confirms/advances inside open steps and returns to hub", () => {
+  const base = {
+    composeMode: "image" as const,
+    hasSelectedPhotos: false,
+    hasSinglePhoto: false,
+    sourcePhotoPicked: false,
+    photoPromptHasSource: false,
+    hasStyleOrPrompt: false,
+    draftPromptLength: 0,
+    needsImageModelPick: true,
+  };
+
+  assert.equal(resolveDockStepCta({ ...base, surface: null }), null);
+
+  // Step 1 (photos) -> Step 2 (example) -> Step 3 (model) -> Hub (Готово)
+  assert.deepEqual(resolveDockStepCta({ ...base, surface: "photos" }), {
+    kind: "next",
+    label: COMPOSE_NEXT_STEP_CTA,
+    target: "example",
+  });
+  assert.deepEqual(
+    resolveDockStepCta({
+      ...base,
+      surface: "example",
+      hasStyleOrPrompt: true,
+      needsImageModelPick: true,
+    }),
+    {
+      kind: "next",
+      label: COMPOSE_NEXT_STEP_CTA,
+      target: "model",
+    },
+  );
+  assert.deepEqual(
+    resolveDockStepCta({
+      ...base,
+      surface: "model",
+      hasStyleOrPrompt: true,
+      needsImageModelPick: false,
+    }),
+    {
+      kind: "done",
+      label: COMPOSE_DONE_STEP_CTA,
+      target: "hub",
+    },
+  );
+
+  // Re-opening photos or example after setup is complete shows Готово -> hub
+  assert.deepEqual(
+    resolveDockStepCta({
+      ...base,
+      surface: "photos",
+      hasSelectedPhotos: true,
+      hasStyleOrPrompt: true,
+      needsImageModelPick: false,
+    }),
+    {
+      kind: "done",
+      label: COMPOSE_DONE_STEP_CTA,
+      target: "hub",
+    },
+  );
+  assert.deepEqual(
+    resolveDockStepCta({
+      ...base,
+      surface: "prompt",
+      draftPromptLength: 24,
+      hasStyleOrPrompt: true,
+      needsImageModelPick: false,
+    }),
+    {
+      kind: "done",
+      label: COMPOSE_DONE_STEP_CTA,
+      target: "hub",
+    },
+  );
+
+  // Tool sheet routes to missing step or returns to hub
+  assert.deepEqual(
+    resolveDockStepCta({
+      ...base,
+      composeMode: "sticker",
+      surface: "tool",
+      sourcePhotoPicked: false,
+    }),
+    {
+      kind: "next",
+      label: COMPOSE_NEXT_STEP_CTA,
+      target: "photos",
+    },
+  );
+  assert.deepEqual(
+    resolveDockStepCta({
+      ...base,
+      composeMode: "photoshoot",
+      surface: "tool",
+      sourcePhotoPicked: true,
+    }),
+    {
+      kind: "done",
+      label: COMPOSE_DONE_STEP_CTA,
+      target: "hub",
+    },
+  );
+});
+

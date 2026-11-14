@@ -113,6 +113,7 @@ test("cached config map isolates feature flags per user email allowlist", () => 
     sticker_generation_enabled: "false",
     sticker_pack_enabled: "false",
     preserve_outfit_enabled: "false",
+    generate_dock_v2_enabled: "false",
   };
 
   const guestImage = buildImageGenerationConfigPayload(config, null);
@@ -121,7 +122,9 @@ test("cached config map isolates feature flags per user email allowlist", () => 
   assert.equal(guestImage.stickerEnabled, false);
   assert.equal(guestImage.stickerPackEnabled, false);
   assert.equal(guestImage.preserveOutfitEnabled, false);
+  assert.equal(guestImage.generateDockV2Enabled, false);
   assert.equal(guestVideo.enabled, false);
+  assert.equal(guestVideo.generateDockV2Enabled, false);
 
   const internalImage = buildImageGenerationConfigPayload(
     config,
@@ -135,5 +138,7 @@ test("cached config map isolates feature flags per user email allowlist", () => 
   assert.equal(internalImage.stickerEnabled, true);
   assert.equal(internalImage.stickerPackEnabled, true);
   assert.equal(internalImage.preserveOutfitEnabled, true);
+  assert.equal(internalImage.generateDockV2Enabled, true);
   assert.equal(internalVideo.enabled, true);
+  assert.equal(internalVideo.generateDockV2Enabled, true);
 });

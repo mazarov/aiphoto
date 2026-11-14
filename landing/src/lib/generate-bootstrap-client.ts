@@ -88,6 +88,7 @@ export type CachedGenerateConfigSnapshot = {
   preserveOutfitEnabled: boolean;
   composeExampleMatchEnabled: boolean;
   photoshootComposeExampleEnabled: boolean;
+  generateDockV2Enabled: boolean;
   cardRepeatReward: CardRepeatRewardConfig;
   updatedAtMs: number;
 };
@@ -109,6 +110,7 @@ type LastKnownAuthUser = {
 let memoryConfig: CachedGenerateConfigSnapshot | null = null;
 const memoryUserStates = new Map<string, CachedGenerateUserState>();
 let memoryLastUser: LastKnownAuthUser | null = null;
+const configListeners = new Set<(snapshot: CachedGenerateConfigSnapshot) => void>();
 const inflightBootstrap = new Map<
   string,
   Promise<GenerateBootstrapPayload | null>
@@ -118,7 +120,17 @@ export function resetGenerateBootstrapClientForTests(): void {
   memoryConfig = null;
   memoryUserStates.clear();
   memoryLastUser = null;
+  configListeners.clear();
   inflightBootstrap.clear();
+}
+
+export function subscribeGenerateConfigSnapshot(
+  listener: (snapshot: CachedGenerateConfigSnapshot) => void,
+): () => void {
+  configListeners.add(listener);
+  return () => {
+    configListeners.delete(listener);
+  };
 }
 
 export function hasLikelySupabaseSessionCookie(cookieHeader?: string | null): boolean {
@@ -297,6 +309,7 @@ function parseConfigSnapshot(raw: unknown): CachedGenerateConfigSnapshot | null 
     composeExampleMatchEnabled: value.composeExampleMatchEnabled === true,
     photoshootComposeExampleEnabled:
       value.photoshootComposeExampleEnabled === true,
+    generateDockV2Enabled: value.generateDockV2Enabled === true,
     cardRepeatReward: value.cardRepeatReward
       ? { ...DEFAULT_CARD_REPEAT_REWARD_CONFIG, ...value.cardRepeatReward }
       : DEFAULT_CARD_REPEAT_REWARD_CONFIG,
@@ -327,14 +340,22 @@ export function writeCachedGenerateConfig(
   writeCachedVideoAnimateEnabled(snapshot.videoEnabled);
   writeCachedPhotoshootEnabled(snapshot.photoshootEnabled);
   writeCachedStickerEnabled(snapshot.stickerEnabled);
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(
-      GENERATE_CONFIG_CACHE_KEY,
-      JSON.stringify(snapshot),
-    );
-  } catch {
-    /* quota / private mode */
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage.setItem(
+        GENERATE_CONFIG_CACHE_KEY,
+        JSON.stringify(snapshot),
+      );
+    } catch {
+      /* quota / private mode */
+    }
+  }
+  for (const listener of configListeners) {
+    try {
+      listener(snapshot);
+    } catch {
+      /* ignore listener errors */
+    }
   }
 }
 
@@ -475,6 +496,7 @@ export function snapshotFromBootstrapPayload(
     photoshootComposeExampleEnabled: Boolean(
       imageConfig.photoshootComposeExampleEnabled,
     ),
+    generateDockV2Enabled: Boolean(imageConfig.generateDockV2Enabled),
     cardRepeatReward: imageConfig.cardRepeatReward
       ? { ...DEFAULT_CARD_REPEAT_REWARD_CONFIG, ...imageConfig.cardRepeatReward }
       : DEFAULT_CARD_REPEAT_REWARD_CONFIG,
@@ -588,6 +610,7 @@ export type FrameZeroGenerateState = {
   preserveOutfitEnabled: boolean;
   composeExampleMatchEnabled: boolean;
   photoshootComposeExampleEnabled: boolean;
+  generateDockV2Enabled: boolean;
   cardRepeatReward: CardRepeatRewardConfig;
 };
 
@@ -702,6 +725,7 @@ export function readFrameZeroGenerateState(input: {
     composeExampleMatchEnabled: config?.composeExampleMatchEnabled ?? false,
     photoshootComposeExampleEnabled:
       config?.photoshootComposeExampleEnabled ?? false,
+    generateDockV2Enabled: config?.generateDockV2Enabled ?? false,
     cardRepeatReward:
       config?.cardRepeatReward ?? DEFAULT_CARD_REPEAT_REWARD_CONFIG,
   };

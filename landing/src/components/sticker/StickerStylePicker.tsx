@@ -38,6 +38,10 @@ export function StickerStylePicker({
   embedded = false,
 }: Props) {
   const dark = tone === "dark";
+  const hasLiveExamples = styles.some(
+    (style) => (style.exampleUrls?.length ?? 0) > 0,
+  );
+  const showSkeleton = loading && !hasLiveExamples;
 
   const cardClass = (active: boolean) =>
     `${OVERLAY_BUTTON_UA_RESET} flex min-w-0 max-w-full flex-col items-start rounded-2xl p-3 text-left transition ${
@@ -51,17 +55,28 @@ export function StickerStylePicker({
     }`;
 
   return (
-    <div className={embedded ? "min-w-0 w-full" : "flex h-full min-h-0 min-w-0 w-full flex-col"}>
-      <div className={embedded ? "min-w-0 p-1" : "min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-1"}>
-        {loading && !styles.length ? (
+    <div className={embedded ? "min-w-0 w-full" : "flex min-h-0 min-w-0 w-full flex-[1_1_auto] flex-col"}>
+      <div className={embedded ? "min-w-0 p-1" : "min-h-0 min-w-0 flex-[1_1_auto] overflow-y-auto overscroll-contain p-1"}>
+        {showSkeleton ? (
           <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3" aria-busy="true">
             {Array.from({ length: 6 }).map((_, index) => (
-              <div key={index} className={`h-24 animate-pulse rounded-2xl ${dark ? "bg-white/10" : "bg-zinc-100"}`} />
+              <div
+                key={index}
+                className={`flex h-32 animate-pulse flex-col justify-between rounded-2xl p-3 ${
+                  dark ? "bg-white/10 ring-1 ring-inset ring-white/10" : "bg-zinc-100"
+                }`}
+              >
+                <div className="flex gap-1.5">
+                  <span className={`h-14 w-14 rounded-xl ${dark ? "bg-white/15" : "bg-zinc-200"}`} />
+                  <span className={`h-14 w-14 rounded-xl ${dark ? "bg-white/15" : "bg-zinc-200"}`} />
+                </div>
+                <span className={`h-3.5 w-20 rounded-full ${dark ? "bg-white/20" : "bg-zinc-200"}`} />
+              </div>
             ))}
           </div>
         ) : (
           <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3" role="radiogroup" aria-label={STICKER_STYLE_PICKER_TITLE}>
-            {styles.map((style) => {
+            {styles.map((style, index) => {
               const active = style.id === selectedId;
               return (
                 <button
@@ -72,7 +87,14 @@ export function StickerStylePicker({
                   onClick={() => onSelect(style)}
                   className={cardClass(active)}
                 >
-                  <StickerExampleStrip urls={style.exampleUrls} styleLabel={style.label} className="mb-2" />
+                  <StickerExampleStrip
+                    urls={style.exampleUrls}
+                    styleLabel={style.label}
+                    fallbackEmoji={style.emoji || "✨"}
+                    dark={dark}
+                    viewport={index < 4 ? "eager" : undefined}
+                    className="mb-2"
+                  />
                   <span className={`flex items-center gap-1.5 text-[13px] font-semibold ${dark ? "text-white" : "text-zinc-900"}`}>
                     {style.emoji ? <span aria-hidden>{style.emoji}</span> : null}
                     {style.label}

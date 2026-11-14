@@ -101,11 +101,33 @@ import {
   ComposeToolChoiceTile,
   ComposeToolPickerTile,
 } from "@/components/generate/ComposeModeToolTile";
-import { ComposeToolGuide, StickerPickerGuide } from "@/components/generate/ComposeToolGuide";
-import { ComposeSheetShell } from "@/components/generate/ComposeSheetShell";
-import type { ComposeAuthSheetReason } from "@/components/generate/ComposeAuthSheet";
-import { GenerationResultActionRail } from "@/components/generate/GenerationResultActionRail";
+import {
+  ComposePhotoUploadGuide,
+  ComposeToolGuide,
+  StickerPickerGuide,
+} from "@/components/generate/ComposeToolGuide";
+import {
+  ComposeSheetShell,
+  DockAutoHeightBox,
+  DockInlineDrawer,
+  DockSummaryPocket,
+} from "@/components/generate/ComposeSheetShell";
+import { ComposeActiveJobsTray } from "@/components/generate/ComposeActiveJobsTray";
+import {
+  GenerationResultActionRail,
+  type GenerationResultAction,
+} from "@/components/generate/GenerationResultActionRail";
+import { GenerationResultBottomBar } from "@/components/generate/GenerationResultBottomBar";
+import {
+  ComposeAuthSheet,
+  type ComposeAuthSheetReason,
+} from "@/components/generate/ComposeAuthSheet";
 import { LowBalanceUpgradeOfferCard } from "@/components/LowBalanceUpgradeOfferCard";
+import {
+  canStartAnotherDockJob,
+  MAX_PARALLEL_DOCK_JOBS,
+  type ActiveDockGenerationJob,
+} from "@/lib/generate-active-jobs";
 import {
   reachYandexMetrikaGoal,
   YM_GOAL_PHOTOSHOOT_BUSY,
@@ -176,6 +198,7 @@ import {
   composeNeedsPhotoCtaLabel,
   composeHasSingleSourcePhoto,
   stickerStudioCta,
+  COMPOSE_NEXT_STEP_CTA,
   COMPOSE_PHOTOS_TOOL_EDGE_LABEL,
   COMPOSE_TOOL_SHEET_DONE_CTA,
   COMPOSE_TOOL_SHEET_TITLE,
@@ -189,6 +212,7 @@ import {
   promptModalityForComposeMode,
   type StickerToolKind,
   rememberCompletedImageResult,
+  resolveDockStepCta,
   resolvePhotoshootLibraryFrame,
   resolvePhotoshootReadyFrame,
   resolveStickerFromResultFrame,
@@ -196,6 +220,7 @@ import {
   STICKER_NEEDS_LIBRARY_PHOTO,
   BLANK_PROMPT_PLACEHOLDER,
   PROMPT_FIELD_LABEL,
+  type DockOpenStepSurface,
   type GenerateComposeMode,
   type PhotoshootReadyFrame,
 } from "@/lib/generate-compose-mode";
@@ -430,24 +455,6 @@ const GenerationCardMenu = dynamic(
   { ssr: false },
 );
 
-const ComposeAuthSheet = dynamic(
-  () =>
-    import("@/components/generate/ComposeAuthSheet").then(
-      (mod) => mod.ComposeAuthSheet,
-    ),
-  {
-    ssr: false,
-    loading: () => (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center text-[13px] opacity-60"
-        aria-busy="true"
-      >
-        Загружаем вход…
-      </div>
-    ),
-  },
-);
-
 function preloadExampleSheetChunks(stickerMode: boolean, packMode: boolean): void {
   if (stickerMode) {
     void import("@/components/sticker/StickerStylePicker");
@@ -528,7 +535,7 @@ export function CardInlineGeneratePanel({
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hostAdapter = useGenerateHostAdapter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, openAuthModal } = useAuth();
   const { open: openPricingModal } = usePricingModal();
   const openPricing = hostAdapter.openPricing || openPricingModal;
   const optimisticUserId = peekOptimisticAuthUserId({ user, authLoading });
@@ -538,9 +545,17 @@ export function CardInlineGeneratePanel({
   const [authSheetReason, setAuthSheetReason] =
     useState<ComposeAuthSheetReason>("default");
   const {
+    generateDockV2Enabled,
     setPlateOpen: setDockPlateOpen,
     reportRunProgress,
     reportNeedsCredits,
+    activeJobs,
+    beginDockJob,
+    attachDockJobServerId,
+    failDockJob,
+    removeDockJob,
+    markDockJobSeen,
+    subscribeDockJobEvents,
     requestedModelId,
     preferredModelId,
     clearRequestedModelSelection,
@@ -553,6 +568,7 @@ export function CardInlineGeneratePanel({
     dismissLastDockResult,
   } = useGenerateDock();
   const isDock = chrome === "dock";
+  const isDockV2 = isDock && generateDockV2Enabled;
   const isBlank = source === "blank";
   const pathname = usePathname();
   const resolvedCardIdFromSeed = cardId;
@@ -964,6 +980,8 @@ export function CardInlineGeneratePanel({
     : promptExpandedLocal
       ? "prompt"
       : expandedControlLocal;
+  const activeDockSurfaceRef = useRef<GenerateDockSurface>(activeDockSurface);
+  activeDockSurfaceRef.current = activeDockSurface;
 
   const promptExpanded = activeDockSurface === "prompt";
   const expandedControl =
@@ -1111,17 +1129,15 @@ export function CardInlineGeneratePanel({
   const openInlineAuthSheet = useCallback(
     (reason: ComposeAuthSheetReason = "default") => {
       setError("");
+      if (!generateDockV2Enabled) {
+        openAuthModal(reason);
+        return;
+      }
       setAuthSheetReason(reason);
       setDockSurface("auth");
     },
-    [setDockSurface],
+    [generateDockV2Enabled, openAuthModal, setDockSurface],
   );
-
-  useEffect(() => {
-    if (!isAuthed) {
-      void import("@/components/generate/ComposeAuthSheet");
-    }
-  }, [isAuthed]);
 
   const runPhotoPromptAnalyze = useCallback(
     async (dataUrl: string, previewUrl: string) => {
@@ -1963,7 +1979,58 @@ export function CardInlineGeneratePanel({
     openImageModelSheet();
   };
 
+  const advanceAfterPhotoSelection = () => {
+    const mode = composeModeRef.current;
+    if (mode === "sticker") {
+      setExpandedControl("example");
+      return;
+    }
+    if (mode === "video") {
+      setExpandedControl("model");
+      return;
+    }
+    if (mode === "photoshoot" || mode === "photo_prompt") {
+      setExpandedControl(null);
+      return;
+    }
+    if (
+      composeShouldAutoOpenExampleSheet({
+        composeMode: mode,
+        cardId: pickedExampleCardId ?? resolvedCardIdFromSeed,
+      })
+    ) {
+      setExpandedControl("example");
+      return;
+    }
+    if (
+      composeShouldAutoOpenModelSheet({
+        composeMode: mode,
+        modelId: modelRef.current,
+      })
+    ) {
+      maybeOpenImageModelSheet();
+      return;
+    }
+    setExpandedControl(null);
+  };
+
+  const advanceAfterStyleSelection = () => {
+    if (composeModeRef.current === "image") {
+      if (!String(modelRef.current || "").trim()) {
+        openImageModelSheet();
+      } else {
+        setExpandedControl(null);
+      }
+      return;
+    }
+    setExpandedControl(null);
+  };
+
   const maybeOpenSeoExampleAfterPhoto = () => {
+    if (isDockV2) {
+      advanceAfterPhotoSelection();
+      return;
+    }
     if (
       composeShouldAutoOpenExampleSheet({
         composeMode: composeModeRef.current,
@@ -2051,6 +2118,9 @@ export function CardInlineGeneratePanel({
     if (composeModeRef.current !== "image") {
       enterImageCompose();
     }
+    if (isDockV2 && expandedControl === "model") {
+      setExpandedControl(null);
+    }
   };
   const selectVideoModel = (modelId: string) => {
     if (composeModeRef.current !== "video") {
@@ -2078,6 +2148,9 @@ export function CardInlineGeneratePanel({
     setVideoModel(modelId);
     if (isVeoLiteVideoModel(modelId) && videoDurationSeconds > 8) {
       setVideoDurationSeconds(8);
+    }
+    if (isDockV2 && expandedControl === "model") {
+      setExpandedControl(null);
     }
   };
   const minModelCost = useMemo(() => {
@@ -2181,6 +2254,8 @@ export function CardInlineGeneratePanel({
   const togglePhoto = (id: string) => {
     if (isGenerateComposeJobBusy(phase) || libraryUploading) return;
     setError("");
+    const wasEmpty = selectedPhotoIds.size === 0;
+    const willSelect = !selectedPhotoIds.has(id);
     setSelectedPhotoIds((current) => {
       if (isPhotoPromptComposeMode(composeModeRef.current)) {
         return new Set(nextPhotoPromptSelection({ current, toggledId: id }));
@@ -2197,6 +2272,19 @@ export function CardInlineGeneratePanel({
       next.add(id);
       return next;
     });
+    if (
+      isDock &&
+      expandedControl === "photos" &&
+      wasEmpty &&
+      willSelect &&
+      !isPhotoPromptComposeMode(composeModeRef.current)
+    ) {
+      const picked = photos.find((item) => item.id === id);
+      if (picked) {
+        startComposeExampleMatch(picked);
+      }
+      advanceAfterPhotoSelection();
+    }
   };
 
   const persistEphemeralIdentityToLibrary = useCallback(async (): Promise<UserPhoto | null> => {
@@ -2608,6 +2696,15 @@ export function CardInlineGeneratePanel({
       setExpandedControl("example");
       return false;
     }
+    const useParallelDockQueue =
+      isDockV2 && !stickerFromResultOpen && !stickerActionOpen && !photoshootOpen;
+    if (
+      useParallelDockQueue &&
+      !canStartAnotherDockJob(activeJobs, MAX_PARALLEL_DOCK_JOBS)
+    ) {
+      setToast("Уже в работе 3 генерации — дождитесь завершения одной");
+      return false;
+    }
     if (generateInFlightRef.current) return false;
     generateInFlightRef.current = true;
     const photoshootAbort = isPhotoshoot ? new AbortController() : null;
@@ -2619,6 +2716,27 @@ export function CardInlineGeneratePanel({
     setMenuOpen(false);
     setExpandedControl(null);
     setPromptExpanded(false);
+
+    const resolvedEditKind = isPhotoshoot
+      ? PHOTOSHOOT_EDIT_KIND
+      : isStickerPack
+        ? STICKER_PACK_EDIT_KIND
+        : isSticker
+          ? STICKER_EDIT_KIND
+          : null;
+    const parallelClientJobId = useParallelDockQueue
+      ? beginDockJob({
+          promptText: isPhotoshoot ? draftPromptRef.current : prompt,
+          modality: isVideo ? "video" : "image",
+          editKind: resolvedEditKind,
+          sourcePreviewUrl:
+            photosForEnqueue[0]?.previewUrl ??
+            selectedPhotos[0]?.previewUrl ??
+            null,
+          listingVideoRepeat: Boolean(listingVideoRepeat),
+          stickerStyleId: isStickerJob && !isStickerEdit ? stickerStyleId : null,
+        })
+      : null;
 
     try {
       const idempotencyKey = crypto.randomUUID();
@@ -2716,6 +2834,9 @@ export function CardInlineGeneratePanel({
         message?: string;
       };
       if (!genRes.ok || !genData.id) {
+        if (parallelClientJobId) {
+          failDockJob(parallelClientJobId);
+        }
         if (genRes.status === 401 || genData.error === "unauthorized") {
           setPhase(resultUrl || isContinuation ? "done" : "idle");
           phaseRef.current = resultUrl || isContinuation ? "done" : "idle";
@@ -2774,16 +2895,36 @@ export function CardInlineGeneratePanel({
           source: isStickerRestyle ? "restyle" : isStickerFromResult ? "result" : "photo",
         });
       }
-      setPhase("generating");
-      phaseRef.current = "generating";
-      setProgress(8);
-      setStarting(false);
       reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_ACCEPTED);
-      if (!isContinuation) setGenerationId(genData.id);
       if (!isPhotoshoot && !listingVideoRepeat) {
         setDraftPrompt(prompt);
         setSubmittedPrompt(prompt);
       }
+
+      if (parallelClientJobId) {
+        requestCreditBalanceRefresh();
+        attachDockJobServerId(parallelClientJobId, genData.id);
+        setStarting(false);
+        if (phaseRef.current === "done") {
+          setResultUrl(null);
+          setGenerationId(null);
+          setPhotoshootTileUrls(null);
+          setResultEditKind(null);
+          setPhase("idle");
+          phaseRef.current = "idle";
+          setProgress(0);
+        }
+        if (layout !== "mobile") {
+          setDockPlateOpen(false);
+        }
+        return true;
+      }
+
+      setPhase("generating");
+      phaseRef.current = "generating";
+      setProgress(8);
+      setStarting(false);
+      if (!isContinuation) setGenerationId(genData.id);
       let pollGenerationId = genData.id;
       let listingRepeatFollowupWaitStarted = 0;
       let photoshootTilesWaitStarted = 0;
@@ -2946,6 +3087,9 @@ export function CardInlineGeneratePanel({
         }
       }
     } catch (err) {
+      if (parallelClientJobId) {
+        failDockJob(parallelClientJobId);
+      }
       if (isPhotoshoot) reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_FAIL);
       setPhase(resultUrl || isContinuation ? "done" : "error");
       phaseRef.current = resultUrl || isContinuation ? "done" : "error";
@@ -3285,6 +3429,97 @@ export function CardInlineGeneratePanel({
     setDraftPrompt("");
     onBack();
   };
+
+  const openCompletedDockJob = useCallback(
+    (job: ActiveDockGenerationJob) => {
+      if (!job.generationId || !job.resultUrl) return;
+      markDockJobSeen(job.clientJobId);
+      setGenerationId(job.generationId);
+      setResultUrl(job.resultUrl);
+      setResultModality(job.modality);
+      setResultEditKind(job.editKind || null);
+      setPhotoshootTileUrls(job.photoshootTileUrls || null);
+      setPhotoshootOpen(false);
+      setPhotoshootLibraryPath(null);
+      setStickerFromResultOpen(false);
+      setStickerStyleSheetMode(null);
+      setStickerActionOpen(null);
+      setStickerDownloadOpen(false);
+      setStickerBorderOpen(false);
+      setIsPublished(false);
+      setModerationStatus("none");
+      setPublishedSlug(null);
+      if (
+        job.promptText &&
+        job.promptText !== "PHOTOSHOOT" &&
+        job.promptText !== "STICKER"
+      ) {
+        setDraftPrompt(job.promptText);
+        setSubmittedPrompt(job.promptText);
+        promptStashRef.current = {
+          ...promptStashRef.current,
+          imagePrompt: job.promptText,
+        };
+      }
+      if (job.modality === "video") {
+        enterImageCompose();
+      }
+      lastImageResultRef.current = rememberCompletedImageResult({
+        generationId: job.generationId,
+        resultUrl: job.resultUrl,
+        resultModality: job.modality,
+        previous: lastImageResultRef.current,
+      });
+      setProgress(100);
+      setPhase("done");
+      phaseRef.current = "done";
+      setExpandedControl(null);
+      setPromptExpanded(false);
+      setDockPlateOpen(true);
+    },
+    [
+      enterImageCompose,
+      markDockJobSeen,
+      setDockPlateOpen,
+      setExpandedControl,
+      setPromptExpanded,
+    ],
+  );
+
+  useEffect(() => {
+    if (!isDock) return;
+    return subscribeDockJobEvents((event) => {
+      if (event.type === "failed") {
+        setToast(event.job.errorMessage || "Генерация не удалась");
+        return;
+      }
+      const { job } = event;
+      if (job.modality !== "video") {
+        hasCompletedImageGenerationRef.current = true;
+        setHasCompletedImageGeneration(true);
+        prefsSnapshotRef.current = {
+          ...prefsSnapshotRef.current,
+          hasCompletedImageGeneration: true,
+        };
+        persistGenerationPreferences(prefsSnapshotRef.current, { force: true });
+      }
+      const busyInEditor =
+        activeDockSurfaceRef.current !== null ||
+        (phaseRef.current === "generating" &&
+          composeModeRef.current === "photo_prompt");
+      if (busyInEditor) {
+        setToast("Кадр готов — нажмите «Готово» в очереди сверху");
+        return;
+      }
+      openCompletedDockJob(job);
+    });
+  }, [
+    isDock,
+    openCompletedDockJob,
+    persistGenerationPreferences,
+    subscribeDockJobEvents,
+  ]);
+
   const videoCompose = composeMode === "video";
   const photoshootCompose = composeMode === "photoshoot";
   const stickerCompose = composeMode === "sticker";
@@ -3294,7 +3529,11 @@ export function CardInlineGeneratePanel({
   const stickerResult = isStickerEditKind(resultEditKind) || stickerPackResult;
   /** 1..16 for the sticker on screen when the result is a pack, else null (`?tile=` for sticker routes). */
   const stickerTile = stickerPackResult ? sidecarTileNumberForUrl(photoshootTileUrls, resultUrl) : null;
-  const stickerCatalogWanted = stickerCompose || stickerResult || stickerFromResultOpen;
+  const stickerCatalogWanted =
+    stickerCompose ||
+    stickerResult ||
+    stickerFromResultOpen ||
+    expandedControl === "tool";
   useEffect(() => {
     if (!stickerCatalogWanted || stickerCatalog) return;
     let cancelled = false;
@@ -3442,6 +3681,61 @@ export function CardInlineGeneratePanel({
     stickerKind,
     enqueueEnabled: stickerPackEnabled,
   });
+  const openStepSurface: DockOpenStepSurface | null =
+    isDockV2 && !showResultChrome
+      ? promptExpanded
+        ? "prompt"
+        : expandedControl && expandedControl !== "auth"
+          ? expandedControl
+          : null
+      : null;
+  const dockStepCta = !busy
+    ? resolveDockStepCta({
+        surface: openStepSurface,
+        composeMode,
+        hasSelectedPhotos: selectedPhotos.length > 0,
+        hasSinglePhoto: selectedPhotos.length === 1,
+        sourcePhotoPicked,
+        photoPromptHasSource,
+        hasStyleOrPrompt:
+          Boolean(resolvedCardId) || draftPrompt.trim().length >= 8,
+        draftPromptLength: draftPrompt.trim().length,
+        needsImageModelPick: seoNeedsImageModelPick,
+      })
+    : null;
+  const advanceDockWizardStep = (): boolean => {
+    if (!dockStepCta) return false;
+    setError("");
+    if (dockStepCta.target === "photos") {
+      if (promptExpanded) setPromptExpanded(false);
+      setExpandedControl("photos");
+      return true;
+    }
+    if (dockStepCta.target === "example") {
+      if (promptExpanded) setPromptExpanded(false);
+      if (composeMode === "image") {
+        openSeoExampleSheet();
+      } else {
+        setExpandedControl("example");
+      }
+      return true;
+    }
+    if (dockStepCta.target === "model") {
+      if (promptExpanded) setPromptExpanded(false);
+      if (composeMode === "image") {
+        openImageModelSheet();
+      } else {
+        setExpandedControl("model");
+      }
+      return true;
+    }
+    if (promptExpanded) {
+      setPromptExpanded(false);
+    } else {
+      closePrefsSheet();
+    }
+    return true;
+  };
   const toolOptions = composeToolOptions({
     videoEnabled,
     photoshootEnabled,
@@ -3507,15 +3801,29 @@ export function CardInlineGeneratePanel({
   /** One rhythm for prompt / tiles / CTA and every dock sheet. */
   const composeBlockGap = "gap-3";
   const composeSheetCta =
-    "flex min-h-12 w-full shrink-0 items-center justify-center rounded-2xl bg-indigo-600 px-4 py-3 text-[13px] font-semibold text-white transition hover:bg-indigo-700";
+    "inline-flex h-12 w-full shrink-0 items-center justify-center rounded-2xl bg-indigo-600 px-4 text-[14px] font-semibold leading-none text-white transition hover:bg-indigo-700";
   /** Fullscreen card sheets cover the panel; dock uses in-sheet expand instead. */
   const sheetPos = "absolute";
-  /** Dock: stretch floating sheet for any editor surface (no viewport overlay). */
+  /** Dock: stretch floating sheet upward in-flow (V2) or fill dock frame (V1). */
   const dockExpanded = isDock && activeDockSurface !== null;
-  /** Tall plate when editor / result / in-flight generate needs height. */
-  const dockTall =
-    dockExpanded ||
-    (isDock && (showResultChrome || busy || stickerFromResultOpen || photoshootOpen));
+  /** True only when an upper V2 drawer surface (not footer-inline `auth`) is open. */
+  const dockUpperDrawerOpen = Boolean(
+    isDockV2 &&
+      !showResultChrome &&
+      (promptExpanded || (expandedControl && expandedControl !== "auth")),
+  );
+  /**
+   * V2: full-height plate only when displaying finished/active result chrome or sub-result overlays.
+   * V1: mobile dock and any expanded dock editor sheet also take full dock height.
+   */
+  const dockTall = isDockV2
+    ? showResultChrome || stickerFromResultOpen || photoshootOpen
+    : isDock &&
+      (isMobile ||
+        dockExpanded ||
+        showResultChrome ||
+        stickerFromResultOpen ||
+        photoshootOpen);
   const dockPromptExpanded = dockExpanded && activeDockSurface === "prompt";
   const dockPhotosExpanded = dockExpanded && activeDockSurface === "photos";
   const dockModelExpanded = dockExpanded && activeDockSurface === "model";
@@ -3525,9 +3833,13 @@ export function CardInlineGeneratePanel({
   const showComposeToolGuide = composeToolGuideVisible({
     composeMode,
     showResultChrome,
-    dockExpanded,
+    dockExpanded: isDockV2 ? dockUpperDrawerOpen : dockExpanded,
     busy,
   });
+
+  useEffect(() => {
+    preloadExampleSheetChunks(stickerCompose, stickerKind === "pack");
+  }, [stickerCompose, stickerKind]);
   const hideCollapsedPromptStrip =
     resultChromeHidesPromptStrip({
       showResultChrome,
@@ -3879,8 +4191,8 @@ export function CardInlineGeneratePanel({
   };
 
   /**
-   * «Инструмент» sheet chip. Switches compose mode and keeps the sheet open —
-   * the guide under the chips is the onboarding; «Готово» closes it.
+   * «Инструмент» sheet chip. Switches compose mode and keeps «Инструмент» open
+   * so the user sees the unified explainer for the chosen tool; «Далее →» advances.
    */
   const selectComposeTool = (mode: GenerateComposeMode) => {
     if (composeModeRef.current !== mode) {
@@ -3993,9 +4305,17 @@ export function CardInlineGeneratePanel({
 
   useEffect(() => {
     if (!isDock || !onDockResultChromeChange) return;
-    /** Sticky tall plate only for result chrome (in-flight gen uses listing FAB progress). */
-    onDockResultChromeChange(showResultChrome);
-  }, [isDock, onDockResultChromeChange, showResultChrome]);
+    /** Sticky tall plate only for result chrome or sub-result screens. */
+    onDockResultChromeChange(
+      showResultChrome || stickerFromResultOpen || photoshootOpen,
+    );
+  }, [
+    isDock,
+    onDockResultChromeChange,
+    photoshootOpen,
+    showResultChrome,
+    stickerFromResultOpen,
+  ]);
 
   useEffect(() => {
     if (!isDock || !onDockResultChromeChange) return;
@@ -4048,21 +4368,46 @@ export function CardInlineGeneratePanel({
     setExpandedControl,
   ]);
 
+  const dockFrostedStyle =
+    isDockV2 && (!showResultChrome || stickerResult)
+      ? {
+          backgroundColor: "rgba(12, 12, 17, 0.95)",
+          backgroundImage:
+            "linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0%, rgba(255, 255, 255, 0) 28%, rgba(0, 0, 0, 0.18) 100%)",
+          backdropFilter: "blur(44px) saturate(1.55)",
+          WebkitBackdropFilter: "blur(44px) saturate(1.55)",
+        }
+      : undefined;
+
   return (
     <div
+      data-dock-panel-root={isDockV2 ? "" : undefined}
+      style={dockFrostedStyle}
       className={`relative isolate flex min-h-0 flex-col overflow-hidden ${
+        isDockV2 ? "max-h-full " : ""
+      }${
         isDock
           ? showResultChrome
             ? `${isMobile ? "rounded-none pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]" : "rounded-[1.75rem]"} border-0 text-zinc-100 ${
-                // Sticker: same frosted glass as compose, so the white die-cut reads on it.
-                stickerResult ? "bg-zinc-950/55 backdrop-blur-xl" : "bg-zinc-950"
+                stickerResult
+                  ? isDockV2
+                    ? "ps-dock-glass bg-zinc-950/95 ring-1 ring-inset ring-white/15"
+                    : "bg-zinc-950/55 backdrop-blur-xl"
+                  : "bg-zinc-950"
               }${
-                isMobile ? "" : " shadow-[0_-12px_48px_-16px_rgba(24,24,27,0.28)]"
+                isMobile
+                  ? ""
+                  : isDockV2
+                    ? " shadow-[0_-20px_60px_-12px_rgba(0,0,0,0.65)]"
+                    : " shadow-[0_-12px_48px_-16px_rgba(24,24,27,0.28)]"
               }${dockTall || isMobile ? " h-full min-h-0 flex-1" : ""}`
-            : // Frosted glass — listing shows through (mobile fullscreen + desktop plate).
-              `${isMobile ? "rounded-none pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]" : "rounded-[1.75rem]"} border-0 bg-zinc-950/55 text-zinc-100 shadow-[0_-12px_48px_-16px_rgba(24,24,27,0.28)] backdrop-blur-xl${
-                dockTall || isMobile ? " h-full min-h-0 flex-1" : ""
-              }`
+            : isDockV2
+              ? `${isMobile ? "rounded-t-[1.75rem] rounded-b-none pb-[env(safe-area-inset-bottom)]" : "rounded-[1.75rem]"} ps-dock-glass border-0 bg-zinc-950/95 text-zinc-100 shadow-[0_-20px_60px_-12px_rgba(0,0,0,0.65)] ring-1 ring-inset ring-white/15${
+                  dockTall ? " h-full min-h-0 flex-1" : ""
+                }`
+              : `${isMobile ? "rounded-none pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]" : "rounded-[1.75rem]"} border-0 bg-zinc-950/55 text-zinc-100 shadow-[0_-12px_48px_-16px_rgba(24,24,27,0.28)] backdrop-blur-xl${
+                  dockTall || isMobile ? " h-full min-h-0 flex-1" : ""
+                }`
           : `${isMobile ? "h-full min-h-[100dvh] flex-1" : "flex-1"} ${
               showResultChrome ? "bg-transparent text-zinc-100" : "bg-white text-zinc-900"
             }`
@@ -4082,6 +4427,51 @@ export function CardInlineGeneratePanel({
         <div
           className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(79,70,229,0.16),transparent_38%),#09090b]"
           aria-hidden
+        />
+      ) : null}
+
+      {isDockV2 && isMobile && !showResultChrome && onBack ? (
+        <DockSummaryPocket
+          tucked={dockUpperDrawerOpen}
+          className="flex items-center justify-between px-3 pt-3 pb-0"
+        >
+          <span className="h-1 w-9 rounded-full bg-white/25" aria-hidden />
+          <button
+            type="button"
+            aria-label="Закрыть генератор"
+            onClick={onBack}
+            className={`${OVERLAY_BUTTON_UA_RESET} flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white/75 transition hover:bg-white/15 hover:text-white active:scale-95`}
+          >
+            <svg
+              className="h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              aria-hidden
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M6 18 18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </DockSummaryPocket>
+      ) : null}
+
+      {isDockV2 &&
+      activeJobs.length > 0 &&
+      !(showResultChrome && dockExpanded) &&
+      !hideComposeChrome ? (
+        <ComposeActiveJobsTray
+          jobs={activeJobs}
+          activeGenerationId={generationId}
+          showingResult={showResultChrome && phase === "done"}
+          glassChrome={glassChrome}
+          onSelectCompletedJob={openCompletedDockJob}
+          onDismissJob={removeDockJob}
+          onNewCompose={resetToCompose}
         />
       ) : null}
 
@@ -4153,24 +4543,9 @@ export function CardInlineGeneratePanel({
         </div>
       ) : null}
 
-      {showResultActions && photoshootTileUrls ? (
-        <PhotoshootFrameFilm
-          className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-3 right-[11rem] z-20"
-          tileUrls={photoshootTileUrls}
-          activeTile={sidecarTileNumberForUrl(photoshootTileUrls, resultUrl) ?? 1}
-          tileLabel={stickerPackResult ? "Стикер" : "Кадр"}
-          onSelect={(tile) => {
-            const url = photoshootTileUrls?.[tile - 1];
-            if (url) setResultUrl(url);
-          }}
-        />
-      ) : null}
-
-      {showResultActions ? (
-        <GenerationResultActionRail
-          className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-2.5 z-30"
-          beforePrimary={<LowBalanceUpgradeOfferCard variant="result" />}
-          actions={[
+      {showResultActions
+        ? (() => {
+            const resultActionsList: GenerationResultAction[] = [
             ...(showPublishRail ? [{
               id: "publish",
               label: busyAction === "publish"
@@ -4509,14 +4884,57 @@ export function CardInlineGeneratePanel({
                     </svg>
                   ),
                 }]),
-          ]}
-        />
-      ) : null}
+            ];
+            return generateDockV2Enabled ? (
+              <GenerationResultBottomBar
+                className="absolute inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30"
+                offerBanner={<LowBalanceUpgradeOfferCard variant="result" />}
+                film={
+                  photoshootTileUrls ? (
+                    <PhotoshootFrameFilm
+                      tileUrls={photoshootTileUrls}
+                      activeTile={
+                        sidecarTileNumberForUrl(photoshootTileUrls, resultUrl) ?? 1
+                      }
+                      tileLabel={stickerPackResult ? "Стикер" : "Кадр"}
+                      onSelect={(tile) => {
+                        const url = photoshootTileUrls?.[tile - 1];
+                        if (url) setResultUrl(url);
+                      }}
+                    />
+                  ) : null
+                }
+                actions={resultActionsList}
+              />
+            ) : (
+              <>
+                {photoshootTileUrls ? (
+                  <PhotoshootFrameFilm
+                    className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-3 right-[11rem] z-20"
+                    tileUrls={photoshootTileUrls}
+                    activeTile={
+                      sidecarTileNumberForUrl(photoshootTileUrls, resultUrl) ?? 1
+                    }
+                    tileLabel={stickerPackResult ? "Стикер" : "Кадр"}
+                    onSelect={(tile) => {
+                      const url = photoshootTileUrls?.[tile - 1];
+                      if (url) setResultUrl(url);
+                    }}
+                  />
+                ) : null}
+                <GenerationResultActionRail
+                  className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-2.5 z-30"
+                  beforePrimary={<LowBalanceUpgradeOfferCard variant="result" />}
+                  actions={resultActionsList}
+                />
+              </>
+            );
+          })()
+        : null}
 
-      {showPhotoPromptResult ? (
-        <GenerationResultActionRail
-          className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-2.5 z-30"
-          actions={[
+      {showPhotoPromptResult
+        ? (() => {
+            const photoPromptActions: GenerationResultAction[] = [
             {
               id: "copy",
               label: "Скопировать",
@@ -4584,9 +5002,20 @@ export function CardInlineGeneratePanel({
                 </svg>
               ),
             },
-          ]}
-        />
-      ) : null}
+            ];
+            return generateDockV2Enabled ? (
+              <GenerationResultBottomBar
+                className="absolute inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30"
+                actions={photoPromptActions}
+              />
+            ) : (
+              <GenerationResultActionRail
+                className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-2.5 z-30"
+                actions={photoPromptActions}
+              />
+            );
+          })()
+        : null}
 
       {showStickerFromResultOverlay ? (
         <StickerFromResultSheet
@@ -4738,12 +5167,17 @@ export function CardInlineGeneratePanel({
         className={`flex min-h-0 flex-col ${
           hideComposeChrome
             ? "hidden"
+            : isDockV2
+            ? showResultChrome
+              ? "min-h-0 flex-1 px-3 pb-3 pt-3"
+              : "min-h-0 flex-1"
             : isDock
             ? "min-h-0 flex-1 px-3 pb-3 pt-3"
             : `relative z-10 flex-1 ${isMobile ? "px-3 py-3" : "px-3 py-2.5"}`
         }`}
       >
-        {showComposeToolGuide &&
+        {!isDockV2 &&
+        showComposeToolGuide &&
         (composeMode === "photoshoot" ||
           composeMode === "photo_prompt" ||
           composeMode === "sticker") ? (
@@ -4757,19 +5191,650 @@ export function CardInlineGeneratePanel({
             }
             stickerExampleUrl={composeMode === "sticker" ? selectedStickerExampleUrl : null}
             stickerKind={stickerKind}
-            className="min-h-0 flex-1 px-2 py-4"
+            className="min-h-0 flex-1 px-3 pt-3 pb-0"
           />
         ) : null}
-        <div
+
+        {isDockV2 && !showResultChrome ? (
+          <DockInlineDrawer
+            open={Boolean(dockUpperDrawerOpen || showComposeToolGuide)}
+            fillViewport={
+              promptExpanded ||
+              (expandedControl === "example" && !stickerCompose)
+            }
+            elevatedStage={dockUpperDrawerOpen}
+          >
+            {promptExpanded ? (
+              <ComposeSheetShell
+                id="inline-generation-prompt"
+                title={PROMPT_FIELD_LABEL}
+                titleId="inline-prompt-editor-title"
+                collapseAriaLabel="Свернуть промпт"
+                closeAriaLabel="Свернуть промпт"
+                isDock
+                isMobile={isMobile}
+                inFlowDock
+                headerAction={
+                  draftPrompt.trim().length >= 8 ? (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        void copyTextUniversal(draftPrompt).then((ok) => {
+                          setToast(
+                            ok ? "Промт скопирован" : "Не удалось скопировать",
+                          );
+                        });
+                      }}
+                      className={`${OVERLAY_BUTTON_UA_RESET} inline-flex h-8 items-center gap-1.5 rounded-full bg-zinc-950/35 px-3 text-[12px] font-semibold text-white/90 ring-1 ring-inset ring-white/15 transition hover:bg-white/15 hover:text-white`}
+                    >
+                      <svg
+                        className="h-3.5 w-3.5 shrink-0"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.9"
+                        aria-hidden
+                      >
+                        <rect x="9" y="9" width="11" height="11" rx="2" />
+                        <path d="M5 15V5h10" strokeLinecap="round" />
+                      </svg>
+                      <span>Скопировать</span>
+                    </button>
+                  ) : null
+                }
+                onClose={() => setPromptExpanded(false)}
+                bodyClassName="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden"
+              >
+                <label className="flex min-h-0 flex-1 flex-col">
+                  <span className="sr-only">{PROMPT_FIELD_LABEL}</span>
+                  <textarea
+                    value={draftPrompt}
+                    onChange={(event) => setDraftPrompt(event.target.value)}
+                    placeholder={
+                      videoCompose && scenarioLoading
+                        ? ANIMATE_SCENARIO_PLACEHOLDER
+                        : BLANK_PROMPT_PLACEHOLDER
+                    }
+                    maxLength={8000}
+                    disabled={busy || remixing}
+                    autoFocus={autofocusPromptEditor}
+                    className="min-h-0 w-full flex-1 resize-none overflow-y-auto rounded-2xl border border-white/15 bg-zinc-950/35 p-3.5 text-[13px] font-medium leading-relaxed text-white outline-none transition placeholder:text-white/45 focus:border-indigo-300 focus:bg-zinc-950/45 focus:ring-2 focus:ring-indigo-400/25 disabled:opacity-60"
+                  />
+                </label>
+
+                {!useBlankPromptEditor || showBlankPromptRemix ? (
+                  !useBlankPromptEditor || blankChangeOpen ? (
+                    <div className="flex shrink-0 flex-col gap-2">
+                      <label className="block">
+                        <span className="mb-1.5 block text-[12px] font-semibold text-white/80">
+                          {PROMPT_REMIX_COPY.changeLabel}
+                        </span>
+                        <textarea
+                          value={changeRequest}
+                          onChange={(event) =>
+                            setChangeRequest(event.target.value)
+                          }
+                          placeholder={PROMPT_REMIX_COPY.changePlaceholder}
+                          maxLength={1000}
+                          rows={2}
+                          disabled={busy || remixing}
+                          className="w-full resize-none rounded-2xl border border-white/15 bg-zinc-950/35 p-3 text-[13px] font-medium leading-relaxed text-white outline-none transition placeholder:text-white/45 focus:border-indigo-300 focus:bg-zinc-950/45 focus:ring-2 focus:ring-indigo-400/25 disabled:opacity-60"
+                        />
+                      </label>
+                      {changeRequest.trim().length > 0 ? (
+                        <button
+                          type="button"
+                          disabled={
+                            busy ||
+                            remixing ||
+                            draftPrompt.trim().length < 8 ||
+                            !changeRequest.trim()
+                          }
+                          onClick={() =>
+                            void applyPromptRemix({ keepEditorOpen: true })
+                          }
+                          className={`${OVERLAY_BUTTON_UA_RESET} inline-flex min-h-9 self-end items-center justify-center rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 px-3.5 py-2 text-[12px] font-semibold text-white shadow transition hover:brightness-110 disabled:opacity-50`}
+                        >
+                          {remixing
+                            ? PROMPT_REMIX_COPY.submitting
+                            : PROMPT_REMIX_COPY.submit}
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={busy || remixing}
+                      onClick={() => {
+                        setError("");
+                        setBlankChangeOpen(true);
+                      }}
+                      className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-10 w-full shrink-0 items-center gap-2 rounded-2xl bg-zinc-950/35 px-3.5 py-2 text-left text-[13px] font-semibold text-white/90 ring-1 ring-inset ring-white/15 transition hover:bg-zinc-950/50 disabled:opacity-50`}
+                    >
+                      <svg
+                        className="h-4 w-4 shrink-0 text-indigo-300"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        aria-hidden
+                      >
+                        <path
+                          d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3Z"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <path d="m13.5 7.5 3 3" strokeLinecap="round" />
+                      </svg>
+                      <span className="min-w-0 flex-1 truncate">
+                        {PROMPT_REMIX_COPY.changeLabel}
+                      </span>
+                      <span className="shrink-0 text-[12px] font-medium text-white/60">
+                        {PROMPT_REMIX_COPY.changeHint}
+                      </span>
+                    </button>
+                  )
+                ) : null}
+              </ComposeSheetShell>
+            ) : expandedControl === "photos" ? (
+              <ComposeSheetShell
+                id="inline-generation-photos"
+                title={`Ваши фото · ${selectedPhotos.length}/${photoSelectionCap}`}
+                ariaLabel="Выбор фотографий"
+                collapseAriaLabel="Свернуть выбор фотографий"
+                closeAriaLabel="Свернуть выбор фотографий"
+                isDock
+                isMobile={isMobile}
+                inFlowDock
+                onClose={closePrefsSheet}
+                bodyClassName="flex min-h-0 flex-[1_1_auto] flex-col gap-3 overflow-x-hidden overflow-y-auto overscroll-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
+                <section
+                  aria-labelledby={
+                    photoPromptCompose
+                      ? "generation-photo-prompt-guide-title"
+                      : stickerCompose
+                        ? "generation-sticker-picker-guide-title"
+                        : "generation-photo-guide-title"
+                  }
+                  className="w-full"
+                >
+                  <ComposePhotoUploadGuide
+                    mode={composeMode}
+                    glassChrome
+                    isDock
+                    stickerKind={stickerKind}
+                    stickerExampleUrl={selectedStickerExampleUrl}
+                  />
+                </section>
+
+                <div className={`flex shrink-0 flex-col ${composeBlockGap}`}>
+                  {showPreserveOutfitChip ? (
+                    <div className="flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        aria-pressed={preserveOutfit}
+                        disabled={controlsBusy}
+                        onClick={() => setPreserveOutfit((current) => !current)}
+                        className={`${OVERLAY_BUTTON_UA_RESET} inline-flex min-h-9 items-center gap-2 rounded-full px-3.5 text-[13px] font-semibold transition disabled:opacity-50 ${
+                          preserveOutfit
+                            ? "bg-indigo-500/30 text-white ring-1 ring-indigo-300"
+                            : "bg-white/10 text-white/85 ring-1 ring-white/20 hover:bg-white/15"
+                        }`}
+                      >
+                        <span>Оставить одежду</span>
+                        {preserveOutfit ? (
+                          <span aria-hidden className="text-[12px] leading-none">
+                            ✓
+                          </span>
+                        ) : null}
+                      </button>
+                    </div>
+                  ) : null}
+                  <div className="flex gap-2 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        fileInputRef.current?.click();
+                      }}
+                      disabled={controlsBusy}
+                      className={`${OVERLAY_BUTTON_UA_RESET} flex h-[4.5rem] w-[4.5rem] shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-white/25 bg-white/10 text-center text-white transition hover:border-indigo-300 hover:bg-white/15 disabled:opacity-50`}
+                    >
+                      <svg
+                        className="h-5 w-5"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        aria-hidden
+                      >
+                        <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+                      </svg>
+                      <span className="mt-1 text-[12px] font-semibold">Добавить</span>
+                    </button>
+                    {photos.map((photo) => {
+                      const selected = selectedPhotoIds.has(photo.id);
+                      const deleting = deletingPhotoId === photo.id;
+                      return (
+                        <div
+                          key={photo.id}
+                          className={`group relative isolate h-[4.5rem] w-[4.5rem] shrink-0 overflow-hidden rounded-xl ${composeTileFrame} ${
+                            selected ? "after:border-indigo-300" : "after:border-white/25"
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            aria-label={selected ? "Не использовать фото" : "Использовать фото"}
+                            aria-pressed={selected}
+                            disabled={controlsBusy || deleting}
+                            onClick={() => togglePhoto(photo.id)}
+                            className={`${OVERLAY_BUTTON_UA_RESET} absolute inset-0 overflow-hidden rounded-xl bg-zinc-800 disabled:opacity-50`}
+                          >
+                            {photo.previewUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={photo.previewUrl}
+                                alt={photo.originalFilename || "Сохранённое фото"}
+                                className="absolute inset-0 size-full object-cover object-center"
+                              />
+                            ) : (
+                              <span className="flex h-full items-center justify-center text-[12px] font-medium text-zinc-400">
+                                Фото
+                              </span>
+                            )}
+                            {selected ? (
+                              <span
+                                aria-hidden
+                                className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-indigo-300 text-[12px] font-bold text-zinc-950 shadow"
+                              >
+                                ✓
+                              </span>
+                            ) : null}
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Удалить фото"
+                            disabled={busy || Boolean(deletingPhotoId)}
+                            onClick={() => void deletePhoto(photo)}
+                            className={`${OVERLAY_BUTTON_UA_RESET} absolute bottom-0 left-0 z-10 flex h-9 w-9 items-end justify-start p-1 text-white disabled:opacity-50`}
+                          >
+                            <span
+                              aria-hidden
+                              className="flex h-6 w-6 items-center justify-center rounded-full bg-black/60 backdrop-blur-md"
+                            >
+                              <svg
+                                className="h-3.5 w-3.5"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                              >
+                                <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            </span>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </ComposeSheetShell>
+            ) : expandedControl === "example" && showSeoExampleTool ? (
+              <ComposeSheetShell
+                id="inline-generation-examples"
+                title={
+                  stickerCompose
+                    ? STICKER_STYLE_PICKER_TITLE
+                    : SEO_COMPOSE_EXAMPLE_SHEET_TITLE
+                }
+                titleId="generation-example-picker-title"
+                collapseAriaLabel={SEO_COMPOSE_EXAMPLE_SHEET_COLLAPSE_LABEL}
+                closeAriaLabel={SEO_COMPOSE_EXAMPLE_SHEET_CLOSE_LABEL}
+                isDock
+                isMobile={isMobile}
+                inFlowDock
+                onClose={closePrefsSheet}
+                bodyClassName={
+                  stickerCompose
+                    ? "flex min-h-0 flex-[1_1_auto] flex-col overflow-hidden"
+                    : "flex min-h-0 flex-1 flex-col overflow-hidden"
+                }
+              >
+                {stickerCompose && stickerKind === "pack" ? (
+                  <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                    <p className="px-1 pb-2 text-[13px] font-semibold text-white">
+                      {STICKER_PACK_SET_PICKER_TITLE}
+                    </p>
+                    <StickerPackSetPicker
+                      packs={stickerPacks}
+                      selectedId={stickerPackSetId}
+                      tone="dark"
+                      onSelect={(pack) => {
+                        setStickerPackSetId(pack.id);
+                        setError("");
+                      }}
+                    />
+                    <p className="px-1 pb-2 pt-4 text-[13px] font-semibold text-white">
+                      {STICKER_STYLE_PICKER_TITLE}
+                    </p>
+                    <StickerStylePicker
+                      embedded
+                      styles={stickerStyles}
+                      loading={stickerCatalogLoading}
+                      selectedId={stickerStyleId}
+                      tone="dark"
+                      confirmCtaClassName={composeSheetCta}
+                      onSelect={(style) => {
+                        stickerStyleTouchedRef.current = true;
+                        setStickerStyleId(style.id);
+                        setError("");
+                      }}
+                    />
+                  </div>
+                ) : stickerCompose ? (
+                  <StickerStylePicker
+                    styles={stickerStyles}
+                    loading={stickerCatalogLoading}
+                    selectedId={stickerStyleId}
+                    tone="dark"
+                    confirmCtaClassName={`${OVERLAY_BUTTON_UA_RESET} mt-3 ${composeSheetCta}`}
+                    onSelect={(style) => {
+                      stickerStyleTouchedRef.current = true;
+                      setStickerStyleId(style.id);
+                      setError("");
+                      advanceAfterStyleSelection();
+                    }}
+                  />
+                ) : (
+                  <ComposeExamplePicker
+                    selectedCardId={resolvedCardId}
+                    instantSelect
+                    tone="dark"
+                    matchEnabled={composeExampleMatchEnabled}
+                    matchPhoto={
+                      selectedPhotos[0]
+                        ? {
+                            id: selectedPhotos[0].id,
+                            dataUrl: isPhotoPromptEphemeralId(selectedPhotos[0].id)
+                              ? selectedPhotos[0].previewUrl
+                              : null,
+                            audienceTag: selectedPhotos[0].audienceTag ?? null,
+                          }
+                        : null
+                    }
+                    confirmCtaClassName={`${OVERLAY_BUTTON_UA_RESET} mt-3 ${composeSheetCta}`}
+                    onSelect={({ cardId: nextCardId, promptText, photoUrl }) => {
+                      setPickedExampleCardId(nextCardId);
+                      setPickedExamplePreviewUrl(photoUrl);
+                      setDraftPrompt(promptText);
+                      setError("");
+                      applyComposeExamplePick({
+                        cardId: nextCardId,
+                        promptText,
+                        examplePreviewUrl: photoUrl,
+                      });
+                      advanceAfterStyleSelection();
+                    }}
+                  />
+                )}
+              </ComposeSheetShell>
+            ) : expandedControl === "tool" ? (
+              <ComposeSheetShell
+                id="inline-generation-tools"
+                title={COMPOSE_TOOL_SHEET_TITLE}
+                titleId="generation-tool-sheet-title"
+                collapseAriaLabel="Свернуть выбор инструмента"
+                closeAriaLabel="Свернуть выбор инструмента"
+                isDock
+                isMobile={isMobile}
+                inFlowDock
+                onClose={closePrefsSheet}
+                bodyClassName="flex min-h-0 flex-[1_1_auto] flex-col gap-3 overflow-x-hidden overflow-y-auto overscroll-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
+                <ComposeToolGuide
+                  mode={composeMode}
+                  glassChrome
+                  photoshootExample={
+                    composeMode === "photoshoot"
+                      ? composePhotoshootGuideExample(photoshootComposeExampleEnabled)
+                      : null
+                  }
+                  stickerExampleUrl={composeMode === "sticker" ? selectedStickerExampleUrl : null}
+                  stickerKind={stickerKind}
+                  onStickerKindChange={setStickerKind}
+                  photoExampleUrl={pickedExamplePreviewUrl || null}
+                />
+                <div
+                  role="group"
+                  aria-label={COMPOSE_TOOL_SHEET_TITLE}
+                  className="-mt-[3px] flex shrink-0 items-start justify-start gap-2 overflow-x-auto overscroll-x-contain px-1.5 pt-2.5 sm:justify-center [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                >
+                  {toolOptions.map((mode) => (
+                    <ComposeToolChoiceTile
+                      key={mode}
+                      mode={mode}
+                      selected={composeMode === mode}
+                      disabled={controlsBusy}
+                      glassChrome
+                      className={`${composeToolTileSize} rounded-xl ${composeTileFrame} ${composeTileBorder(
+                        composeMode === mode,
+                        true,
+                      )}`}
+                      onClick={() => selectComposeTool(mode)}
+                    />
+                  ))}
+                </div>
+              </ComposeSheetShell>
+            ) : expandedControl === "model" ? (
+              <ComposeSheetShell
+                id="inline-generation-models"
+                title={videoCompose ? "Модель видео" : "Модель фото"}
+                ariaLabel="Выбор модели"
+                collapseAriaLabel="Свернуть выбор модели"
+                closeAriaLabel="Свернуть выбор модели"
+                isDock
+                isMobile={isMobile}
+                inFlowDock
+                onClose={closePrefsSheet}
+                bodyClassName={`flex min-h-0 flex-[1_1_auto] flex-col justify-start overflow-y-auto overscroll-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${composeBlockGap}`}
+              >
+                {!videoCompose ? (
+                  <div className="grid shrink-0 grid-cols-2 gap-x-2 gap-y-5 pb-2">
+                    {models.map((item) => {
+                      const unaffordable =
+                        isAuthed && credits !== null && credits < item.cost;
+                      return (
+                        <ComposeModelChoiceCard
+                          key={item.id}
+                          modelId={item.id}
+                          label={displayLabelForGenerationModel(item.id, item.label)}
+                          description={displayDescriptionForGenerationModel(
+                            item.id,
+                            "Генерация изображений"
+                          )}
+                          cost={item.cost}
+                          selected={model === item.id}
+                          unaffordable={unaffordable}
+                          disabled={controlsBusy}
+                          dockChrome
+                          onClick={() => selectImageModel(item.id)}
+                        />
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="grid shrink-0 grid-cols-2 gap-x-2 gap-y-5 pb-2">
+                    {videoModels.map((item) => {
+                      const itemCost = calculateVideoCreditCost(
+                        item.cost,
+                        videoDurationSeconds,
+                        item.id
+                      );
+                      const unaffordable =
+                        isAuthed && credits !== null && credits < itemCost;
+                      return (
+                        <ComposeModelChoiceCard
+                          key={item.id}
+                          modelId={item.id}
+                          label={displayLabelForGenerationModel(item.id, item.label)}
+                          description={displayDescriptionForGenerationModel(
+                            item.id,
+                            "Видео из фото"
+                          )}
+                          cost={itemCost}
+                          selected={activeVideoModel?.id === item.id}
+                          unaffordable={unaffordable}
+                          disabled={controlsBusy}
+                          dockChrome
+                          onClick={() => selectVideoModel(item.id)}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+                {videoCompose ? (
+                  <div className="grid shrink-0 grid-cols-3 gap-2">
+                    <label className="block min-w-0">
+                      <span className="mb-1 block text-[13px] font-medium text-white/65">
+                        Формат
+                      </span>
+                      <select
+                        value={videoAspectRatio}
+                        onChange={(event) => setVideoAspectRatio(event.target.value)}
+                        disabled={controlsBusy}
+                        className={`min-h-11 w-full px-3 text-[13px] font-semibold outline-none transition disabled:opacity-50 ${dockSheetField}`}
+                      >
+                        {VIDEO_ASPECT_RATIO_OPTIONS.map((item) => (
+                          <option key={item.value} value={item.value}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block min-w-0">
+                      <span className="mb-1 block text-[13px] font-medium text-white/65">
+                        Длительность
+                      </span>
+                      <select
+                        value={String(videoDurationSeconds)}
+                        onChange={(event) =>
+                          setVideoDurationSeconds(Number(event.target.value))
+                        }
+                        disabled={controlsBusy}
+                        className={`min-h-11 w-full px-3 text-[13px] font-semibold outline-none transition disabled:opacity-50 ${dockSheetField}`}
+                      >
+                        {videoDurationChoices.map((item) => {
+                          const extra = videoDurationExtraCredits(
+                            item.value,
+                            activeVideoModel?.id
+                          );
+                          return (
+                            <option key={item.value} value={item.value}>
+                              {extra > 0 ? `${item.label} · +${extra}` : item.label}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </label>
+                    <label className="block min-w-0">
+                      <span className="mb-1 block text-[13px] font-medium text-white/65">
+                        Качество
+                      </span>
+                      <select
+                        value={DEFAULT_VIDEO_RESOLUTION}
+                        disabled
+                        className={`min-h-11 w-full px-3 text-[13px] font-semibold outline-none transition disabled:opacity-50 ${dockSheetField}`}
+                      >
+                        {VIDEO_RESOLUTION_OPTIONS.map((item) => (
+                          <option key={item.value} value={item.value}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                ) : (
+                  <div className="grid shrink-0 grid-cols-2 gap-2">
+                    <label className="block min-w-0">
+                      <span className="mb-1 block text-[13px] font-medium text-white/65">
+                        Формат
+                      </span>
+                      <select
+                        value={aspectRatio}
+                        onChange={(event) => setAspectRatio(event.target.value)}
+                        disabled={controlsBusy || !aspectRatios.length}
+                        className={`min-h-11 w-full px-3 text-[13px] font-semibold outline-none transition disabled:opacity-50 ${dockSheetField}`}
+                      >
+                        {aspectRatios.map((item) => (
+                          <option key={item.value} value={item.value}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block min-w-0">
+                      <span className="mb-1 block text-[13px] font-medium text-white/65">
+                        Качество
+                      </span>
+                      <select
+                        value={imageSize}
+                        onChange={(event) => setImageSize(event.target.value)}
+                        disabled={controlsBusy || !imageSizes.length}
+                        className={`min-h-11 w-full px-3 text-[13px] font-semibold outline-none transition disabled:opacity-50 ${dockSheetField}`}
+                      >
+                        {visibleImageSizes.map((item) => (
+                          <option key={item.value} value={item.value}>
+                            {item.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                )}
+              </ComposeSheetShell>
+            ) : showComposeToolGuide &&
+              (composeMode === "photoshoot" ||
+                composeMode === "photo_prompt" ||
+                composeMode === "sticker") ? (
+              <ComposeToolGuide
+                mode={composeMode}
+                glassChrome={glassChrome}
+                photoshootExample={
+                  composeMode === "photoshoot"
+                    ? composePhotoshootGuideExample(photoshootComposeExampleEnabled)
+                    : null
+                }
+                stickerExampleUrl={
+                  composeMode === "sticker" ? selectedStickerExampleUrl : null
+                }
+                stickerKind={stickerKind}
+                className="px-3 pt-3 pb-0"
+              />
+            ) : null}
+          </DockInlineDrawer>
+        ) : null}
+
+        <DockSummaryPocket
+          enabled={isDockV2 && !showResultChrome}
+          tucked={dockUpperDrawerOpen}
+          outerClassName="mt-auto w-full"
           className={`${
-            isDock
-              ? `mt-auto flex w-full flex-col justify-end ${composeBlockGap}`
-              : dockTall
-                ? `mt-auto flex min-h-0 flex-1 flex-col justify-end ${composeBlockGap}`
-                : "mt-auto space-y-3"
+            isDockV2
+              ? showResultChrome
+                ? `mt-auto flex min-h-0 w-full flex-col justify-end ${composeBlockGap}`
+                : `flex w-full flex-col justify-end px-3 pt-3 pb-0 ${composeBlockGap}`
+              : isDock
+                ? `mt-auto flex w-full flex-col justify-end ${composeBlockGap}`
+                : dockTall
+                  ? `mt-auto flex min-h-0 flex-1 flex-col justify-end ${composeBlockGap}`
+                  : "mt-auto space-y-3"
           }`}
         >
-        {promptExpanded && !dockPromptExpanded ? (
+
+        {promptExpanded && (!isDockV2 || showResultChrome) && !dockPromptExpanded ? (
           <button
             type="button"
             aria-label="Свернуть промпт"
@@ -4778,7 +5843,43 @@ export function CardInlineGeneratePanel({
           />
         ) : null}
 
-        {promptExpanded ? (
+        {isDockV2 && !showResultChrome ? (
+          hideCollapsedPromptStrip ? null : (
+            <section className="shrink-0 rounded-none border-0 bg-transparent p-0 text-white shadow-none">
+              <button
+                type="button"
+                aria-expanded="false"
+                aria-label={PROMPT_FIELD_LABEL}
+                onClick={openPromptEditor}
+                className={`${OVERLAY_BUTTON_UA_RESET} flex w-full items-start gap-3 rounded-2xl bg-white/10 px-3 py-2.5 text-left ring-1 ring-inset ring-white/20 transition-colors hover:bg-white/15`}
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-semibold">
+                    {PROMPT_FIELD_LABEL}
+                  </span>
+                  <span className="mt-0.5 block h-[2.75em] overflow-hidden text-[13px] leading-snug">
+                    <span className="line-clamp-2 font-medium text-white/75">
+                      {activePrompt.trim() ||
+                        (videoCompose && scenarioLoading
+                          ? ANIMATE_SCENARIO_PLACEHOLDER
+                          : BLANK_PROMPT_PLACEHOLDER)}
+                    </span>
+                  </span>
+                </span>
+                <svg
+                  className="mt-0.5 h-5 w-5 shrink-0 text-white/80"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden
+                >
+                  <path d="m6 15 6-6 6 6" />
+                </svg>
+              </button>
+            </section>
+          )
+        ) : promptExpanded ? (
           <ComposeSheetShell
             title={
               useBlankPromptEditor
@@ -4792,6 +5893,7 @@ export function CardInlineGeneratePanel({
             closeAriaLabel="Закрыть"
             isDock={dockPromptExpanded}
             isMobile={isMobile}
+            opaqueBackdrop={generateDockV2Enabled && showResultChrome}
             onClose={() => setPromptExpanded(false)}
             bodyClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
             footer={
@@ -5004,28 +6106,16 @@ export function CardInlineGeneratePanel({
           </ComposeSheetShell>
         ) : (
           <section
-            aria-hidden={
-              (isDock && dockExpanded) || hideCollapsedPromptStrip
-                ? true
-                : undefined
-            }
-            inert={
-              (isDock && dockExpanded) || hideCollapsedPromptStrip
-                ? true
-                : undefined
-            }
+            aria-hidden={hideCollapsedPromptStrip ? true : undefined}
+            inert={hideCollapsedPromptStrip ? true : undefined}
             className={`shadow-none ${
-              isDock
-                ? `rounded-none border-0 bg-transparent p-0 text-white${
-                    dockExpanded || hideCollapsedPromptStrip ? " hidden" : ""
+              showResultChrome || hideCollapsedPromptStrip
+                ? "hidden"
+                : `rounded-2xl border px-3 py-1 backdrop-blur-md ${
+                    glassChrome
+                      ? "border-white/15 bg-black/15 text-white"
+                      : "border-zinc-200 bg-white/95 text-zinc-900"
                   }`
-                : showResultChrome
-                  ? "hidden"
-                  : `rounded-2xl border px-3 py-1 backdrop-blur-md ${
-                      glassChrome
-                        ? "border-white/15 bg-black/15 text-white"
-                        : "border-zinc-200 bg-white/95 text-zinc-900"
-                    }`
             }`}
           >
             <button
@@ -5034,7 +6124,7 @@ export function CardInlineGeneratePanel({
               aria-label={PROMPT_FIELD_LABEL}
               onClick={openPromptEditor}
               className={`${OVERLAY_BUTTON_UA_RESET} flex w-full items-start gap-3 rounded-2xl px-3 py-2.5 text-left transition ${
-                isDock || glassChrome
+                glassChrome
                   ? "bg-white/10 ring-1 ring-inset ring-white/20 hover:bg-white/15"
                   : "border border-zinc-200 bg-white hover:border-zinc-300"
               }`}
@@ -5084,7 +6174,7 @@ export function CardInlineGeneratePanel({
           />
         ) : null}
 
-        {expandedControl === "photos" && !showResultChrome ? (
+        {!isDockV2 && expandedControl === "photos" && !showResultChrome ? (
           <ComposeSheetShell
             id="inline-generation-photos"
             title={`Ваши фото · ${selectedPhotos.length}/${photoSelectionCap}`}
@@ -5324,7 +6414,7 @@ export function CardInlineGeneratePanel({
           </ComposeSheetShell>
         ) : null}
 
-        {expandedControl === "example" && showSeoExampleTool ? (
+        {!isDockV2 && expandedControl === "example" && showSeoExampleTool ? (
           <ComposeSheetShell
             id="inline-generation-examples"
             title={
@@ -5438,7 +6528,7 @@ export function CardInlineGeneratePanel({
           </ComposeSheetShell>
         ) : null}
 
-        {expandedControl === "tool" && !showResultChrome ? (
+        {!isDockV2 && expandedControl === "tool" && !showResultChrome ? (
           <ComposeSheetShell
             id="inline-generation-tools"
             title={COMPOSE_TOOL_SHEET_TITLE}
@@ -5477,7 +6567,7 @@ export function CardInlineGeneratePanel({
             <div
               role="group"
               aria-label={COMPOSE_TOOL_SHEET_TITLE}
-              className="flex shrink-0 items-start gap-2 overflow-x-auto overscroll-x-contain pb-1 pt-2.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              className="flex shrink-0 items-start gap-2 overflow-x-auto overscroll-x-contain px-0.5 pt-2.5 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
               {toolOptions.map((mode) => (
                 <ComposeToolChoiceTile
@@ -5497,7 +6587,7 @@ export function CardInlineGeneratePanel({
           </ComposeSheetShell>
         ) : null}
 
-        {expandedControl === "model" && !showResultChrome ? (
+        {!isDockV2 && expandedControl === "model" && !showResultChrome ? (
           <ComposeSheetShell
             id="inline-generation-models"
             title={videoCompose ? "Модель видео" : "Модель фото"}
@@ -5506,8 +6596,9 @@ export function CardInlineGeneratePanel({
             closeAriaLabel="Закрыть выбор модели"
             isDock={dockModelExpanded}
             isMobile={isMobile}
+            compactDesktop
             onClose={closePrefsSheet}
-            bodyClassName={`flex min-h-0 flex-1 flex-col justify-end overflow-y-auto overscroll-contain ${composeBlockGap}`}
+            bodyClassName={`flex min-h-0 flex-1 flex-col justify-start overflow-y-auto overscroll-contain pt-0.5 ${composeBlockGap}`}
             footer={
               <button
                 type="button"
@@ -5729,16 +6820,11 @@ export function CardInlineGeneratePanel({
           </ComposeSheetShell>
         ) : null}
 
-        {expandedControl === "auth" && !showResultChrome ? (
+        {generateDockV2Enabled && !isDock && expandedControl === "auth" && !showResultChrome ? (
           <ComposeAuthSheet
             isDock={dockAuthExpanded}
             isMobile={isMobile}
             reason={authSheetReason}
-            photoPreviewUrl={
-              selectedPhotos[0]?.previewUrl ?? photoPromptDataUrlRef.current
-            }
-            examplePreviewUrl={pickedExamplePreviewUrl}
-            promptSnippet={draftPrompt}
             onBeforeRedirect={() => {
               persistPendingGenerateDock({
                 seed: applyComposeExampleToSeed(seed, {
@@ -5757,19 +6843,19 @@ export function CardInlineGeneratePanel({
         <section
           className={`shrink-0 ${
             isDock
-              ? `rounded-none border-0 bg-transparent p-0${
-                  dockExpanded ? " hidden" : ""
-                }`
+              ? "rounded-none border-0 bg-transparent p-0"
               : `rounded-2xl border p-2 ${
                   glassChrome
                     ? "border-white/15 bg-black/15 backdrop-blur-md"
                     : "border-zinc-200 bg-white/95"
                 }`
           }`}
-          aria-hidden={isDock && dockExpanded ? true : undefined}
-          inert={isDock && dockExpanded ? true : undefined}
         >
-          <div className="flex items-start gap-2 overflow-x-auto overscroll-x-contain pb-1 pt-2.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div
+            className={`-mx-0.5 flex items-start gap-2 overflow-x-auto overscroll-x-contain px-0.5 pt-2.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+              isDock ? "-mt-[3px]" : "pb-1"
+            }`}
+          >
             <ComposeDockToolTile
               edgeLabel={COMPOSE_PHOTOS_TOOL_EDGE_LABEL}
               bodyLabel={
@@ -5904,6 +6990,7 @@ export function CardInlineGeneratePanel({
           </div>
         </section>
         ) : null}
+        </DockSummaryPocket>
 
         <input
           ref={fileInputRef}
@@ -5924,17 +7011,15 @@ export function CardInlineGeneratePanel({
         />
         {(Boolean(error) || Boolean(configError)) && !needsCredits ? (
           <div
-            className={`rounded-xl border p-3 ${
+            className={`shrink-0 rounded-xl border p-3 ${
               isDock
-                ? `border-rose-300/25 bg-rose-950/35${
-                    dockExpanded ? " hidden" : ""
-                  }`
+                ? showResultChrome
+                  ? "mt-3 border-rose-300/25 bg-rose-950/45"
+                  : "mx-3 mt-3 border-rose-300/25 bg-rose-950/45"
                 : glassChrome
-                  ? "border-white/15 bg-black/15 backdrop-blur-md"
-                  : "border-rose-200 bg-rose-50"
+                  ? "mt-3 border-white/15 bg-black/15 backdrop-blur-md"
+                  : "mt-3 border-rose-200 bg-rose-50"
             }`}
-            aria-hidden={isDock && dockExpanded ? true : undefined}
-            inert={isDock && dockExpanded ? true : undefined}
           >
             <p
               className={`text-[13px] font-medium ${
@@ -5945,19 +7030,30 @@ export function CardInlineGeneratePanel({
             </p>
           </div>
         ) : null}
-        </div>
       </div>
 
       <footer
-        className={`relative z-20 shrink-0 ${
+        className={`relative z-30 shrink-0 ${
           hideComposeChrome
-          || promptExpanded
-          || (isDock && dockExpanded)
+          || (!isDockV2 && (promptExpanded || (isDock && dockExpanded)))
+          || (showResultChrome && promptExpanded)
           || resultChromeHidesComposeFooter({
             showResultActions,
             showPhotoPromptResult,
           })
             ? "hidden"
+            : isDockV2
+            ? showResultChrome
+              ? "border-0 bg-transparent px-3 pb-3"
+              : `border-t px-3 pt-3 ${
+                  isMobile
+                    ? "pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+                    : "pb-3"
+                } transition-[border-color,box-shadow,background-color] duration-200 ${
+                  dockUpperDrawerOpen
+                    ? "border-white/10 bg-[#0d0d13]/95 shadow-[0_-14px_28px_-14px_rgba(0,0,0,0.88)]"
+                    : "border-transparent bg-[#0c0c11]/95"
+                }`
             : isDock
             ? "border-0 bg-transparent px-3 pb-3"
             : `p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] ${
@@ -5967,7 +7063,27 @@ export function CardInlineGeneratePanel({
               }`
         }`}
       >
-        <div className="flex min-w-0 gap-2">
+        <DockAutoHeightBox enabled={isDockV2 && !showResultChrome}>
+          {isDockV2 && !showResultChrome && expandedControl === "auth" ? (
+            <ComposeAuthSheet
+              isDock
+              isMobile={isMobile}
+              inFlowDock
+              reason={authSheetReason}
+              onBeforeRedirect={() => {
+                persistPendingGenerateDock({
+                  seed: applyComposeExampleToSeed(seed, {
+                    cardId: resolvedCardId || "",
+                    promptText: draftPrompt,
+                    examplePreviewUrl: pickedExamplePreviewUrl,
+                  }),
+                  dockSurface: null,
+                });
+              }}
+              onClose={() => setExpandedControl(null)}
+            />
+          ) : (
+            <div className="flex min-w-0 gap-2">
           <button
             type="button"
             aria-busy={busy}
@@ -5975,7 +7091,9 @@ export function CardInlineGeneratePanel({
             aria-valuemax={jobBusy ? 100 : undefined}
             aria-valuenow={jobBusy ? Math.round(progress) : undefined}
             disabled={
-              showCreditsCta
+              dockStepCta !== null
+                ? false
+                : showCreditsCta
                 ? false
                 : busy ||
                   stickerPackSoon ||
@@ -5996,6 +7114,9 @@ export function CardInlineGeneratePanel({
                           !seoNeedsImageModelPick)))
             }
             onClick={() => {
+              if (dockStepCta !== null && advanceDockWizardStep()) {
+                return;
+              }
               if (showCreditsCta) {
                 hostAdapter.trackGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING);
                 openPricing();
@@ -6088,7 +7209,7 @@ export function CardInlineGeneratePanel({
               }
               void runGenerate({ promptOverride: draftPrompt });
             }}
-            className={`${OVERLAY_BUTTON_UA_RESET} relative isolate flex min-h-12 min-w-0 w-full items-center justify-center overflow-hidden rounded-2xl px-4 py-3 text-[15px] font-semibold text-white shadow-lg shadow-indigo-950/35 transition active:scale-[0.99] disabled:cursor-not-allowed ${
+            className={`${OVERLAY_BUTTON_UA_RESET} relative isolate flex h-12 min-w-0 w-full items-center justify-center overflow-hidden rounded-2xl px-4 text-[15px] font-semibold leading-none text-white shadow-lg shadow-indigo-950/35 transition active:scale-[0.99] disabled:cursor-not-allowed ${
               busy && !showCreditsCta
                 ? "opacity-100 disabled:opacity-100"
                 : "bg-gradient-to-r from-indigo-500 to-violet-500 hover:brightness-110 disabled:opacity-50"
@@ -6110,7 +7231,7 @@ export function CardInlineGeneratePanel({
                 aria-hidden
               />
             ) : null}
-            <span className="relative z-10 flex min-h-6 min-w-0 w-full items-center justify-center gap-1.5 drop-shadow-sm">
+            <span className="relative z-10 inline-flex max-w-full min-w-0 items-center justify-center gap-2 leading-none drop-shadow-sm">
               {!showCreditsCta && phase === "done" && resultUrl && !busy ? (
                 <svg
                   className="h-5 w-5 shrink-0"
@@ -6124,44 +7245,63 @@ export function CardInlineGeneratePanel({
                   <path d="m14.5 6.7 2.8 2.8" />
                 </svg>
               ) : null}
-              <span
-                className={
-                  showCreditsCta ||
-                  starting ||
-                  stickerPackSoon ||
-                  phase === "uploading" ||
-                  phase === "generating" ||
-                  (photoshootCompose && !sourcePhotoPicked) ||
-                  (photoPromptCompose &&
-                    !photoPromptHasSource &&
-                    composeCtaGuestQuota == null) ||
-                  (videoCompose && scenarioLoading) ||
-                  (phase === "done" &&
-                    resultUrl &&
-                    !photoshootCompose &&
-                    !stickerCompose &&
-                    !videoCompose &&
-                    !photoPromptCompose)
-                    ? "truncate text-center"
-                    : "flex min-w-0 w-full items-center justify-between gap-3"
-                }
-              >
-                {showCreditsCta ? (
-                  COMPOSE_BUY_CREDITS_CTA
+              <span className="inline-flex max-w-full min-w-0 items-center justify-center gap-2.5">
+                {dockStepCta !== null ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    {dockStepCta.kind === "done" ? (
+                      <svg
+                        className="h-4 w-4 shrink-0"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.2"
+                        aria-hidden
+                      >
+                        <path
+                          d="m5 12.5 4.5 4.5L19 7.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    ) : null}
+                    <span>{dockStepCta.label}</span>
+                    {dockStepCta.kind === "next" ? (
+                      <svg
+                        className="h-4 w-4 shrink-0"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.1"
+                        aria-hidden
+                      >
+                        <path
+                          d="M5 12h14m-5-5 5 5-5 5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    ) : null}
+                  </span>
+                ) : showCreditsCta ? (
+                  <span className="truncate">{COMPOSE_BUY_CREDITS_CTA}</span>
                 ) : stickerPackSoon ? (
-                  STICKER_PACK_SOON_CTA
+                  <span className="truncate">{STICKER_PACK_SOON_CTA}</span>
                 ) : starting ? (
-                  "Запускаем…"
+                  <span className="truncate">Запускаем…</span>
                 ) : phase === "uploading" ? (
-                  `Загружаем фото · ${Math.round(progress)}%`
+                  <span className="truncate tabular-nums">
+                    {`Загружаем фото · ${Math.round(progress)}%`}
+                  </span>
                 ) : phase === "generating" ? (
-                  photoPromptCompose ? (
-                    composePhotoPromptBusyLabel(progress)
-                  ) : (
-                    `Генерируем · ${Math.round(progress)}%`
-                  )
+                  <span className="truncate tabular-nums">
+                    {photoPromptCompose
+                      ? composePhotoPromptBusyLabel(progress)
+                      : `Генерируем · ${Math.round(progress)}%`}
+                  </span>
                 ) : photoshootCompose && !sourcePhotoPicked ? (
-                  composeNeedsPhotoCtaLabel("photoshoot", { isAuthed })
+                  <span className="truncate">
+                    {composeNeedsPhotoCtaLabel("photoshoot", { isAuthed })}
+                  </span>
                 ) : photoPromptCompose && !photoPromptHasSource ? (
                   <>
                     <span className="shrink-0">
@@ -6170,14 +7310,14 @@ export function CardInlineGeneratePanel({
                     {composeCtaGuestQuotaPill}
                   </>
                 ) : videoCompose && scenarioLoading ? (
-                  ANIMATE_SCENARIO_PLACEHOLDER
+                  <span className="truncate">{ANIMATE_SCENARIO_PLACEHOLDER}</span>
                 ) : phase === "done" &&
                   resultUrl &&
                   !photoshootCompose &&
                   !stickerCompose &&
                   !videoCompose &&
                   !photoPromptCompose ? (
-                  "Что изменить"
+                  <span className="truncate">Что изменить</span>
                 ) : (
                   <>
                     <span className="shrink-0">
@@ -6197,15 +7337,15 @@ export function CardInlineGeneratePanel({
                     {composeCtaModelLabel ||
                     composeCtaCost != null ||
                     composeCtaGuestQuotaPill ? (
-                      <span className="flex min-w-0 items-center justify-end gap-1.5">
+                      <span className="inline-flex min-w-0 items-center gap-1.5">
                         {composeCtaModelLabel ? (
-                          <span className="min-w-0 truncate text-[13px] font-medium text-white/80">
+                          <span className="min-w-0 truncate text-[13px] font-medium leading-none text-white/80">
                             {composeCtaModelLabel}
                           </span>
                         ) : null}
                         {composeCtaCost != null ? (
                           <span
-                            className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[13px] font-semibold tabular-nums ${
+                            className={`inline-flex shrink-0 items-center rounded-full px-2 py-1 text-[12px] font-semibold leading-none tabular-nums ${
                               cannotAffordSelected
                                 ? "bg-rose-400/95"
                                 : "bg-white/20"
@@ -6223,6 +7363,8 @@ export function CardInlineGeneratePanel({
             </span>
           </button>
         </div>
+          )}
+        </DockAutoHeightBox>
       </footer>
 
       {toast ? (

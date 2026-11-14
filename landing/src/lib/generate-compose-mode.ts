@@ -254,7 +254,119 @@ export function composeModeFromDockIntent(intent: string): GenerateComposeMode {
 
 /** Guest footer CTA: pick photo/video first, sign in only on enqueue. */
 export const COMPOSE_GUEST_SIGN_IN_CTA = "Войдите";
+export const COMPOSE_NEXT_STEP_CTA = "Далее";
+export const COMPOSE_DONE_STEP_CTA = COMPOSE_TOOL_SHEET_DONE_CTA;
 export const COMPOSE_SELECT_PHOTO_CTA = "Выберите фото";
+
+export type DockOpenStepSurface =
+  | "prompt"
+  | "photos"
+  | "tool"
+  | "example"
+  | "model";
+
+export type DockStepCtaTarget = "photos" | "example" | "model" | "hub";
+
+export type DockStepCtaResolution = {
+  kind: "next" | "done";
+  label: string;
+  target: DockStepCtaTarget;
+};
+
+/**
+ * Inside any open dock step (`Ваши фото` / `Инструмент` / `Стиль` / `Модель` / `Промт`),
+ * the middle hub (`Промт` + 4 tiles) tucks underneath the footer CTA and the button
+ * strictly confirms/advances the step — never launching paid generation prematurely.
+ */
+export function resolveDockStepCta(input: {
+  surface: DockOpenStepSurface | null;
+  composeMode: GenerateComposeMode;
+  hasSelectedPhotos: boolean;
+  hasSinglePhoto: boolean;
+  sourcePhotoPicked: boolean;
+  photoPromptHasSource: boolean;
+  hasStyleOrPrompt: boolean;
+  draftPromptLength: number;
+  needsImageModelPick: boolean;
+}): DockStepCtaResolution | null {
+  const { surface, composeMode } = input;
+  if (!surface) return null;
+
+  const next = (target: Exclude<DockStepCtaTarget, "hub">): DockStepCtaResolution => ({
+    kind: "next",
+    label: COMPOSE_NEXT_STEP_CTA,
+    target,
+  });
+  const done: DockStepCtaResolution = {
+    kind: "done",
+    label: COMPOSE_DONE_STEP_CTA,
+    target: "hub",
+  };
+
+  if (surface === "prompt") {
+    if (
+      composeMode === "image" &&
+      input.draftPromptLength >= 8 &&
+      input.needsImageModelPick
+    ) {
+      return next("model");
+    }
+    return done;
+  }
+
+  if (surface === "tool") {
+    if (composeMode === "image") {
+      if (!input.hasSelectedPhotos && !input.hasStyleOrPrompt) {
+        return next("photos");
+      }
+      if (!input.hasStyleOrPrompt) {
+        return next("example");
+      }
+      if (input.needsImageModelPick) {
+        return next("model");
+      }
+      return done;
+    }
+    if (composeMode === "sticker") {
+      return next(input.sourcePhotoPicked ? "example" : "photos");
+    }
+    if (composeMode === "video") {
+      return next(input.hasSinglePhoto ? "model" : "photos");
+    }
+    if (composeMode === "photoshoot") {
+      return input.sourcePhotoPicked ? done : next("photos");
+    }
+    return input.photoPromptHasSource ? done : next("photos");
+  }
+
+  if (surface === "photos") {
+    if (composeMode === "image") {
+      if (!input.hasStyleOrPrompt) {
+        return next("example");
+      }
+      if (input.needsImageModelPick) {
+        return next("model");
+      }
+      return done;
+    }
+    if (composeMode === "sticker") {
+      return input.sourcePhotoPicked ? next("example") : done;
+    }
+    if (composeMode === "video") {
+      return input.hasSinglePhoto ? next("model") : done;
+    }
+    return done;
+  }
+
+  if (surface === "example") {
+    if (composeMode === "image" && input.needsImageModelPick) {
+      return next("model");
+    }
+    return done;
+  }
+
+  return done;
+}
 export const COMPOSE_GUEST_UPLOAD_PHOTO_CTA = "Загрузите фото";
 /** Sticker takes any picture (pet, meme, drawing), so the CTA does not say «фото». */
 export const COMPOSE_STICKER_SELECT_PICTURE_CTA = "Выберите картинку";

@@ -80,10 +80,15 @@ export function listingGenerateIdleIntent(
   return null;
 }
 
-/** Catalog hub FAB opens «Выбрать стиль», not a last-result plate. */
+/**
+ * When `dockV2` is on, idle FAB / mobile tab open the compact hub (`null`) first;
+ * when `dockV2` is off, catalog hub FAB opens `"example"` (legacy prod behavior).
+ */
 export function listingGenerateIdleDockSurface(
-  pathname: string
+  pathname: string,
+  options?: { dockV2?: boolean },
 ): "example" | null {
+  if (options?.dockV2) return null;
   return resolveListingCatalogHub(pathname) ? "example" : null;
 }
 

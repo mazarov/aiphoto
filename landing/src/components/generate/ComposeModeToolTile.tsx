@@ -135,9 +135,9 @@ export function ComposeDockToolTile({
   const mosaicUrls = composePreviewImageUrls(previewUrls ?? []);
   const filled = mosaicUrls.length > 0;
   const hasBody = Boolean(bodyLabel) && !filled;
-  // Fixed 24px icon container across every tile in the row (zero jump when bodyLabel resolves).
-  const logoWrap = `flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full shadow-sm ${
-    glassChrome ? "bg-white/90" : "bg-white"
+  // Fixed 28px icon container across every tile in the row (zero jump when bodyLabel resolves).
+  const logoWrap = `flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full shadow-sm ${
+    glassChrome ? "bg-white/95" : "bg-white"
   }`;
 
   return (
@@ -402,7 +402,26 @@ export function ComposeModelToolTile({
     <ComposeDockToolTile
       edgeLabel={COMPOSE_MODEL_TOOL_EDGE_LABEL}
       bodyLabel={bodyLabel}
-      icon={<ComposeModeToolIcon mode={mode} modelId={modelId} className="h-4 w-4" />}
+      icon={
+        modelId ? (
+          <ComposeModeToolIcon mode={mode} modelId={modelId} className="h-4 w-4" />
+        ) : (
+          <svg
+            className="h-4 w-4 text-indigo-600"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.9"
+            aria-hidden
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"
+            />
+          </svg>
+        )
+      }
       selected={selected}
       expanded={expanded}
       disabled={disabled}

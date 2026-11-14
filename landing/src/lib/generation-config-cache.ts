@@ -33,6 +33,10 @@ import {
   isExtensionLiteGenerateUnlocked,
 } from "@/lib/extension-lite-access";
 import {
+  GENERATE_DOCK_V2_CONFIG_KEY,
+  isGenerateDockV2Unlocked,
+} from "@/lib/generate-dock-v2-access";
+import {
   STICKER_PACK_CONFIG_COST_KEY,
   STICKER_PACK_CONFIG_ENABLED_KEY,
   STICKER_PACK_CONFIG_MODEL_KEY,
@@ -109,6 +113,7 @@ export const GENERATION_CONFIG_KEYS = [
   COMPOSE_EXAMPLE_MATCH_CONFIG_KEY,
   PHOTOSHOOT_COMPOSE_EXAMPLE_CONFIG_KEY,
   EXTENSION_LITE_GENERATE_CONFIG_KEY,
+  GENERATE_DOCK_V2_CONFIG_KEY,
 ] as const;
 
 type ConfigRow = {
@@ -161,6 +166,7 @@ export type ImageGenerationConfigPayload = {
   composeExampleMatchEnabled: boolean;
   photoshootComposeExampleEnabled: boolean;
   extensionLiteGenerateEnabled: boolean;
+  generateDockV2Enabled: boolean;
   publishReward: PublishRewardConfig;
   cardRepeatReward: CardRepeatRewardConfig;
 };
@@ -189,6 +195,7 @@ export type VideoGenerationConfigPayload = {
   composeExampleMatchEnabled: boolean;
   photoshootComposeExampleEnabled: boolean;
   extensionLiteGenerateEnabled: boolean;
+  generateDockV2Enabled: boolean;
   publishReward: PublishRewardConfig;
   cardRepeatReward: CardRepeatRewardConfig;
 };
@@ -285,6 +292,10 @@ function buildSharedFlags(config: Record<string, string>, userEmail?: string | n
     ),
     extensionLiteGenerateEnabled: isExtensionLiteGenerateUnlocked(
       config[EXTENSION_LITE_GENERATE_CONFIG_KEY],
+      userEmail ?? undefined,
+    ),
+    generateDockV2Enabled: isGenerateDockV2Unlocked(
+      config[GENERATE_DOCK_V2_CONFIG_KEY],
       userEmail ?? undefined,
     ),
   };

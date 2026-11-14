@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
 import { GenerationCreditCostBadge } from "@/components/generate/GenerationCreditCostBadge";
+import { GenerationModelIcon } from "@/components/generate/GenerationModelIcon";
 import {
   COMPOSE_RU_TEXT_BADGE_HINT,
   composeImageModelRuTextBadge,
@@ -41,35 +42,47 @@ export function ComposeModelChoiceCard({
   const title = ruTextBadge
     ? `${COMPOSE_RU_TEXT_BADGE_HINT}. ${hint}`
     : hint;
-  const className = `${OVERLAY_BUTTON_UA_RESET} relative flex min-h-[4.5rem] min-w-0 flex-col items-stretch overflow-visible rounded-xl px-2.5 pb-4 pt-2 text-left transition ${FRAME} ${
+  const className = `${OVERLAY_BUTTON_UA_RESET} relative flex min-h-[5.25rem] min-w-0 flex-col items-stretch overflow-visible rounded-xl px-3 pb-4 pt-2.5 text-left transition ${FRAME} ${
     dockChrome
       ? selected
-        ? "bg-white/15 text-white after:border-indigo-300"
-        : "bg-white/5 text-white after:border-white/15 hover:bg-white/10 hover:after:border-white/30"
+        ? "bg-indigo-500/30 text-white shadow-sm after:border-indigo-300"
+        : "bg-zinc-950/35 text-white after:border-white/15 hover:bg-zinc-950/50 hover:after:border-white/30"
       : selected
         ? "bg-indigo-50 text-zinc-900 after:border-indigo-500"
         : "bg-zinc-100 text-zinc-900 after:border-zinc-200 hover:bg-zinc-200 hover:after:border-zinc-300"
   } ${unaffordable ? "opacity-90" : ""} disabled:opacity-50`;
   const content = (
     <>
-      {ruTextBadge ? (
+      <span className="flex min-w-0 items-center gap-2">
         <span
-          className="mb-1 inline-flex w-fit max-w-full rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white"
+          aria-hidden
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg shadow-sm ring-1 ${
+            dockChrome
+              ? "bg-white/95 ring-white/20"
+              : "bg-white ring-zinc-200/80"
+          }`}
         >
-          {ruTextBadge}
+          <GenerationModelIcon modelId={modelId} className="h-4 w-4" />
         </span>
-      ) : null}
-      <span className="line-clamp-2 text-xs font-semibold leading-snug">
-        {label}
+        <span className="min-w-0 flex-1">
+          <span className="line-clamp-1 block text-[13px] font-semibold leading-snug">
+            {label}
+          </span>
+          {ruTextBadge ? (
+            <span className="mt-0.5 inline-flex w-fit max-w-full rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+              {ruTextBadge}
+            </span>
+          ) : null}
+        </span>
       </span>
       <span
-        className={`mt-0.5 line-clamp-2 text-xs font-medium leading-snug ${
+        className={`mt-1.5 line-clamp-2 text-xs font-medium leading-snug ${
           unaffordable
             ? dockChrome
               ? "text-rose-400"
               : "text-rose-600"
             : dockChrome
-              ? "text-white/60"
+              ? "text-white/65"
               : "text-zinc-500"
         }`}
       >

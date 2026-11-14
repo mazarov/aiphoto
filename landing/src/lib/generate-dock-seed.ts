@@ -137,8 +137,14 @@ export function isResumeComposeSeed(seed: GenerateDockSeed): boolean {
   );
 }
 
-/** External CTAs that should open «Ваши фото» for photoshoot / photo_prompt. */
-export function isUploadFirstDockEntry(entrySource?: string | null): boolean {
+/** External CTAs that should open «Ваши фото» for upload-first tools. */
+export function isUploadFirstDockEntry(
+  entrySource?: string | null,
+  options?: { dockV2?: boolean },
+): boolean {
+  if (options?.dockV2) {
+    return entrySource === "howto" || entrySource === "hero";
+  }
   return (
     entrySource === "tab" ||
     entrySource === "fab" ||
@@ -166,9 +172,26 @@ export function sameGenerateDockComposeIdentity(
 export function defaultDockSurfaceForComposeEntry(
   intent: GenerateDockComposeIntent,
   entrySource?: string | null,
+  options?: { dockV2?: boolean },
 ): "photos" | null {
-  if (!isUploadFirstDockEntry(entrySource)) return null;
-  if (intent === "photoshoot" || intent === "photo_prompt" || intent === "sticker") {
+  if (!isUploadFirstDockEntry(entrySource, options)) return null;
+  if (options?.dockV2) {
+    if (
+      intent === "resume" ||
+      intent === "text" ||
+      intent === "photoshoot" ||
+      intent === "photo_prompt" ||
+      intent === "sticker"
+    ) {
+      return "photos";
+    }
+    return null;
+  }
+  if (
+    intent === "photoshoot" ||
+    intent === "photo_prompt" ||
+    intent === "sticker"
+  ) {
     return "photos";
   }
   return null;
@@ -197,6 +220,7 @@ export function resolveDockSurfaceForComposeEntry(input: {
   entrySource?: string | null;
   explicit?: "prompt" | "photos" | "model" | "example" | "tool" | "auth" | null;
   hasRestorableLastResult?: boolean;
+  dockV2?: boolean;
 }): "prompt" | "photos" | "model" | "example" | "tool" | "auth" | null {
   if (input.explicit !== undefined) return input.explicit;
   /**
@@ -209,7 +233,9 @@ export function resolveDockSurfaceForComposeEntry(input: {
   ) {
     return null;
   }
-  return defaultDockSurfaceForComposeEntry(input.intent, input.entrySource);
+  return defaultDockSurfaceForComposeEntry(input.intent, input.entrySource, {
+    dockV2: input.dockV2,
+  });
 }
 
 /**

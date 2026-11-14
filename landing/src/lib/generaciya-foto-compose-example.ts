@@ -79,7 +79,7 @@ export function composeExampleQuickFilters<
   T extends { label: string; dimension: string; value: string },
 >(
   hubScenarios: readonly T[],
-  limit = 7,
+  limit = 24,
 ): Array<(typeof COMPOSE_EXAMPLE_PINNED_FILTERS)[number] | T> {
   const pinnedValues = new Set<string>(
     COMPOSE_EXAMPLE_PINNED_FILTERS.map((item) => item.value),
@@ -166,7 +166,7 @@ export function composeExamplePickerEndpoint(input: {
     if (offset > 0) params.set("offset", String(offset));
     return `/api/listing?${params}`;
   }
-  const params = new URLSearchParams({ limit, sort: "popular" });
+  const params = new URLSearchParams({ limit, sort: "new" });
   if (offset > 0) params.set("offset", String(offset));
   if (audienceMatch) {
     params.set("audience_tag", audienceMatch);

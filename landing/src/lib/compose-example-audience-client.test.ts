@@ -41,11 +41,11 @@ test("readComposeExampleAudience uses photo tag then memory cache", () => {
 test("composeExampleAudienceListingUrl warms newest and tagged first pages", () => {
   assert.equal(
     composeExampleAudienceListingUrl(null),
-    "/api/listing?limit=12&sort=popular",
+    "/api/listing?limit=12&sort=new",
   );
   assert.equal(
     composeExampleAudienceListingUrl("devochka"),
-    "/api/listing?limit=12&sort=popular&audience_tag=devochka&strict=1",
+    "/api/listing?limit=12&sort=new&audience_tag=devochka&strict=1",
   );
 });
 

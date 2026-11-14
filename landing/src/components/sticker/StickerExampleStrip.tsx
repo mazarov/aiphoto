@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { STICKER_EXAMPLES_PER_STYLE, stickerExampleThumbUrl } from "@/lib/sticker-examples";
 
 type Props = {
@@ -6,6 +9,9 @@ type Props = {
   styleLabel: string;
   size?: "sm" | "md";
   className?: string;
+  /** Shown when a style has no example images in Storage yet so cards keep visual parity. */
+  fallbackEmoji?: string | null;
+  dark?: boolean;
   /**
    * First screen on mobile. `lcp` — the card that owns the largest image
    * (`fetchpriority=high` on its first frame). `eager` — the next card, still
@@ -20,15 +26,41 @@ export function stickerExampleAlt(styleLabel: string, index: number): string {
 
 /**
  * Up to three real stickers of a style, straight on the card — no checker plate.
- * Server-safe (plain `<img>`). Src is a resized WebP of the public examples bucket
- * (`stickerExampleThumbUrl`), not the 512×512 original and not a JPEG thumb.
- * Renders nothing when the style has no live examples.
+ * Falls back to a neat emoji/sticker tile when a style has no live examples or an image 404s.
  */
-export function StickerExampleStrip({ urls, styleLabel, size = "sm", className = "", viewport }: Props) {
-  const list = (urls ?? []).slice(0, STICKER_EXAMPLES_PER_STYLE);
-  if (!list.length) return null;
+export function StickerExampleStrip({
+  urls,
+  styleLabel,
+  size = "sm",
+  className = "",
+  fallbackEmoji = null,
+  dark = false,
+  viewport,
+}: Props) {
+  const [failedUrls, setFailedUrls] = useState<Record<string, boolean>>({});
+  const list = (urls ?? [])
+    .filter((url) => Boolean(url) && !failedUrls[url])
+    .slice(0, STICKER_EXAMPLES_PER_STYLE);
   const cell = size === "md" ? "h-24 w-24 sm:h-28 sm:w-28" : "h-14 w-14";
   const thumbSize = size === "md" ? "md" : "sm";
+
+  if (!list.length) {
+    if (!fallbackEmoji) return null;
+    return (
+      <div className={`flex min-w-0 max-w-full gap-1.5 ${className}`} aria-hidden>
+        <span
+          className={`flex items-center justify-center rounded-xl ${cell} ${
+            dark ? "bg-white/10 ring-1 ring-white/15" : "bg-zinc-100 ring-1 ring-zinc-200/80"
+          }`}
+        >
+          <span className={size === "md" ? "text-3xl leading-none" : "text-2xl leading-none"}>
+            {fallbackEmoji}
+          </span>
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className={`flex min-w-0 max-w-full gap-1.5 ${className}`} aria-label={`Примеры стиля «${styleLabel}»`}>
       {list.map((url, index) => (
@@ -42,6 +74,9 @@ export function StickerExampleStrip({ urls, styleLabel, size = "sm", className =
             decoding="async"
             width={size === "md" ? 96 : 56}
             height={size === "md" ? 96 : 56}
+            onError={() =>
+              setFailedUrls((prev) => (prev[url] ? prev : { ...prev, [url]: true }))
+            }
             className="h-full w-full object-contain p-0.5"
           />
         </span>

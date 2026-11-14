@@ -28,12 +28,15 @@ export function cardRepeatComposeIntent(input: {
 }
 
 /**
- * Video repeat needs a source photo the visitor owns — open «Ваши фото» immediately.
- * Photo repeat keeps the compact plate (same as before).
+ * Video repeat always needs a source photo (`"photos"`).
+ * When `dockV2` is enabled, photo card repeat also starts on `"photos"` (guided step 1);
+ * when `dockV2` is closed, photo repeat stays on the compact plate (`null`).
  */
 export function dockSurfaceForCardRepeat(
-  intent: CardRepeatComposeIntent
+  intent: CardRepeatComposeIntent,
+  options?: { dockV2?: boolean },
 ): "photos" | null {
+  if (options?.dockV2) return "photos";
   return intent === "animate" ? "photos" : null;
 }
 

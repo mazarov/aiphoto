@@ -97,6 +97,7 @@ flowchart TD
 - Эфемерные `data:`/`blob:` превью фото никогда не пишутся в `localStorage`/`sessionStorage`.
 - Сообщения `postMessage` и `BroadcastChannel` при Popup OAuth проверяются по `event.origin === window.location.origin`, а факт входа подтверждается реальным `supabase.auth.getSession()` / `getUser()`.
 - Фичефлаги читаются только из БД (`landing_generation_config`), TTL кеша `30s` сохраняет оперативный откат через SQL `UPDATE` без редеплоя.
+- Новый продуктовый UX контрола («Generate Dock v2»: уход `Промт` + 4 кнопок под «Далее/Готово» `DockSummaryPocket`, in-flow шторки `DockInlineDrawer`, встроенный вход `ComposeAuthSheet` с Popup OAuth, параллельная очередь до 3 задач и нижний бар `GenerationResultBottomBar`) закрыт БД-флагом `landing_generation_config.generate_dock_v2_enabled` (миграция `sql/282_generate_dock_v2_flag.sql`, `default 'false'`, хелпер `lib/generate-dock-v2-access.ts`), при этом инфраструктурный `GET /api/generate/bootstrap` и Frame-0 SWR-кеш работают всегда. На клиенте значение флага защёлкивается на время открытой плашки (`plateOpen === true`), исключая переключение верстки на лету.
 
 ---
 

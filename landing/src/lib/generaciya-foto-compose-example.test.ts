@@ -169,7 +169,7 @@ test("compose example quick filters lead with СВО then Осень", () => {
         value: COMPOSE_EXAMPLE_AUTUMN_FILTER.value,
       },
     }),
-    "/api/listing?limit=12&sort=popular&object_tag=osen&strict=1",
+    "/api/listing?limit=12&sort=new&object_tag=osen&strict=1",
   );
 });
 
@@ -181,14 +181,14 @@ test("SEO compose pick CTA copy", () => {
   assert.equal(SEO_COMPOSE_EXAMPLE_SHEET_CLOSE_LABEL, "Закрыть выбор стиля");
 });
 
-test("composeExamplePickerEndpoint defaults to the popular listing", () => {
+test("composeExamplePickerEndpoint defaults to the newest listing", () => {
   assert.equal(
     composeExamplePickerEndpoint({ query: "", filter: null }),
-    "/api/listing?limit=12&sort=popular",
+    "/api/listing?limit=12&sort=new",
   );
 });
 
-test("composeExamplePickerEndpoint photoshoot/video fetch a fuller popular page", () => {
+test("composeExamplePickerEndpoint photoshoot/video fetch a fuller newest page", () => {
   assert.equal(composeExamplePickerLimit("photo"), 12);
   assert.equal(composeExamplePickerLimit("photoshoot"), 60);
   assert.equal(
@@ -197,7 +197,7 @@ test("composeExamplePickerEndpoint photoshoot/video fetch a fuller popular page"
       filter: null,
       kind: "photoshoot",
     }),
-    "/api/listing?limit=60&sort=popular",
+    "/api/listing?limit=60&sort=new",
   );
   assert.equal(
     composeExamplePickerEndpoint({
@@ -206,7 +206,7 @@ test("composeExamplePickerEndpoint photoshoot/video fetch a fuller popular page"
       kind: "video",
       offset: 60,
     }),
-    "/api/listing?limit=60&sort=popular&offset=60",
+    "/api/listing?limit=60&sort=new&offset=60",
   );
 });
 
@@ -230,7 +230,7 @@ test("composeExamplePickerEndpoint filter is strict listing", () => {
       query: "",
       filter: { dimension: "audience_tag", value: "para" },
     }),
-    "/api/listing?limit=12&sort=popular&audience_tag=para&strict=1",
+    "/api/listing?limit=12&sort=new&audience_tag=para&strict=1",
   );
 });
 
@@ -244,7 +244,7 @@ test("composeExamplePickerEndpoint can AND audience match with a scene chip", ()
       },
       audienceMatch: "devushka",
     }),
-    "/api/listing?limit=12&sort=popular&audience_tag=devushka&object_tag=osen&strict=1",
+    "/api/listing?limit=12&sort=new&audience_tag=devushka&object_tag=osen&strict=1",
   );
 });
 
@@ -255,7 +255,7 @@ test("composeExamplePickerEndpoint audience-only is strict listing", () => {
       filter: null,
       audienceMatch: "muzhchina",
     }),
-    "/api/listing?limit=12&sort=popular&audience_tag=muzhchina&strict=1",
+    "/api/listing?limit=12&sort=new&audience_tag=muzhchina&strict=1",
   );
   assert.equal(
     composeExamplePickerEndpoint({
@@ -263,7 +263,7 @@ test("composeExamplePickerEndpoint audience-only is strict listing", () => {
       filter: null,
       audienceMatch: "malchik",
     }),
-    "/api/listing?limit=12&sort=popular&audience_tag=malchik&strict=1",
+    "/api/listing?limit=12&sort=new&audience_tag=malchik&strict=1",
   );
 });
 

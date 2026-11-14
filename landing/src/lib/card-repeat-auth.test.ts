@@ -19,7 +19,7 @@ test("guest Повторить waits while auth is hydrating", () => {
   );
 });
 
-test("video card Повторить seeds animate + photos sheet", () => {
+test("card Повторить respects generate_dock_v2_enabled flag", () => {
   assert.equal(cardRepeatComposeIntent({ videoUrl: null }), "resume");
   assert.equal(cardRepeatComposeIntent({ videoUrl: "   " }), "resume");
   assert.equal(
@@ -28,6 +28,8 @@ test("video card Повторить seeds animate + photos sheet", () => {
   );
   assert.equal(dockSurfaceForCardRepeat("resume"), null);
   assert.equal(dockSurfaceForCardRepeat("animate"), "photos");
+  assert.equal(dockSurfaceForCardRepeat("resume", { dockV2: true }), "photos");
+  assert.equal(dockSurfaceForCardRepeat("animate", { dockV2: true }), "photos");
 });
 
 test("guest Повторить opens auth; authed opens generate", () => {

@@ -65,11 +65,14 @@ export function MobileTabBar() {
     seedPhotoshoot,
     seedSticker,
     seed,
+    generateDockV2Enabled,
     plateOpen: generatePlateOpen,
     setPlateOpen: setGeneratePlateOpen,
     setDockSurface: setGenerateDockSurface,
     runBusy: generateRunBusy,
     runProgress: generateRunProgress,
+    activeJobs,
+    activeJobsSummary,
     needsCredits: generateNeedsCredits,
   } = useGenerateDock();
   const { user, loading: authLoading } = useAuth();
@@ -161,7 +164,7 @@ export function MobileTabBar() {
   };
 
   const handleGenerateTab = () => {
-    if (generateNeedsCredits) {
+    if (generateNeedsCredits && !generateRunBusy) {
       reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING);
       openPricing();
       return;
@@ -180,6 +183,11 @@ export function MobileTabBar() {
       setGenerateDockSurface(null);
       return;
     }
+    if (generateDockV2Enabled && activeJobs.length > 0) {
+      setGeneratePlateOpen(true);
+      setGenerateDockSurface(null);
+      return;
+    }
     if (idleIntent === "photo_prompt") {
       seedBlankPrompt("", { entrySource: "tab", intent: "photo_prompt" });
       return;
@@ -192,7 +200,9 @@ export function MobileTabBar() {
       seedSticker({ entrySource: "tab" });
       return;
     }
-    const idleSurface = listingGenerateIdleDockSurface(pathname);
+    const idleSurface = listingGenerateIdleDockSurface(pathname, {
+      dockV2: generateDockV2Enabled,
+    });
     if (idleIntent === "text" || idleSurface === "example") {
       seedBlankPrompt("", {
         entrySource: "tab",
@@ -274,7 +284,8 @@ export function MobileTabBar() {
                   onClick={handleGenerateTab}
                   aria-label={
                     generateRunBusy
-                      ? `Генерируем ${Math.round(generateRunProgress)}%`
+                      ? (generateDockV2Enabled ? activeJobsSummary.fabLabel : null) ??
+                        `Генерируем ${Math.round(generateRunProgress)}%`
                       : generateNeedsCredits
                         ? COMPOSE_BUY_CREDITS_CTA
                         : generateIdleLabel
@@ -284,12 +295,14 @@ export function MobileTabBar() {
                   className="flex flex-col items-center gap-0.5 transition-transform active:scale-[0.97]"
                 >
                   <span
-                    className={`relative -translate-y-2 flex h-10 w-14 items-center justify-center overflow-hidden rounded-2xl text-white ${
+                    className={`relative isolate -translate-y-2 flex h-10 w-14 items-center justify-center overflow-hidden rounded-2xl text-white ${
                       generateRunBusy
-                        ? ""
+                        ? "ring-1 ring-white/20"
                         : generateActive
                           ? "bg-indigo-700 shadow-lg shadow-indigo-500/30"
-                          : "bg-indigo-600 shadow-lg shadow-indigo-500/30"
+                          : `${
+                              generateDockV2Enabled ? "fab-create-cta " : ""
+                            }bg-gradient-to-r from-indigo-600 to-violet-600 shadow-lg shadow-indigo-500/30`
                     }`}
                     style={
                       generateRunBusy
@@ -308,24 +321,40 @@ export function MobileTabBar() {
                         }}
                         aria-hidden
                       />
+                    ) : generateDockV2Enabled && !generateActive ? (
+                      <>
+                        <span className="fab-create-cta__sheen" aria-hidden />
+                        <span className="fab-create-cta__orbit" aria-hidden>
+                          <span className="fab-create-cta__spin" />
+                        </span>
+                      </>
                     ) : null}
-                    <span className="relative z-10 text-[11px] font-semibold tabular-nums">
+                    <span className="relative z-10 inline-flex items-center gap-1 text-[11px] font-semibold leading-none tabular-nums">
                       {generateRunBusy ? (
                         `${Math.round(generateRunProgress)}%`
                       ) : (
-                        <svg
-                          className="h-5 w-5"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth={1.75}
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"
-                          />
-                        </svg>
+                        <>
+                          <svg
+                            className="h-5 w-5"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth={1.75}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"
+                            />
+                          </svg>
+                          {generateDockV2Enabled &&
+                          activeJobsSummary.unseenCompletedCount > 0 ? (
+                            <span
+                              className="h-2 w-2 rounded-full bg-emerald-400"
+                              aria-hidden
+                            />
+                          ) : null}
+                        </>
                       )}
                     </span>
                   </span>
@@ -343,7 +372,9 @@ export function MobileTabBar() {
                     }`}
                   >
                     {generateRunBusy
-                      ? "Генерируем"
+                      ? (generateDockV2Enabled
+                          ? activeJobsSummary.mobileTabLabel
+                          : null) ?? "Генерируем"
                       : generateNeedsCredits
                         ? COMPOSE_BUY_CREDITS_CTA_COMPACT
                         : generateIdleLabel}

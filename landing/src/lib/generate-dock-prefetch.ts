@@ -10,6 +10,7 @@ import {
   prefetchGenerateBootstrap,
   readLastKnownAuthUserId,
 } from "./generate-bootstrap-client";
+import { loadStickerCatalogClient } from "./sticker-catalog-client";
 import { prefetchPhotoGuideImage } from "./user-generation-photos-cache";
 
 export { shouldPrefetchGenerateDockPanel };
@@ -63,6 +64,12 @@ export function scheduleGenerateDockPrefetch(
     });
   };
 
+  const warmSticker = () => {
+    if (cancelled) return;
+    prefetchPanelAndBootstrap();
+    void loadStickerCatalogClient().catch(() => {});
+  };
+
   const scheduleAfterLoadIdle = () => {
     if (cancelled) return;
     if (typeof window.requestIdleCallback === "function") {
@@ -88,8 +95,8 @@ export function scheduleGenerateDockPrefetch(
     if (shouldPrefetchGenerateDockPanel(pathname)) {
       // Sticker landing: wait until load so we never compete with LCP thumb.
       if (isStickerGenerateDockPath(pathname)) {
-        if (document.readyState === "complete") prefetchPanelAndBootstrap();
-        else window.addEventListener("load", prefetchPanelAndBootstrap, { once: true });
+        if (document.readyState === "complete") warmSticker();
+        else window.addEventListener("load", warmSticker, { once: true });
         return;
       }
       prefetchPanelAndBootstrap();
@@ -114,6 +121,7 @@ export function scheduleGenerateDockPrefetch(
   return () => {
     cancelled = true;
     window.removeEventListener("load", prefetchPanelAndBootstrap);
+    window.removeEventListener("load", warmSticker);
     window.removeEventListener("load", scheduleAfterLoadIdle);
     if (idleId && typeof window.cancelIdleCallback === "function") {
       window.cancelIdleCallback(idleId);

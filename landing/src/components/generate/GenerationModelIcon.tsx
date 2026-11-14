@@ -1,5 +1,6 @@
 import {
   isFluxImageModel,
+  isGptImageModel,
   isGrokImageModel,
   isGrokVideoModel,
   isSeedanceVideoModel,
@@ -58,6 +59,21 @@ export function FluxGenerationModelIcon({ className = "h-5 w-5" }: { className?:
   );
 }
 
+export function OpenAiGenerationModelIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        stroke="#10A37F"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 3.25a4.5 4.5 0 0 1 4.18 2.86 4.5 4.5 0 0 1 3.74 6.53 4.5 4.5 0 0 1-1.92 6.11 4.5 4.5 0 0 1-6 1.99 4.5 4.5 0 0 1-4.18-2.85 4.5 4.5 0 0 1-3.74-6.53 4.5 4.5 0 0 1 1.92-6.12A4.5 4.5 0 0 1 12 3.25Z"
+      />
+      <circle cx="12" cy="12" r="2.75" fill="#10A37F" />
+    </svg>
+  );
+}
+
 export function GenerationModelIcon({
   modelId,
   className = "h-5 w-5",
@@ -65,6 +81,9 @@ export function GenerationModelIcon({
   modelId?: string | null;
   className?: string;
 }) {
+  if (isGptImageModel(modelId)) {
+    return <OpenAiGenerationModelIcon className={className} />;
+  }
   if (isGrokImageModel(modelId) || isGrokVideoModel(modelId)) {
     return <GrokGenerationModelIcon className={className} />;
   }

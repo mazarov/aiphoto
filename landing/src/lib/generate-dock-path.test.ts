@@ -64,6 +64,7 @@ test("foto-v-promt FAB seeds photo_prompt, fotosessii seeds photoshoot", () => {
   assert.equal(listingGenerateIdleDockSurface("/promty-dlya-foto-par/"), "example");
   assert.equal(listingGenerateIdleDockSurface("/promty-dlya-foto-devushki"), "example");
   assert.equal(listingGenerateIdleDockSurface("/promty-dlya-foto-muzhchiny"), "example");
+  assert.equal(listingGenerateIdleDockSurface("/promty-dlya-foto-par", { dockV2: true }), null);
   assert.equal(listingGenerateIdleDockSurface("/"), null);
   assert.deepEqual(listingComposeExampleInitialFilter("/promty-dlya-foto-par"), {
     label: "Пары",
