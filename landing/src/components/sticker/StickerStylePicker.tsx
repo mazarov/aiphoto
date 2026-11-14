@@ -44,26 +44,26 @@ export function StickerStylePicker({
   const showSkeleton = loading && !hasLiveExamples;
 
   const cardClass = (active: boolean) =>
-    `${OVERLAY_BUTTON_UA_RESET} flex min-w-0 max-w-full flex-col items-start rounded-2xl p-3 text-left transition ${
+    `${OVERLAY_BUTTON_UA_RESET} relative flex min-w-0 max-w-full flex-col items-start rounded-2xl p-3 text-left transition ${
       active
         ? dark
-          ? "bg-white/20 ring-2 ring-inset ring-indigo-300"
+          ? "bg-indigo-500/20 ring-2 ring-inset ring-indigo-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]"
           : "bg-indigo-50 ring-2 ring-inset ring-indigo-500"
         : dark
-          ? "bg-white/10 ring-1 ring-inset ring-white/20"
-          : "bg-zinc-50 ring-1 ring-inset ring-zinc-200"
+          ? "bg-white/[0.06] ring-1 ring-inset ring-white/15 hover:bg-white/[0.11] hover:ring-white/25"
+          : "bg-zinc-50 ring-1 ring-inset ring-zinc-200 hover:bg-zinc-100"
     }`;
 
   return (
     <div className={embedded ? "min-w-0 w-full" : "flex min-h-0 min-w-0 w-full flex-[1_1_auto] flex-col"}>
-      <div className={embedded ? "min-w-0 p-1" : "min-h-0 min-w-0 flex-[1_1_auto] overflow-y-auto overscroll-contain p-1"}>
+      <div className={embedded ? "min-w-0" : "min-h-0 min-w-0 flex-[1_1_auto] overflow-y-auto overscroll-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"}>
         {showSkeleton ? (
-          <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3" aria-busy="true">
+          <div className="grid min-w-0 grid-cols-2 gap-2.5 sm:grid-cols-3" aria-busy="true">
             {Array.from({ length: 6 }).map((_, index) => (
               <div
                 key={index}
                 className={`flex h-32 animate-pulse flex-col justify-between rounded-2xl p-3 ${
-                  dark ? "bg-white/10 ring-1 ring-inset ring-white/10" : "bg-zinc-100"
+                  dark ? "bg-white/[0.06] ring-1 ring-inset ring-white/10" : "bg-zinc-100"
                 }`}
               >
                 <div className="flex gap-1.5">
@@ -75,7 +75,7 @@ export function StickerStylePicker({
             ))}
           </div>
         ) : (
-          <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3" role="radiogroup" aria-label={STICKER_STYLE_PICKER_TITLE}>
+          <div className="grid min-w-0 grid-cols-2 gap-2.5 sm:grid-cols-3" role="radiogroup" aria-label={STICKER_STYLE_PICKER_TITLE}>
             {styles.map((style, index) => {
               const active = style.id === selectedId;
               return (
@@ -87,20 +87,40 @@ export function StickerStylePicker({
                   onClick={() => onSelect(style)}
                   className={cardClass(active)}
                 >
+                  {active ? (
+                    <span
+                      className="pointer-events-none absolute right-2.5 top-2.5 flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500 text-white shadow-sm"
+                      aria-hidden
+                    >
+                      <svg
+                        className="h-3 w-3"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.8"
+                      >
+                        <path
+                          d="m5 12.5 4.5 4.5L19 7.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </span>
+                  ) : null}
                   <StickerExampleStrip
                     urls={style.exampleUrls}
                     styleLabel={style.label}
                     fallbackEmoji={style.emoji || "✨"}
                     dark={dark}
                     viewport={index < 4 ? "eager" : undefined}
-                    className="mb-2"
+                    className="mb-2.5"
                   />
                   <span className={`flex items-center gap-1.5 text-[13px] font-semibold ${dark ? "text-white" : "text-zinc-900"}`}>
                     {style.emoji ? <span aria-hidden>{style.emoji}</span> : null}
                     {style.label}
                   </span>
                   {style.description || style.hint ? (
-                    <span className={`mt-1 line-clamp-2 text-left text-[12px] leading-snug ${dark ? "text-white/70" : "text-zinc-600"}`}>
+                    <span className={`mt-1 line-clamp-2 text-left text-[12px] leading-snug ${dark ? "text-white/65" : "text-zinc-600"}`}>
                       {style.description || style.hint}
                     </span>
                   ) : null}

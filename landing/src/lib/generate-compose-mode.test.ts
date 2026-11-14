@@ -33,7 +33,11 @@ import {
   COMPOSE_TOOL_SHEET_DONE_CTA,
   COMPOSE_DONE_STEP_CTA,
   COMPOSE_NEXT_STEP_CTA,
+  PROMPT_DRAWER_MIN_HEIGHT_PX,
+  PROMPT_DRAWER_MIN_LINES,
   resolveDockStepCta,
+  resolvePromptDrawerTextareaHeightPx,
+  shouldDockDrawerFillViewport,
   COMPOSE_TOOL_ORDER,
   composeToolOptions,
   composeSecondaryTools,
@@ -561,4 +565,32 @@ test("resolveDockStepCta always confirms/advances inside open steps and returns 
     },
   );
 });
+
+test("prompt drawer opens 3 lines tall when empty and grows only with content", () => {
+  assert.equal(PROMPT_DRAWER_MIN_LINES, 3);
+  assert.equal(PROMPT_DRAWER_MIN_HEIGHT_PX, 94);
+  assert.equal(resolvePromptDrawerTextareaHeightPx(0), 94);
+  assert.equal(resolvePromptDrawerTextareaHeightPx(68), 94);
+  assert.equal(resolvePromptDrawerTextareaHeightPx(94), 94);
+  assert.equal(resolvePromptDrawerTextareaHeightPx(260.2), 261);
+
+  // Only catalog style grid fills viewport immediately; prompt never forces full-screen when empty
+  assert.equal(
+    shouldDockDrawerFillViewport({ expandedControl: null, stickerCompose: false }),
+    false,
+  );
+  assert.equal(
+    shouldDockDrawerFillViewport({ expandedControl: "photos", stickerCompose: false }),
+    false,
+  );
+  assert.equal(
+    shouldDockDrawerFillViewport({ expandedControl: "example", stickerCompose: true }),
+    false,
+  );
+  assert.equal(
+    shouldDockDrawerFillViewport({ expandedControl: "example", stickerCompose: false }),
+    true,
+  );
+});
+
 

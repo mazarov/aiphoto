@@ -1,6 +1,7 @@
 "use client";
 
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
+import { ResultOverlayBottomSheet } from "@/components/generate/ComposeSheetShell";
 import {
   GenerationResultActionRail,
   type GenerationResultAction,
@@ -23,6 +24,7 @@ type Props = {
   error?: string | null;
   /** Sticker number inside a pack (1..16) — shown in the title; null for a single sticker. */
   packTile?: number | null;
+  v2Chrome?: boolean;
   onClose: () => void;
   onPick: (platform: StickerPlatform) => void;
   /** When set (pack result) the sheet offers one extra row: all stickers as a ZIP. */
@@ -31,17 +33,83 @@ type Props = {
 
 /**
  * Overlay on the sticker result plate: one row per messenger from `STICKER_PLATFORMS`.
- * Adding a platform = one entry in that array; this sheet and the API follow.
  */
 export function StickerDownloadSheet({
   busyPlatform,
   error = null,
   packTile = null,
+  v2Chrome = false,
   onClose,
   onPick,
   onPickAll,
 }: Props) {
   const busy = busyPlatform !== null;
+  const title = packTile ? `${STICKER_DOWNLOAD_TITLE} ${packTile}` : STICKER_DOWNLOAD_TITLE;
+
+  if (v2Chrome) {
+    return (
+      <ResultOverlayBottomSheet
+        title={title}
+        lead={STICKER_DOWNLOAD_LEAD}
+        closeDisabled={busy}
+        onClose={onClose}
+        error={error}
+      >
+        <ul className="flex flex-col gap-2" aria-label="Платформа">
+          {STICKER_PLATFORMS.map((platform) => {
+            const active = busyPlatform === platform.id;
+            return (
+              <li key={platform.id}>
+                <button
+                  type="button"
+                  disabled={busy}
+                  aria-busy={active || undefined}
+                  onClick={() => onPick(platform)}
+                  className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl px-3.5 py-2.5 text-left transition disabled:opacity-60 ${
+                    active
+                      ? "bg-indigo-500/25 text-white ring-2 ring-inset ring-indigo-400"
+                      : "bg-white/[0.07] text-white ring-1 ring-inset ring-white/15 hover:bg-white/[0.13]"
+                  }`}
+                >
+                  <span className="flex flex-col gap-0.5">
+                    <span className="text-[13px] font-semibold">{platform.label}</span>
+                    <span className="text-[12px] text-white/60">{platform.note}</span>
+                  </span>
+                  <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[12px] font-semibold text-white" aria-hidden>
+                    {active ? "Готовим…" : "Скачать"}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+          {onPickAll ? (
+            <li key="zip">
+              <button
+                type="button"
+                disabled={busy}
+                aria-busy={busyPlatform === "zip" || undefined}
+                onClick={onPickAll}
+                className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl px-3.5 py-2.5 text-left transition disabled:opacity-60 ${
+                  busyPlatform === "zip"
+                    ? "bg-indigo-500/25 text-white ring-2 ring-inset ring-indigo-400"
+                    : "bg-white/[0.07] text-white ring-1 ring-inset ring-white/15 hover:bg-white/[0.13]"
+                }`}
+              >
+                <span className="flex flex-col gap-0.5">
+                  <span className="text-[13px] font-semibold">{STICKER_PACK_DOWNLOAD_ALL_LABEL}</span>
+                  <span className="text-[12px] text-white/60">{STICKER_PACK_DOWNLOAD_ALL_NOTE}</span>
+                </span>
+                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[12px] font-semibold text-white" aria-hidden>
+                  {busyPlatform === "zip" ? "Собираем…" : "Скачать"}
+                </span>
+              </button>
+            </li>
+          ) : null}
+        </ul>
+      </ResultOverlayBottomSheet>
+    );
+  }
+
   const exitAction: GenerationResultAction = {
     id: "exit",
     label: STICKER_ACTION_EXIT,
@@ -53,7 +121,6 @@ export function StickerDownloadSheet({
       </svg>
     ),
   };
-  const title = packTile ? `${STICKER_DOWNLOAD_TITLE} ${packTile}` : STICKER_DOWNLOAD_TITLE;
 
   return (
     <div className="absolute inset-0 z-40" role="dialog" aria-label={title}>

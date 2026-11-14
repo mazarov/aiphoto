@@ -205,26 +205,6 @@ export function GenerateListingDockHost() {
     };
   }, [dockSurface, generateDockV2Enabled, isMobile, plateLocked, plateOpen]);
 
-  /**
-   * V2 only: clicking outside the dock while a sub-surface (`photos`, `tool`, `example`,
-   * `model`, `prompt`, `auth`) is expanded smoothly folds it back without a dimmed backdrop.
-   */
-  useEffect(() => {
-    if (!generateDockV2Enabled || !plateOpen || plateLocked || dockSurface === null) {
-      return;
-    }
-    const handlePointerDown = (event: PointerEvent) => {
-      if (event.button !== 0) return;
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      if (dockCardRef.current?.contains(target)) return;
-      if (target.closest('[role="dialog"], [data-keep-dock-surface]')) return;
-      setDockSurface(null);
-    };
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
-  }, [dockSurface, generateDockV2Enabled, plateLocked, plateOpen, setDockSurface]);
-
   const handleDockSurfaceChange = useCallback(
     (surface: typeof dockSurface) => {
       setDockSurface(surface);
@@ -241,6 +221,44 @@ export function GenerateListingDockHost() {
     setDockSurface(null);
     setPlateLocked(false);
   }, [setPlateOpen, setDockSurface]);
+
+  /**
+   * V2 only: zero page darkening scrim on both compose and result screens.
+   * Clicking outside the dock folds an open sub-surface (`dockSurface !== null`)
+   * or dismisses the desktop result plate (`plateLocked`).
+   */
+  useEffect(() => {
+    if (!generateDockV2Enabled || !plateOpen) {
+      return;
+    }
+    const dismissSubSurface = !plateLocked && dockSurface !== null;
+    const dismissDesktopResult = plateLocked && !isMobile;
+    if (!dismissSubSurface && !dismissDesktopResult) {
+      return;
+    }
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.button !== 0) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (dockCardRef.current?.contains(target)) return;
+      if (target.closest('[role="dialog"], [data-keep-dock-surface]')) return;
+      if (dismissSubSurface) {
+        setDockSurface(null);
+      } else {
+        closePlate();
+      }
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [
+    closePlate,
+    dockSurface,
+    generateDockV2Enabled,
+    isMobile,
+    plateLocked,
+    plateOpen,
+    setDockSurface,
+  ]);
 
   const handleFabPrefetch = useCallback(() => {
     prefetchGenerateDockWarmup(effectiveUserId);
@@ -319,7 +337,8 @@ export function GenerateListingDockHost() {
     : !collapsed && keepPanelMounted && (mobileFullscreen || editorOpen || plateLocked);
   const layout = isMobile ? "mobile" : "desktop";
 
-  const showResultScrim = !collapsed && plateLocked && !isMobile;
+  const showResultScrim =
+    !generateDockV2Enabled && !collapsed && plateLocked && !isMobile;
   const showLegacyCloseControl =
     !generateDockV2Enabled && !collapsed && isMobile && !plateLocked && !editorOpen;
   const warmHiddenV1 = !generateDockV2Enabled && isMobile && collapsed && keepPanelMounted;

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
+import { ResultOverlayBottomSheet } from "@/components/generate/ComposeSheetShell";
 import {
   GenerationResultActionRail,
   type GenerationResultAction,
@@ -26,29 +27,32 @@ type Props = {
   presets: readonly StickerPreset[];
   loading?: boolean;
   creditCost: number | null;
+  creditUnaffordable?: boolean;
   hideCreditCost?: boolean;
   /** Model job in flight (emotion / motion) or text overlay request in flight. */
   busy: boolean;
   progress?: number;
   /** Panel-level error (compose chrome is hidden under the overlay). */
   error?: string | null;
+  v2Chrome?: boolean;
   onClose: () => void;
   onSubmit: (input: { presetId: string | null; customText: string }) => Promise<boolean> | boolean | void;
 };
 
 /**
- * Overlay on the sticker result plate: presets from the bot + a free-text field,
- * exit / primary CTA in the same rail as photoshoot / camera overlays.
+ * Overlay on the sticker result plate: presets from the bot + a free-text field.
  */
 export function StickerActionSheet({
   action,
   presets,
   loading = false,
   creditCost,
+  creditUnaffordable = false,
   hideCreditCost = false,
   busy,
   progress = 0,
   error = null,
+  v2Chrome = false,
   onClose,
   onSubmit,
 }: Props) {
@@ -77,6 +81,111 @@ export function StickerActionSheet({
     }
   };
 
+  const ctaLabel = stickerActionCtaLabel({
+    action,
+    busy: submitting,
+    progress,
+    creditCost,
+    hideCreditCost,
+  });
+
+  if (v2Chrome) {
+    const chipV2 = (active: boolean) =>
+      `${OVERLAY_BUTTON_UA_RESET} inline-flex min-h-10 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium transition disabled:opacity-50 ${
+        active
+          ? "bg-indigo-500 text-white ring-2 ring-inset ring-indigo-300 shadow-sm"
+          : "bg-white/[0.08] text-white/90 ring-1 ring-inset ring-white/15 hover:bg-white/[0.14]"
+      }`;
+
+    return (
+      <ResultOverlayBottomSheet
+        title={copy.title}
+        lead={copy.lead}
+        closeDisabled={submitting}
+        onClose={onClose}
+        error={error}
+        primaryCta={{
+          label: submitting
+            ? progress > 0
+              ? `${copy.busy} ${Math.round(progress)}%`
+              : copy.busy
+            : copy.cta,
+          ariaLabel: ctaLabel,
+          disabled: !canSubmit,
+          busy: submitting,
+          creditCost:
+            isText || hideCreditCost ? null : creditCost,
+          creditUnaffordable,
+          onClick: () => void handleSubmit(),
+        }}
+      >
+        <div className="flex flex-col gap-3">
+          {hasPresets ? (
+            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={copy.title}>
+              {loading && !presets.length
+                ? Array.from({ length: 6 }).map((_, index) => (
+                    <span
+                      key={index}
+                      className="h-10 w-24 animate-pulse rounded-full bg-white/10"
+                      aria-hidden
+                    />
+                  ))
+                : presets.map((preset) => {
+                    const active = presetId === preset.id;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        disabled={submitting}
+                        title={preset.hint}
+                        className={chipV2(active)}
+                        onClick={() => {
+                          setPresetId(active ? null : preset.id);
+                          if (!active) setCustomText("");
+                        }}
+                      >
+                        {preset.emoji ? <span aria-hidden>{preset.emoji}</span> : null}
+                        <span>{preset.label}</span>
+                      </button>
+                    );
+                  })}
+            </div>
+          ) : null}
+
+          <div>
+            <input
+              type="text"
+              value={customText}
+              maxLength={isText ? STICKER_TEXT_MAX_CHARS : STICKER_CUSTOM_HINT_MAX}
+              placeholder={copy.customPlaceholder}
+              autoFocus={action === "revise" || isText}
+              disabled={submitting}
+              aria-label={copy.customPlaceholder}
+              onChange={(event) => {
+                setCustomText(event.target.value);
+                if (event.target.value.trim()) setPresetId(null);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void handleSubmit();
+                }
+              }}
+              className="w-full rounded-2xl border border-white/15 bg-zinc-950/40 px-3.5 py-3 text-[13px] font-medium text-white outline-none transition placeholder:text-white/45 focus:border-indigo-300 focus:bg-zinc-950/55 focus:ring-2 focus:ring-indigo-400/25 disabled:opacity-60"
+            />
+            {isText ? (
+              <p className="mt-1.5 text-right text-[12px] tabular-nums text-white/55" aria-live="polite">
+                {customText.length}/{STICKER_TEXT_MAX_CHARS}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </ResultOverlayBottomSheet>
+    );
+  }
+
   const exitAction: GenerationResultAction = {
     id: "exit",
     label: STICKER_ACTION_EXIT,
@@ -88,7 +197,6 @@ export function StickerActionSheet({
       </svg>
     ),
   };
-  const ctaLabel = stickerActionCtaLabel({ action, busy: submitting, progress, creditCost, hideCreditCost });
   const submitAction: GenerationResultAction = {
     id: "submit",
     label: ctaLabel,

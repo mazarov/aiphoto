@@ -144,6 +144,7 @@ export function DockInlineDrawer({
     const measure = () => {
       if (!wrapperRef.current || !innerRef.current) return;
       const maxPx = computeAvailableMaxPx();
+      innerRef.current.style.setProperty("--dock-drawer-max-h", `${maxPx}px`);
       innerRef.current.style.maxHeight = `${maxPx}px`;
       innerRef.current.style.height = fillViewport ? `${maxPx}px` : "auto";
       const next = fillViewport
@@ -431,6 +432,7 @@ export function ComposeSheetShell({
         role="region"
         aria-labelledby={titleId}
         aria-label={titleId ? undefined : (ariaLabel || title)}
+        style={{ maxHeight: "var(--dock-drawer-max-h, 100%)" }}
         className="relative flex min-h-0 w-full flex-[1_1_auto] flex-col gap-3 p-3 text-zinc-100"
       >
         <div className="flex min-h-8 shrink-0 items-center justify-between gap-2">
@@ -536,6 +538,145 @@ export function ComposeSheetShell({
       <div className={bodyClassName}>{children}</div>
 
       {footer ? <div className="mt-3 shrink-0">{footer}</div> : null}
+    </div>
+  );
+}
+
+export type ResultOverlayBottomSheetProps = {
+  title: string;
+  lead?: string | null;
+  ariaLabel?: string;
+  closeDisabled?: boolean;
+  onClose: () => void;
+  error?: string | null;
+  primaryCta?: {
+    label: string;
+    ariaLabel?: string;
+    disabled?: boolean;
+    busy?: boolean;
+    creditCost?: number | null;
+    creditUnaffordable?: boolean;
+    onClick: () => void;
+  } | null;
+  children: ReactNode;
+};
+
+/**
+ * V2 post-generation sub-sheet (`Сделать стикер`, `Сменить стиль`, `Эмоция`, `Движение`,
+ * `Текст`, `Обводка`, `Скачать`). Anchored cleanly at the bottom of the result frame with
+ * `.ps-dock-glass`, full width (no right-rail cutout), zero page/photo darkening scrim,
+ * and the same primary CTA geometry as the main dock footer.
+ */
+export function ResultOverlayBottomSheet({
+  title,
+  lead = null,
+  ariaLabel,
+  closeDisabled = false,
+  onClose,
+  error = null,
+  primaryCta = null,
+  children,
+}: ResultOverlayBottomSheetProps) {
+  return (
+    <div
+      className="absolute inset-0 z-40 flex flex-col justify-end"
+      role="dialog"
+      aria-modal="true"
+      aria-label={ariaLabel || title}
+      onClick={(event) => {
+        if (event.target === event.currentTarget && !closeDisabled) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: "rgba(12, 12, 17, 0.95)",
+          backgroundImage:
+            "linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0) 28%, rgba(0, 0, 0, 0.18) 100%)",
+          backdropFilter: "blur(44px) saturate(1.55)",
+          WebkitBackdropFilter: "blur(44px) saturate(1.55)",
+        }}
+        className="ps-dock-glass relative z-10 flex max-h-[84%] min-h-0 w-full flex-col gap-3 rounded-t-[1.75rem] border-t border-white/15 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-zinc-100 shadow-[0_-20px_60px_-12px_rgba(0,0,0,0.75)]"
+      >
+        <div className="flex shrink-0 items-start justify-between gap-2.5">
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate text-[13px] font-semibold tracking-tight text-white">
+              {title}
+            </h3>
+            {lead ? (
+              <p className="mt-0.5 text-[13px] leading-snug text-white/65">
+                {lead}
+              </p>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            disabled={closeDisabled}
+            aria-label="Свернуть"
+            onClick={onClose}
+            className={`${OVERLAY_BUTTON_UA_RESET} flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-white/85 ring-1 ring-inset ring-white/15 transition hover:bg-white/15 hover:text-white active:scale-95 disabled:opacity-50`}
+          >
+            <svg
+              className="h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              aria-hidden
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="m6 9 6 6 6-6"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <div className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {children}
+        </div>
+
+        {error ? (
+          <div
+            role="status"
+            className="shrink-0 rounded-xl border border-rose-300/25 bg-rose-950/45 px-3 py-2 text-[13px] font-medium text-rose-200"
+          >
+            {error}
+          </div>
+        ) : null}
+
+        {primaryCta ? (
+          <button
+            type="button"
+            disabled={primaryCta.disabled}
+            aria-busy={primaryCta.busy || undefined}
+            aria-label={primaryCta.ariaLabel || primaryCta.label}
+            onClick={primaryCta.onClick}
+            className={`${OVERLAY_BUTTON_UA_RESET} relative isolate inline-flex h-12 w-full shrink-0 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 px-4 text-[15px] font-semibold leading-none text-white shadow-lg shadow-indigo-950/35 transition hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50`}
+          >
+            {primaryCta.busy ? (
+              <span
+                className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/30 border-t-white"
+                aria-hidden
+              />
+            ) : null}
+            <span className="truncate">{primaryCta.label}</span>
+            {typeof primaryCta.creditCost === "number" && !primaryCta.busy ? (
+              <span
+                className={`inline-flex shrink-0 items-center rounded-full px-2 py-1 text-[12px] font-semibold leading-none tabular-nums ${
+                  primaryCta.creditUnaffordable
+                    ? "bg-rose-400/95 text-white"
+                    : "bg-white/20 text-white"
+                }`}
+              >
+                {primaryCta.creditCost}✦
+              </span>
+            ) : null}
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

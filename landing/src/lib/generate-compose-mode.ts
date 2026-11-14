@@ -520,3 +520,32 @@ export function canEnqueueWhilePhotoshootSelected(input: {
   if (input.composeMode !== "photoshoot") return true;
   return input.editKind === PHOTOSHOOT_EDIT_KIND;
 }
+
+/** 3 lines of `13px leading-relaxed` (`3 * 21.125 = 63.375px`) + `p-3.5` (`28px`) + `2px` border = `94px`. */
+export const PROMPT_DRAWER_MIN_LINES = 3;
+export const PROMPT_DRAWER_MIN_HEIGHT_PX = 94;
+
+/**
+ * Empty or short prompts open a compact 3-line drawer (`94px` textarea);
+ * longer prompts grow smoothly with `scrollHeight` up to the viewport ceiling.
+ */
+export function resolvePromptDrawerTextareaHeightPx(
+  scrollHeight: number | null | undefined,
+): number {
+  const measured =
+    typeof scrollHeight === "number" && Number.isFinite(scrollHeight)
+      ? Math.ceil(scrollHeight)
+      : 0;
+  return Math.max(PROMPT_DRAWER_MIN_HEIGHT_PX, measured);
+}
+
+/**
+ * Only the catalog style grid (`example` in non-sticker mode) stretches immediately
+ * to the top of the screen; `prompt` auto-grows from 3 lines as text increases.
+ */
+export function shouldDockDrawerFillViewport(input: {
+  expandedControl: "photos" | "model" | "example" | "tool" | "auth" | null;
+  stickerCompose: boolean;
+}): boolean {
+  return input.expandedControl === "example" && !input.stickerCompose;
+}

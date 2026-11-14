@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
+import { ResultOverlayBottomSheet } from "@/components/generate/ComposeSheetShell";
 import {
   GenerationResultActionRail,
   type GenerationResultAction,
@@ -18,6 +19,7 @@ import { STICKER_ACTION_EXIT, STICKER_BORDER_COPY } from "@/lib/sticker-action-s
 type Props = {
   busy: boolean;
   error?: string | null;
+  v2Chrome?: boolean;
   onClose: () => void;
   onSubmit: (input: { borderPx: number }) => Promise<boolean> | boolean | void;
 };
@@ -26,7 +28,13 @@ type Props = {
  * Overlay on the sticker result plate: white die-cut width in px of the 512 canvas.
  * Slider + number field + quick picks; the API clamps to the same bounds.
  */
-export function StickerBorderSheet({ busy, error = null, onClose, onSubmit }: Props) {
+export function StickerBorderSheet({
+  busy,
+  error = null,
+  v2Chrome = false,
+  onClose,
+  onSubmit,
+}: Props) {
   const [borderPx, setBorderPx] = useState<number>(STICKER_BORDER_PX);
   /** Raw text of the number field so the user can clear it while typing. */
   const [draft, setDraft] = useState<string>(String(STICKER_BORDER_PX));
@@ -49,6 +57,100 @@ export function StickerBorderSheet({ busy, error = null, onClose, onSubmit }: Pr
     }
   };
 
+  const ctaLabel = submitting ? STICKER_BORDER_COPY.busy : `${STICKER_BORDER_COPY.cta} ${borderPx} px`;
+
+  if (v2Chrome) {
+    const chipV2 = (active: boolean) =>
+      `${OVERLAY_BUTTON_UA_RESET} inline-flex min-h-10 items-center rounded-full px-3.5 text-[13px] font-medium tabular-nums transition disabled:opacity-50 ${
+        active
+          ? "bg-indigo-500 text-white ring-2 ring-inset ring-indigo-300 shadow-sm"
+          : "bg-white/[0.08] text-white/90 ring-1 ring-inset ring-white/15 hover:bg-white/[0.14]"
+      }`;
+
+    return (
+      <ResultOverlayBottomSheet
+        title={STICKER_BORDER_COPY.title}
+        lead={STICKER_BORDER_COPY.lead}
+        closeDisabled={submitting}
+        onClose={onClose}
+        error={error}
+        primaryCta={{
+          label: ctaLabel,
+          ariaLabel: ctaLabel,
+          disabled: submitting,
+          busy: submitting,
+          onClick: () => void handleSubmit(),
+        }}
+      >
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Быстрый выбор">
+            {STICKER_BORDER_PRESETS_PX.map((preset) => {
+              const active = borderPx === preset;
+              return (
+                <button
+                  key={preset}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  disabled={submitting}
+                  className={chipV2(active)}
+                  onClick={() => pick(preset)}
+                >
+                  {preset} px
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <input
+              type="range"
+              min={STICKER_BORDER_MIN_PX}
+              max={STICKER_BORDER_MAX_PX}
+              step={1}
+              value={borderPx}
+              disabled={submitting}
+              aria-label={STICKER_BORDER_COPY.sliderLabel}
+              onChange={(event) => pick(Number(event.target.value))}
+              className="h-10 min-w-0 flex-1 cursor-pointer accent-indigo-400 disabled:opacity-60"
+            />
+            <label className="flex shrink-0 items-center gap-1.5 text-[13px] font-medium text-white/80">
+              <input
+                type="number"
+                inputMode="numeric"
+                min={STICKER_BORDER_MIN_PX}
+                max={STICKER_BORDER_MAX_PX}
+                step={1}
+                value={draft}
+                disabled={submitting}
+                aria-label={STICKER_BORDER_COPY.sliderLabel}
+                onChange={(event) => {
+                  setDraft(event.target.value);
+                  if (event.target.value.trim() !== "") {
+                    setBorderPx(clampStickerBorderPx(event.target.value));
+                  }
+                }}
+                onBlur={() => pick(borderPx)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    pick(borderPx);
+                    void handleSubmit();
+                  }
+                }}
+                className="w-16 rounded-xl border border-white/15 bg-zinc-950/40 px-2.5 py-2 text-center text-[13px] font-semibold tabular-nums text-white outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-400/25 disabled:opacity-60"
+              />
+              <span>px</span>
+            </label>
+          </div>
+          <p className="text-[12px] text-white/55">
+            От {STICKER_BORDER_MIN_PX} до {STICKER_BORDER_MAX_PX} px на холсте 512. Обычно {STICKER_BORDER_PX} px.
+          </p>
+        </div>
+      </ResultOverlayBottomSheet>
+    );
+  }
+
   const exitAction: GenerationResultAction = {
     id: "exit",
     label: STICKER_ACTION_EXIT,
@@ -60,7 +162,6 @@ export function StickerBorderSheet({ busy, error = null, onClose, onSubmit }: Pr
       </svg>
     ),
   };
-  const ctaLabel = submitting ? STICKER_BORDER_COPY.busy : `${STICKER_BORDER_COPY.cta} ${borderPx} px`;
   const submitAction: GenerationResultAction = {
     id: "submit",
     label: ctaLabel,

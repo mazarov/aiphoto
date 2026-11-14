@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ResultOverlayBottomSheet } from "@/components/generate/ComposeSheetShell";
 import {
   GenerationResultActionRail,
   type GenerationResultAction,
@@ -9,7 +10,9 @@ import { StickerStylePicker } from "@/components/sticker/StickerStylePicker";
 import type { StickerStyle } from "@/lib/sticker";
 import {
   STICKER_FROM_RESULT_CLOSE,
+  STICKER_FROM_RESULT_CTA,
   STICKER_FROM_RESULT_LEAD,
+  STICKER_FROM_RESULT_RESTYLE,
   STICKER_FROM_RESULT_TITLE,
   stickerFromResultCtaLabel,
 } from "@/lib/sticker-action-sheet";
@@ -25,13 +28,16 @@ type Props = {
   busy: boolean;
   progress?: number;
   error?: string | null;
+  mode?: "photo" | "restyle";
+  v2Chrome?: boolean;
   onClose: () => void;
   onSubmit: () => Promise<boolean> | boolean | void;
 };
 
 /**
- * Overlay on a finished photo: style list fills the left side of the result frame,
- * «Закрыть» sits above the generate button on the right — same rail as emotion / motion.
+ * Overlay on a finished photo/sticker for choosing a sticker style:
+ * - `v2Chrome = true`: full-width `.ps-dock-glass` bottom sheet + unified primary CTA.
+ * - `v2Chrome = false`: legacy left-panel + right-rail layout.
  */
 export function StickerFromResultSheet({
   styles,
@@ -44,6 +50,8 @@ export function StickerFromResultSheet({
   busy,
   progress = 0,
   error = null,
+  mode = "photo",
+  v2Chrome = false,
   onClose,
   onSubmit,
 }: Props) {
@@ -70,12 +78,58 @@ export function StickerFromResultSheet({
     }
   };
 
+  const idleButtonLabel =
+    mode === "restyle" ? STICKER_FROM_RESULT_RESTYLE : STICKER_FROM_RESULT_CTA;
   const ctaLabel = stickerFromResultCtaLabel({
     busy: submitting,
     progress,
     creditCost,
     hideCreditCost,
   });
+
+  if (v2Chrome) {
+    return (
+      <ResultOverlayBottomSheet
+        title={
+          mode === "restyle"
+            ? STICKER_FROM_RESULT_RESTYLE
+            : STICKER_FROM_RESULT_TITLE
+        }
+        lead={
+          mode === "restyle"
+            ? "Тот же кадр в новом стиле стикера, PNG 512 без фона."
+            : STICKER_FROM_RESULT_LEAD
+        }
+        closeDisabled={submitting}
+        onClose={onClose}
+        error={error}
+        primaryCta={{
+          label: submitting
+            ? progress > 0
+              ? `Делаем… ${Math.round(progress)}%`
+              : "Запускаем…"
+            : idleButtonLabel,
+          ariaLabel: ctaLabel,
+          disabled: !canSubmit,
+          busy: submitting,
+          creditCost: hideCreditCost ? null : creditCost,
+          creditUnaffordable,
+          onClick: () => void handleSubmit(),
+        }}
+      >
+        <StickerStylePicker
+          embedded
+          tone="dark"
+          styles={styles}
+          loading={loading}
+          selectedId={selectedId}
+          confirmCtaClassName=""
+          onSelect={onSelect}
+        />
+      </ResultOverlayBottomSheet>
+    );
+  }
+
   const exitAction: GenerationResultAction = {
     id: "exit",
     label: STICKER_FROM_RESULT_CLOSE,
@@ -89,7 +143,7 @@ export function StickerFromResultSheet({
   };
   const submitAction: GenerationResultAction = {
     id: "submit",
-    label: submitting ? ctaLabel : "Сделать стикер",
+    label: submitting ? ctaLabel : idleButtonLabel,
     ariaLabel: ctaLabel,
     primary: true,
     wrap: true,

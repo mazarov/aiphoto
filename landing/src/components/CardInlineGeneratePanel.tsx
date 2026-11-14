@@ -1,7 +1,14 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { usePathname } from "next/navigation";
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
@@ -215,7 +222,11 @@ import {
   resolveDockStepCta,
   resolvePhotoshootLibraryFrame,
   resolvePhotoshootReadyFrame,
+  resolvePromptDrawerTextareaHeightPx,
   resolveStickerFromResultFrame,
+  shouldDockDrawerFillViewport,
+  PROMPT_DRAWER_MIN_HEIGHT_PX,
+  PROMPT_DRAWER_MIN_LINES,
   PHOTOSHOOT_NEEDS_LIBRARY_PHOTO,
   STICKER_NEEDS_LIBRARY_PHOTO,
   BLANK_PROMPT_PLACEHOLDER,
@@ -534,6 +545,7 @@ export function CardInlineGeneratePanel({
   generationSurface,
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const promptDrawerTextareaRef = useRef<HTMLTextAreaElement>(null);
   const hostAdapter = useGenerateHostAdapter();
   const { user, loading: authLoading, openAuthModal } = useAuth();
   const { open: openPricingModal } = usePricingModal();
@@ -2696,8 +2708,7 @@ export function CardInlineGeneratePanel({
       setExpandedControl("example");
       return false;
     }
-    const useParallelDockQueue =
-      isDockV2 && !stickerFromResultOpen && !stickerActionOpen && !photoshootOpen;
+    const useParallelDockQueue = isDockV2;
     if (
       useParallelDockQueue &&
       !canStartAnotherDockJob(activeJobs, MAX_PARALLEL_DOCK_JOBS)
@@ -2724,15 +2735,26 @@ export function CardInlineGeneratePanel({
         : isSticker
           ? STICKER_EDIT_KIND
           : null;
+    const jobSourcePreviewUrl = parentGenerationId
+      ? resultUrl ??
+        photoshootSourceUrl ??
+        photosForEnqueue[0]?.previewUrl ??
+        selectedPhotos[0]?.previewUrl ??
+        null
+      : photoshootLibraryPathOverride
+        ? photoshootSourceUrl ??
+          photosForEnqueue[0]?.previewUrl ??
+          selectedPhotos[0]?.previewUrl ??
+          null
+        : photosForEnqueue[0]?.previewUrl ??
+          selectedPhotos[0]?.previewUrl ??
+          null;
     const parallelClientJobId = useParallelDockQueue
       ? beginDockJob({
           promptText: isPhotoshoot ? draftPromptRef.current : prompt,
           modality: isVideo ? "video" : "image",
           editKind: resolvedEditKind,
-          sourcePreviewUrl:
-            photosForEnqueue[0]?.previewUrl ??
-            selectedPhotos[0]?.previewUrl ??
-            null,
+          sourcePreviewUrl: jobSourcePreviewUrl,
           listingVideoRepeat: Boolean(listingVideoRepeat),
           stickerStyleId: isStickerJob && !isStickerEdit ? stickerStyleId : null,
         })
@@ -2896,16 +2918,33 @@ export function CardInlineGeneratePanel({
         });
       }
       reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_ACCEPTED);
-      if (!isPhotoshoot && !listingVideoRepeat) {
+      if (!isPhotoshoot && !isStickerJob && !listingVideoRepeat) {
         setDraftPrompt(prompt);
         setSubmittedPrompt(prompt);
       }
 
       if (parallelClientJobId) {
+        const launchedFromResult = Boolean(
+          phaseRef.current === "done" ||
+            resultUrl ||
+            stickerFromResultOpen ||
+            stickerActionOpen ||
+            photoshootOpen,
+        );
         requestCreditBalanceRefresh();
         attachDockJobServerId(parallelClientJobId, genData.id);
         setStarting(false);
-        if (phaseRef.current === "done") {
+        setStickerFromResultOpen(false);
+        setStickerStyleSheetMode(null);
+        setStickerActionOpen(null);
+        setStickerDownloadOpen(false);
+        setStickerBorderOpen(false);
+        setPhotoshootOpen(false);
+        setPhotoshootLibraryPath(null);
+        setPhotoshootSourceId(null);
+        setPhotoshootSourceUrl(null);
+        if (launchedFromResult || generationId) {
+          dismissLastDockResult();
           setResultUrl(null);
           setGenerationId(null);
           setPhotoshootTileUrls(null);
@@ -2914,7 +2953,7 @@ export function CardInlineGeneratePanel({
           phaseRef.current = "idle";
           setProgress(0);
         }
-        if (layout !== "mobile") {
+        if (layout !== "mobile" && !launchedFromResult) {
           setDockPlateOpen(false);
         }
         return true;
@@ -3464,12 +3503,18 @@ export function CardInlineGeneratePanel({
       if (job.modality === "video") {
         enterImageCompose();
       }
-      lastImageResultRef.current = rememberCompletedImageResult({
-        generationId: job.generationId,
-        resultUrl: job.resultUrl,
-        resultModality: job.modality,
-        previous: lastImageResultRef.current,
-      });
+      if (
+        !isStickerEditKind(job.editKind) &&
+        !isStickerPackEditKind(job.editKind)
+      ) {
+        setStickerFromResultParentId(null);
+        lastImageResultRef.current = rememberCompletedImageResult({
+          generationId: job.generationId,
+          resultUrl: job.resultUrl,
+          resultModality: job.modality,
+          previous: lastImageResultRef.current,
+        });
+      }
       setProgress(100);
       setPhase("done");
       phaseRef.current = "done";
@@ -3840,6 +3885,24 @@ export function CardInlineGeneratePanel({
   useEffect(() => {
     preloadExampleSheetChunks(stickerCompose, stickerKind === "pack");
   }, [stickerCompose, stickerKind]);
+
+  useLayoutEffect(() => {
+    if (!isDockV2 || !promptExpanded) return;
+    const el = promptDrawerTextareaRef.current;
+    if (!el) return;
+    const syncTextareaHeight = () => {
+      const node = promptDrawerTextareaRef.current;
+      if (!node) return;
+      const prevScroll = node.scrollTop;
+      node.style.height = "0px";
+      const nextPx = resolvePromptDrawerTextareaHeightPx(node.scrollHeight);
+      node.style.height = `${nextPx}px`;
+      node.scrollTop = prevScroll;
+    };
+    syncTextareaHeight();
+    window.addEventListener("resize", syncTextareaHeight);
+    return () => window.removeEventListener("resize", syncTextareaHeight);
+  }, [blankChangeOpen, draftPrompt, isDockV2, promptExpanded]);
   const hideCollapsedPromptStrip =
     resultChromeHidesPromptStrip({
       showResultChrome,
@@ -5035,6 +5098,8 @@ export function CardInlineGeneratePanel({
           busy={phase === "generating" || starting}
           progress={progress}
           error={error || null}
+          mode={stickerStyleSheetMode ?? "photo"}
+          v2Chrome={generateDockV2Enabled}
           onClose={closeStickerFromResult}
           onSubmit={submitStickerFromResult}
         />
@@ -5044,6 +5109,7 @@ export function CardInlineGeneratePanel({
         <PhotoshootOverlay
           capturing={phase === "generating"}
           progress={progress}
+          v2Chrome={generateDockV2Enabled}
           onClose={closePhotoshoot}
           onCreate={createPhotoshoot}
         />
@@ -5055,10 +5121,14 @@ export function CardInlineGeneratePanel({
           presets={stickerPresetsFor(stickerActionOpen)}
           loading={stickerCatalogLoading}
           creditCost={stickerCost}
+          creditUnaffordable={
+            stickerCost != null && isAuthed && credits !== null && credits < stickerCost
+          }
           hideCreditCost={!isAuthed}
           busy={phase === "generating" || starting || stickerTextBusy}
           progress={progress}
           error={error || null}
+          v2Chrome={generateDockV2Enabled}
           onClose={() => setStickerActionOpen(null)}
           onSubmit={(input) =>
             stickerActionOpen === STICKER_TEXT_ACTION
@@ -5072,6 +5142,7 @@ export function CardInlineGeneratePanel({
         <StickerBorderSheet
           busy={stickerBorderBusy}
           error={error || null}
+          v2Chrome={generateDockV2Enabled}
           onClose={() => setStickerBorderOpen(false)}
           onSubmit={submitStickerBorder}
         />
@@ -5082,6 +5153,7 @@ export function CardInlineGeneratePanel({
           busyPlatform={stickerDownloadBusy}
           error={stickerDownloadError}
           packTile={stickerTile}
+          v2Chrome={generateDockV2Enabled}
           onClose={closeStickerDownload}
           onPick={(platform) => void downloadStickerFor(platform)}
           onPickAll={stickerPackResult ? () => void downloadStickerPackAll() : undefined}
@@ -5198,10 +5270,10 @@ export function CardInlineGeneratePanel({
         {isDockV2 && !showResultChrome ? (
           <DockInlineDrawer
             open={Boolean(dockUpperDrawerOpen || showComposeToolGuide)}
-            fillViewport={
-              promptExpanded ||
-              (expandedControl === "example" && !stickerCompose)
-            }
+            fillViewport={shouldDockDrawerFillViewport({
+              expandedControl,
+              stickerCompose,
+            })}
             elevatedStage={dockUpperDrawerOpen}
           >
             {promptExpanded ? (
@@ -5246,9 +5318,11 @@ export function CardInlineGeneratePanel({
                 onClose={() => setPromptExpanded(false)}
                 bodyClassName="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden"
               >
-                <label className="flex min-h-0 flex-1 flex-col">
+                <label className="flex min-h-0 flex-col">
                   <span className="sr-only">{PROMPT_FIELD_LABEL}</span>
                   <textarea
+                    ref={promptDrawerTextareaRef}
+                    rows={PROMPT_DRAWER_MIN_LINES}
                     value={draftPrompt}
                     onChange={(event) => setDraftPrompt(event.target.value)}
                     placeholder={
@@ -5259,7 +5333,8 @@ export function CardInlineGeneratePanel({
                     maxLength={8000}
                     disabled={busy || remixing}
                     autoFocus={autofocusPromptEditor}
-                    className="min-h-0 w-full flex-1 resize-none overflow-y-auto rounded-2xl border border-white/15 bg-zinc-950/35 p-3.5 text-[13px] font-medium leading-relaxed text-white outline-none transition placeholder:text-white/45 focus:border-indigo-300 focus:bg-zinc-950/45 focus:ring-2 focus:ring-indigo-400/25 disabled:opacity-60"
+                    style={{ minHeight: `${PROMPT_DRAWER_MIN_HEIGHT_PX}px` }}
+                    className="max-h-full w-full resize-none overflow-y-auto rounded-2xl border border-white/15 bg-zinc-950/35 p-3.5 text-[13px] font-medium leading-relaxed text-white outline-none transition-colors placeholder:text-white/45 focus:border-indigo-300 focus:bg-zinc-950/45 focus:ring-2 focus:ring-indigo-400/25 disabled:opacity-60"
                   />
                 </label>
 
